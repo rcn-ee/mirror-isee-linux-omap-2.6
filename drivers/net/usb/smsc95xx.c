@@ -43,8 +43,6 @@
 #define DEFAULT_RX_CSUM_ENABLE		(true)
 #define SMSC95XX_INTERNAL_PHY_ID	(1)
 #define SMSC95XX_TX_OVERHEAD		(8)
-#define FLOW_CTRL_TX			(1)
-#define FLOW_CTRL_RX			(2)
 
 struct smsc95xx_priv {
 	u32 mac_cr;
@@ -434,28 +432,6 @@ static void smsc95xx_set_multicast(struct net_device *netdev)
 	smsc95xx_write_reg_async(dev, MAC_CR, &pdata->mac_cr);
 }
 
-static u8 smsc95xx_resolve_flowctrl_fulldplx(u16 lcladv, u16 rmtadv)
-{
-	u8 cap = 0;
-
-	if (lcladv & ADVERTISE_PAUSE_CAP) {
-		if (lcladv & ADVERTISE_PAUSE_ASYM) {
-			if (rmtadv & LPA_PAUSE_CAP)
-				cap = FLOW_CTRL_TX | FLOW_CTRL_RX;
-			else if (rmtadv & LPA_PAUSE_ASYM)
-				cap = FLOW_CTRL_RX;
-		} else {
-			if (rmtadv & LPA_PAUSE_CAP)
-				cap = FLOW_CTRL_TX | FLOW_CTRL_RX;
-		}
-	} else if (lcladv & ADVERTISE_PAUSE_ASYM) {
-		if ((rmtadv & LPA_PAUSE_CAP) && (rmtadv & LPA_PAUSE_ASYM))
-			cap = FLOW_CTRL_TX;
-	}
-
-	return cap;
-}
-
 static void smsc95xx_phy_update_flowcontrol(struct usbnet *dev, u8 duplex,
 					    u16 lcladv, u16 rmtadv)
 {
@@ -468,7 +444,7 @@ static void smsc95xx_phy_update_flowcontrol(struct usbnet *dev, u8 duplex,
 	}
 
 	if (duplex == DUPLEX_FULL) {
-		u8 cap = smsc95xx_resolve_flowctrl_fulldplx(lcladv, rmtadv);
+		u8 cap = mii_resolve_flowctrl_fdx(lcladv, rmtadv);
 
 		if (cap & FLOW_CTRL_RX)
 			flow = 0xFFFF0002;

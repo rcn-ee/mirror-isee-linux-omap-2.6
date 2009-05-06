@@ -1130,9 +1130,9 @@ static void tg3_link_report(struct tg3 *tp)
 		printk(KERN_INFO PFX
 		       "%s: Flow control is %s for TX and %s for RX.\n",
 		       tp->dev->name,
-		       (tp->link_config.active_flowctrl & TG3_FLOW_CTRL_TX) ?
+		       (tp->link_config.active_flowctrl & FLOW_CTRL_TX) ?
 		       "on" : "off",
-		       (tp->link_config.active_flowctrl & TG3_FLOW_CTRL_RX) ?
+		       (tp->link_config.active_flowctrl & FLOW_CTRL_RX) ?
 		       "on" : "off");
 		tg3_ump_link_report(tp);
 	}
@@ -1142,11 +1142,11 @@ static u16 tg3_advert_flowctrl_1000T(u8 flow_ctrl)
 {
 	u16 miireg;
 
-	if ((flow_ctrl & TG3_FLOW_CTRL_TX) && (flow_ctrl & TG3_FLOW_CTRL_RX))
+	if ((flow_ctrl & FLOW_CTRL_TX) && (flow_ctrl & FLOW_CTRL_RX))
 		miireg = ADVERTISE_PAUSE_CAP;
-	else if (flow_ctrl & TG3_FLOW_CTRL_TX)
+	else if (flow_ctrl & FLOW_CTRL_TX)
 		miireg = ADVERTISE_PAUSE_ASYM;
-	else if (flow_ctrl & TG3_FLOW_CTRL_RX)
+	else if (flow_ctrl & FLOW_CTRL_RX)
 		miireg = ADVERTISE_PAUSE_CAP | ADVERTISE_PAUSE_ASYM;
 	else
 		miireg = 0;
@@ -1158,38 +1158,16 @@ static u16 tg3_advert_flowctrl_1000X(u8 flow_ctrl)
 {
 	u16 miireg;
 
-	if ((flow_ctrl & TG3_FLOW_CTRL_TX) && (flow_ctrl & TG3_FLOW_CTRL_RX))
+	if ((flow_ctrl & FLOW_CTRL_TX) && (flow_ctrl & FLOW_CTRL_RX))
 		miireg = ADVERTISE_1000XPAUSE;
-	else if (flow_ctrl & TG3_FLOW_CTRL_TX)
+	else if (flow_ctrl & FLOW_CTRL_TX)
 		miireg = ADVERTISE_1000XPSE_ASYM;
-	else if (flow_ctrl & TG3_FLOW_CTRL_RX)
+	else if (flow_ctrl & FLOW_CTRL_RX)
 		miireg = ADVERTISE_1000XPAUSE | ADVERTISE_1000XPSE_ASYM;
 	else
 		miireg = 0;
 
 	return miireg;
-}
-
-static u8 tg3_resolve_flowctrl_1000T(u16 lcladv, u16 rmtadv)
-{
-	u8 cap = 0;
-
-	if (lcladv & ADVERTISE_PAUSE_CAP) {
-		if (lcladv & ADVERTISE_PAUSE_ASYM) {
-			if (rmtadv & LPA_PAUSE_CAP)
-				cap = TG3_FLOW_CTRL_TX | TG3_FLOW_CTRL_RX;
-			else if (rmtadv & LPA_PAUSE_ASYM)
-				cap = TG3_FLOW_CTRL_RX;
-		} else {
-			if (rmtadv & LPA_PAUSE_CAP)
-				cap = TG3_FLOW_CTRL_TX | TG3_FLOW_CTRL_RX;
-		}
-	} else if (lcladv & ADVERTISE_PAUSE_ASYM) {
-		if ((rmtadv & LPA_PAUSE_CAP) && (rmtadv & LPA_PAUSE_ASYM))
-			cap = TG3_FLOW_CTRL_TX;
-	}
-
-	return cap;
 }
 
 static u8 tg3_resolve_flowctrl_1000X(u16 lcladv, u16 rmtadv)
@@ -1199,16 +1177,16 @@ static u8 tg3_resolve_flowctrl_1000X(u16 lcladv, u16 rmtadv)
 	if (lcladv & ADVERTISE_1000XPAUSE) {
 		if (lcladv & ADVERTISE_1000XPSE_ASYM) {
 			if (rmtadv & LPA_1000XPAUSE)
-				cap = TG3_FLOW_CTRL_TX | TG3_FLOW_CTRL_RX;
+				cap = FLOW_CTRL_TX | FLOW_CTRL_RX;
 			else if (rmtadv & LPA_1000XPAUSE_ASYM)
-				cap = TG3_FLOW_CTRL_RX;
+				cap = FLOW_CTRL_RX;
 		} else {
 			if (rmtadv & LPA_1000XPAUSE)
-				cap = TG3_FLOW_CTRL_TX | TG3_FLOW_CTRL_RX;
+				cap = FLOW_CTRL_TX | FLOW_CTRL_RX;
 		}
 	} else if (lcladv & ADVERTISE_1000XPSE_ASYM) {
 		if ((rmtadv & LPA_1000XPAUSE) && (rmtadv & LPA_1000XPAUSE_ASYM))
-			cap = TG3_FLOW_CTRL_TX;
+			cap = FLOW_CTRL_TX;
 	}
 
 	return cap;
@@ -1231,13 +1209,13 @@ static void tg3_setup_flow_control(struct tg3 *tp, u32 lcladv, u32 rmtadv)
 		if (tp->tg3_flags2 & TG3_FLG2_ANY_SERDES)
 			flowctrl = tg3_resolve_flowctrl_1000X(lcladv, rmtadv);
 		else
-			flowctrl = tg3_resolve_flowctrl_1000T(lcladv, rmtadv);
+			flowctrl = mii_resolve_flowctrl_fdx(lcladv, rmtadv);
 	} else
 		flowctrl = tp->link_config.flowctrl;
 
 	tp->link_config.active_flowctrl = flowctrl;
 
-	if (flowctrl & TG3_FLOW_CTRL_RX)
+	if (flowctrl & FLOW_CTRL_RX)
 		tp->rx_mode |= RX_MODE_FLOW_CTRL_ENABLE;
 	else
 		tp->rx_mode &= ~RX_MODE_FLOW_CTRL_ENABLE;
@@ -1245,7 +1223,7 @@ static void tg3_setup_flow_control(struct tg3 *tp, u32 lcladv, u32 rmtadv)
 	if (old_rx_mode != tp->rx_mode)
 		tw32_f(MAC_RX_MODE, tp->rx_mode);
 
-	if (flowctrl & TG3_FLOW_CTRL_TX)
+	if (flowctrl & FLOW_CTRL_TX)
 		tp->tx_mode |= TX_MODE_FLOW_CTRL_ENABLE;
 	else
 		tp->tx_mode &= ~TX_MODE_FLOW_CTRL_ENABLE;
@@ -9238,12 +9216,12 @@ static void tg3_get_pauseparam(struct net_device *dev, struct ethtool_pauseparam
 
 	epause->autoneg = (tp->tg3_flags & TG3_FLAG_PAUSE_AUTONEG) != 0;
 
-	if (tp->link_config.active_flowctrl & TG3_FLOW_CTRL_RX)
+	if (tp->link_config.active_flowctrl & FLOW_CTRL_RX)
 		epause->rx_pause = 1;
 	else
 		epause->rx_pause = 0;
 
-	if (tp->link_config.active_flowctrl & TG3_FLOW_CTRL_TX)
+	if (tp->link_config.active_flowctrl & FLOW_CTRL_TX)
 		epause->tx_pause = 1;
 	else
 		epause->tx_pause = 0;
@@ -9294,14 +9272,14 @@ static int tg3_set_pauseparam(struct net_device *dev, struct ethtool_pauseparam 
 			}
 		} else {
 			if (epause->rx_pause)
-				tp->link_config.flowctrl |= TG3_FLOW_CTRL_RX;
+				tp->link_config.flowctrl |= FLOW_CTRL_RX;
 			else
-				tp->link_config.flowctrl &= ~TG3_FLOW_CTRL_RX;
+				tp->link_config.flowctrl &= ~FLOW_CTRL_RX;
 
 			if (epause->tx_pause)
-				tp->link_config.flowctrl |= TG3_FLOW_CTRL_TX;
+				tp->link_config.flowctrl |= FLOW_CTRL_TX;
 			else
-				tp->link_config.flowctrl &= ~TG3_FLOW_CTRL_TX;
+				tp->link_config.flowctrl &= ~FLOW_CTRL_TX;
 
 			if (netif_running(dev))
 				tg3_setup_flow_control(tp, 0, 0);
@@ -9321,13 +9299,13 @@ static int tg3_set_pauseparam(struct net_device *dev, struct ethtool_pauseparam 
 		else
 			tp->tg3_flags &= ~TG3_FLAG_PAUSE_AUTONEG;
 		if (epause->rx_pause)
-			tp->link_config.flowctrl |= TG3_FLOW_CTRL_RX;
+			tp->link_config.flowctrl |= FLOW_CTRL_RX;
 		else
-			tp->link_config.flowctrl &= ~TG3_FLOW_CTRL_RX;
+			tp->link_config.flowctrl &= ~FLOW_CTRL_RX;
 		if (epause->tx_pause)
-			tp->link_config.flowctrl |= TG3_FLOW_CTRL_TX;
+			tp->link_config.flowctrl |= FLOW_CTRL_TX;
 		else
-			tp->link_config.flowctrl &= ~TG3_FLOW_CTRL_TX;
+			tp->link_config.flowctrl &= ~FLOW_CTRL_TX;
 
 		if (netif_running(dev)) {
 			tg3_halt(tp, RESET_KIND_SHUTDOWN, 1);
@@ -13522,7 +13500,7 @@ static int __devinit tg3_init_one(struct pci_dev *pdev,
 
 	/* flow control autonegotiation is default behavior */
 	tp->tg3_flags |= TG3_FLAG_PAUSE_AUTONEG;
-	tp->link_config.flowctrl = TG3_FLOW_CTRL_TX | TG3_FLOW_CTRL_RX;
+	tp->link_config.flowctrl = FLOW_CTRL_TX | FLOW_CTRL_RX;
 
 	tg3_init_coal(tp);
 
