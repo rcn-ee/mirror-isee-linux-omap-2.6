@@ -282,6 +282,17 @@ void tick_nohz_stop_sched_tick(int inidle)
 	/* Schedule the tick, if we are at least one jiffie off */
 	if ((long)delta_jiffies >= 1) {
 
+		/*
+		* calculate the expiry time for the next timer wheel
+		* timer
+		*/
+		expires = ktime_add_ns(last_update, tick_period.tv64 *
+				   delta_jiffies);
+
+		/* Skip reprogram of event if its not changed */
+		if (ts->tick_stopped && ktime_equal(expires, dev->next_event))
+			goto out2;
+
 		if (delta_jiffies > 1)
 			cpu_set(cpu, nohz_cpu_mask);
 		/*
@@ -332,12 +343,7 @@ void tick_nohz_stop_sched_tick(int inidle)
 			goto out;
 		}
 
-		/*
-		 * calculate the expiry time for the next timer wheel
-		 * timer
-		 */
-		expires = ktime_add_ns(last_update, tick_period.tv64 *
-				       delta_jiffies);
+		/* Mark expiries */
 		ts->idle_expires = expires;
 
 		if (ts->nohz_mode == NOHZ_MODE_HIGHRES) {
@@ -356,6 +362,7 @@ void tick_nohz_stop_sched_tick(int inidle)
 		tick_do_update_jiffies64(ktime_get());
 		cpu_clear(cpu, nohz_cpu_mask);
 	}
+out2:
 	raise_softirq_irqoff(TIMER_SOFTIRQ);
 out:
 	ts->next_jiffies = next_jiffies;
