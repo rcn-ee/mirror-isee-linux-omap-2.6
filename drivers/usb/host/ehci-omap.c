@@ -48,7 +48,7 @@
  *		to get the PHY state machine in working state
  */
 #define EXTERNAL_PHY_RESET
-#define	EXT_PHY_RESET_GPIO_PORT1	(57)
+#define EXT_PHY_RESET_GPIO_PORT1	(57)
 #define	EXT_PHY_RESET_GPIO_PORT2	(61)
 #define	EXT_PHY_RESET_DELAY		(10)
 
@@ -432,7 +432,8 @@ static int ehci_hcd_omap_drv_probe(struct platform_device *dev)
 		retval = -ENOMEM;
 	}
 
-	hcd = usb_create_hcd(&ehci_omap_hc_driver, &dev->dev, dev->dev.bus_id);
+	hcd = usb_create_hcd(&ehci_omap_hc_driver, &dev->dev,
+			dev_name(&dev->dev));
 	if (!hcd)
 		return -ENOMEM;
 
