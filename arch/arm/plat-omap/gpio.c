@@ -428,7 +428,11 @@ static int __omap_get_gpio_datain(int gpio)
 #endif
 #if defined(CONFIG_ARCH_OMAP24XX) || defined(CONFIG_ARCH_OMAP34XX)
 	case METHOD_GPIO_24XX:
-		reg += OMAP24XX_GPIO_DATAIN;
+		if (__raw_readl(reg + OMAP24XX_GPIO_OE)
+					& (1 << get_gpio_index(gpio)))
+			reg += OMAP24XX_GPIO_DATAIN;
+		else
+			reg += OMAP24XX_GPIO_DATAOUT;
 		break;
 #endif
 	default:
