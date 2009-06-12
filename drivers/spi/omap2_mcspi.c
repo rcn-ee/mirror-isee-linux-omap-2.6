@@ -215,7 +215,8 @@ static void omap2_mcspi_set_master_mode(struct spi_master *master)
 	l = mcspi_read_reg(master, OMAP2_MCSPI_MODULCTRL);
 	MOD_REG_BIT(l, OMAP2_MCSPI_MODULCTRL_STEST, 0);
 	MOD_REG_BIT(l, OMAP2_MCSPI_MODULCTRL_MS, 0);
-	MOD_REG_BIT(l, OMAP2_MCSPI_MODULCTRL_SINGLE, 1);
+/*	MOD_REG_BIT(l, OMAP2_MCSPI_MODULCTRL_SINGLE, 1); */
+	MOD_REG_BIT(l, OMAP2_MCSPI_MODULCTRL_SINGLE, 0);
 	mcspi_write_reg(master, OMAP2_MCSPI_MODULCTRL, l);
 }
 
