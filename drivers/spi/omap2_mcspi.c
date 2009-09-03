@@ -32,12 +32,14 @@
 #include <linux/err.h>
 #include <linux/clk.h>
 #include <linux/io.h>
+#include <linux/gpio.h>
 
 #include <linux/spi/spi.h>
 
 #include <mach/dma.h>
 #include <mach/clock.h>
 
+#include <asm/mach-types.h>
 
 #define OMAP2_MCSPI_MAX_FREQ		48000000
 
@@ -220,6 +222,7 @@ static void omap2_mcspi_set_master_mode(struct spi_master *master)
 	mcspi_write_reg(master, OMAP2_MCSPI_MODULCTRL, l);
 }
 
+#define IGEP2_GPIO_ADC_CTRL	105
 static unsigned
 omap2_mcspi_txrx_dma(struct spi_device *spi, struct spi_transfer *xfer)
 {
@@ -292,6 +295,12 @@ omap2_mcspi_txrx_dma(struct spi_device *spi, struct spi_transfer *xfer)
 	}
 
 	if (rx != NULL) {
+		if (machine_is_igep0020()) {
+			if (spi->master->bus_num == 1 && spi->chip_select == 3) {
+				gpio_set_value(IGEP2_GPIO_ADC_CTRL, 1);
+			}
+		}
+
 		omap_start_dma(mcspi_dma->dma_rx_channel);
 		omap2_mcspi_set_dma_req(spi, 1, 1);
 	}
@@ -304,6 +313,12 @@ omap2_mcspi_txrx_dma(struct spi_device *spi, struct spi_transfer *xfer)
 	if (rx != NULL) {
 		wait_for_completion(&mcspi_dma->dma_rx_completion);
 		dma_unmap_single(NULL, xfer->rx_dma, count, DMA_FROM_DEVICE);
+		if (machine_is_igep0020()) {
+			if (spi->master->bus_num == 1 && spi->chip_select == 3) {
+				gpio_set_value(IGEP2_GPIO_ADC_CTRL, 0);
+			}
+		}
+
 	}
 	return count;
 }
