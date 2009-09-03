@@ -85,7 +85,12 @@ obj-$(CONFIG_MACH_OMAP3_PANDORA)	+= board-omap3pandora.o \
 					   mmc-twl4030.o \
 					   usb-musb.o \
 					   usb-ehci.o
-
+obj-$(CONFIG_MACH_IGEP0020)		+= board-igep0020.o \
+					   board-igep0020-flash.o \
+					   mmc-twl4030.o \
+					   usb-musb.o \
+                                           usb-ehci.o \
+					   twl4030-generic-scripts.o
 # TUSB 6010 chips
 obj-$(CONFIG_MACH_OMAP2_TUSB6010)	+= usb-tusb6010.o
 
