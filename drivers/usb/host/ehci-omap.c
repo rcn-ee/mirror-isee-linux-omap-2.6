@@ -48,7 +48,11 @@
  *		to get the PHY state machine in working state
  */
 #define EXTERNAL_PHY_RESET
+#ifdef CONFIG_MACH_IGEP0020
+#define EXT_PHY_RESET_GPIO_PORT1        (24)
+#else
 #define EXT_PHY_RESET_GPIO_PORT1	(57)
+#endif
 #define	EXT_PHY_RESET_GPIO_PORT2	(61)
 #define	EXT_PHY_RESET_DELAY		(10)
 
