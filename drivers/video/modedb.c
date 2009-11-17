@@ -45,7 +45,11 @@ static const struct fb_videomode modedb[] = {
 	0, FB_VMODE_NONINTERLACED
     }, {
 	/* 1280x720 @ 60 Hz, 45 kHz hsync, CEA 681-E Format 4 */
-	"hd720", 60, 1280, 720, 13468, 220, 110, 20, 5, 40, 5,
+	"hd720", 60, 1280, 720, 13468, 110, 220, 5, 20, 40, 5,
+	0, FB_VMODE_NONINTERLACED
+    }, {
+	/* 1280x720 @ 50 Hz, 45 kHz hsync, CEA 681-E Format 19 */
+	"hd720", 50, 1280, 720, 13468, 440, 220, 5, 20, 40, 5,
 	0, FB_VMODE_NONINTERLACED
     }, {
 	/* 800x600 @ 56 Hz, 35.15 kHz hsync */
