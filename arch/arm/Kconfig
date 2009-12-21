@@ -1278,7 +1278,6 @@ source "drivers/uio/Kconfig"
 
 if ARCH_OMAP
 source "drivers/cbus/Kconfig"
-source "drivers/dsp/dspgateway/Kconfig"
 endif
 
 endmenu
