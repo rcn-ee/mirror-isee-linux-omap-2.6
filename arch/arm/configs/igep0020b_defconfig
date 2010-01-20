@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.28.10
-# Tue Dec 22 12:14:02 2009
+# Wed Jan 20 16:55:59 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -914,7 +914,7 @@ CONFIG_SPI_MASTER=y
 # SPI Master Controller Drivers
 #
 # CONFIG_SPI_BITBANG is not set
-# CONFIG_SPI_OMAP24XX is not set
+CONFIG_SPI_OMAP24XX=y
 
 #
 # SPI Protocol Masters
@@ -922,7 +922,7 @@ CONFIG_SPI_MASTER=y
 # CONFIG_SPI_AT25 is not set
 # CONFIG_SPI_TSC210X is not set
 # CONFIG_SPI_TSC2301 is not set
-# CONFIG_SPI_SPIDEV is not set
+CONFIG_SPI_SPIDEV=y
 # CONFIG_SPI_TLE62X0 is not set
 CONFIG_ARCH_REQUIRE_GPIOLIB=y
 CONFIG_GPIOLIB=y
