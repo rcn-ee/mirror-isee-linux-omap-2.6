@@ -28,8 +28,18 @@ extern void igep2_flash_init(void);
 #define IGEP2_SMSC911X_CS	5
 #define IGEP2_SMSC911X_GPIO	176
 
-#define IGEP2_GPIO_WIFI_NPD 	94
-#define IGEP2_GPIO_WIFI_NRESET 	95
+/*  HIGH : It is a rev. B or C (B-compatible) board
+    LOW  : It is a rev. C (B-NON compatible) board */
+#define IGEP2_GPIO_HW_REV	28
+
+/* Platform: IGEP v2 Hw Rev. B / C (B-compatible) */
+#define IGEP2_RB_GPIO_WIFI_NPD 		94
+#define IGEP2_RB_GPIO_WIFI_NRESET 	95
+#define IGEP2_RB_GPIO_BT_NRESET 	137
+/* Platform: IGEP v2 Hw Rev. C (B-non compatible) */
+#define IGEP2_RC_GPIO_WIFI_NPD 		138
+#define IGEP2_RC_GPIO_WIFI_NRESET 	139
+#define IGEP2_RC_GPIO_BT_NRESET 	137
 
 #define IGEP2_GPIO_LED_GREEN 	26
 #define IGEP2_GPIO_LED_RED 	27

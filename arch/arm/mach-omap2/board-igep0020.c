@@ -284,8 +284,69 @@ static struct platform_device *igep2_devices[] __initdata = {
 	&igep2_dss_device,
 };
 
+static int igep2_get_hw_rev(void)
+{
+	int ret = -1;
+
+	if ((gpio_request(IGEP2_GPIO_HW_REV, "GPIO_HW_REV") == 0) && (gpio_direction_input(IGEP2_GPIO_HW_REV) == 0))
+		ret = gpio_get_value(IGEP2_GPIO_HW_REV);
+
+	gpio_free(IGEP2_GPIO_HW_REV);
+
+	return ret;
+}
+
+static void __init igep2_init_wifi_bt(void)
+{
+	int hwrev;
+	unsigned npd, wreset, btreset;
+
+	hwrev = igep2_get_hw_rev();
+
+	if (hwrev < 0) {
+		printk(KERN_ERR "IGEP wifi-bt: Could not obtain gpio for wifi-bt module (hwrev %d)\n", hwrev);
+		return;
+	}
+
+	/* GPIO's for W-LAN + Bluetooth combo depends on hardware revision */
+	if (hwrev) {
+		npd = IGEP2_RB_GPIO_WIFI_NPD;
+		wreset = IGEP2_RB_GPIO_WIFI_NRESET;
+		btreset = IGEP2_RB_GPIO_BT_NRESET;
+	}
+	else {
+		npd = IGEP2_RC_GPIO_WIFI_NPD;
+		wreset = IGEP2_RC_GPIO_WIFI_NRESET;
+		btreset = IGEP2_RC_GPIO_BT_NRESET;
+	}
+
+	/* Set GPIO's for W-LAN + Bluetooth combo module */
+	if ((gpio_request(npd, "GPIO_WIFI_NPD") == 0) && (gpio_direction_output(npd, 1) == 0)) {
+		if (gpio_export(npd, false))
+			printk(KERN_ERR "could not export gpio for" "GPIO_WIFI_NPD\n");
+	} else
+		printk(KERN_ERR "could not obtain gpio for" "GPIO_WIFI_NPD\n");
+
+	if ((gpio_request(wreset, "GPIO_WIFI_NRESET") == 0) && (gpio_direction_output(wreset, 1) == 0)) {
+		if (gpio_export(wreset, false))
+			printk(KERN_ERR "could not export gpio for " "GPIO_WIFI_NRESET\n");
+		gpio_set_value(wreset, 0);
+		udelay(10);
+		gpio_set_value(wreset, 1);
+	} else
+		printk(KERN_ERR "could not obtain gpio for " "GPIO_WIFI_NRESET\n");
+
+	if ((gpio_request(btreset, "GPIO_BT_NRESET") == 0) && (gpio_direction_output(btreset, 1) == 0)) {
+		if (gpio_export(btreset, false))
+			printk(KERN_ERR "could not export gpio for" "GPIO_BT_NRESET\n");
+	} else
+		printk(KERN_ERR "could not obtain gpio for" "GPIO_BT_NRESET\n");
+}
+
 static void __init igep2_init(void)
 {
+	int hwrev;
+
 	igep2_i2c_init();
 	platform_add_devices(igep2_devices, ARRAY_SIZE(igep2_devices));
 	omap_board_config = igep2_config;
@@ -299,11 +360,20 @@ static void __init igep2_init(void)
 	usb_musb_init();
 	usb_ehci_init();
 
+	hwrev = igep2_get_hw_rev();
+	if (hwrev == 0)
+		printk(KERN_INFO "IGEP platform: IGEP v2 Hw Rev. C (B-NON compatible)\n");
+	else if (hwrev == 1)
+		printk(KERN_INFO "IGEP platform: IGEP v2 Hw Rev. B/C (B-compatible)\n");
+	else
+		printk(KERN_INFO "IGEP platform: Unknow\n");
+
 	igep2_flash_init();
 
 	igep2_display_init();
 
 	igep2_init_smsc911x();
+	igep2_init_wifi_bt();
 
 	/* GPIO userspace leds (green & red) */
 	if ((gpio_request(IGEP2_GPIO_LED_GREEN, "GPIO_LED_GREEN") == 0) && (gpio_direction_output(IGEP2_GPIO_LED_GREEN, 1) == 0)) {
@@ -315,23 +385,6 @@ static void __init igep2_init(void)
 		gpio_export(IGEP2_GPIO_LED_RED, 1);
 	} else {
 		printk(KERN_ERR "could not obtain gpio for " "GPIO_LED_RED\n");
-	}
-
-	/* GPIO W-LAN + Bluetooth combo module */
-	if ((gpio_request(IGEP2_GPIO_WIFI_NPD, "GPIO_WIFI_NPD") == 0) && (gpio_direction_output(IGEP2_GPIO_WIFI_NPD, 1) == 0)) {
-		if (gpio_export(IGEP2_GPIO_WIFI_NPD, false))
-			printk(KERN_ERR "could not export gpio for" "GPIO_WIFI_NPD\n");
-	} else {
-		printk(KERN_ERR "could not obtain gpio for" "GPIO_WIFI_NPD\n");
-	}
-	if ((gpio_request(IGEP2_GPIO_WIFI_NRESET, "GPIO_WIFI_NRESET") == 0) && (gpio_direction_output(IGEP2_GPIO_WIFI_NRESET, 1) == 0)) {
-		if (gpio_export(IGEP2_GPIO_WIFI_NRESET, false))
-			printk(KERN_ERR "could not export gpio for " "GPIO_WIFI_NRESET\n");
-		gpio_set_value(IGEP2_GPIO_WIFI_NRESET, 0);
-		udelay(10);
-		gpio_set_value(IGEP2_GPIO_WIFI_NRESET, 1);
-	} else {
-		printk(KERN_ERR "could not obtain gpio for " "GPIO_WIFI_NRESET\n");
 	}
 
 	/* GPIO USB host reset */
@@ -348,7 +401,7 @@ static void __init igep2_map_io(void)
 	omap2_map_common_io();
 }
 
-MACHINE_START(IGEP0020, "IGEP v2.x board")
+MACHINE_START(IGEP0020, "IGEP v2 board")
 	.phys_io	= 0x48000000,
 	.io_pg_offst	= ((0xd8000000) >> 18) & 0xfffc,
 	.boot_params	= 0x80000100,
