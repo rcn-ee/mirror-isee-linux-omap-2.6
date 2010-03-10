@@ -56,27 +56,11 @@
 #include <mach/mux.h>
 #include <mach/display.h>
 
-/*#include "sdram-micron-mt46h32m32lf-6.h"*/
 #include "twl4030-generic-scripts.h"
 #include "mmc-twl4030.h"
 
 #define GPMC_CS0_BASE  0x60
 #define GPMC_CS_SIZE   0x30
-/*
-#define IGEP2_SMSC911X_CS	5
-#define IGEP2_SMSC911X_GPIO	176
-
-#define IGEP2_GPIO_WIFI_NPD 	94
-#define IGEP2_GPIO_WIFI_NRESET 	95
-
-#define IGEP2_GPIO_LED_GREEN 	26
-#define IGEP2_GPIO_LED_RED 	27
-
-#define IGEP2_GPIO_EXT_PHY_USB	24
-
-#define IGEP2_THS14F0X_CS	6
-#define IGEP2_THS14F0X_GPIO	100
-*/
 #define NAND_BLOCK_SIZE		SZ_128K
 
 #if defined(CONFIG_SMSC911X) || defined(CONFIG_SMSC911X_MODULE)
@@ -138,34 +122,6 @@ static inline void __init igep2_init_smsc911x(void)
 static inline void __init igep2_init_smsc911x(void) { return; }
 #endif
 
-#if 0 /* defined(CONFIG_LIBERTAS_SPI) || defined(CONFIG_LIBERTAS_SPI_MODULE) */
-
-#include <linux/spi/libertas_spi.h>
-
-#define IGEP2_LIBERTAS_GPIO 134
-#define IGEP2_LIBERTAS_CS   135
-
-static int igep2_libertas_setup(struct spi_device *spi)
-{
-	spi->bits_per_word = 16;
-	spi_setup(spi);
-
-	return 0;
-}
-
-static int igep2_libertas_teardown(struct spi_device *spi)
-{
-	return 0;
-}
-
-struct libertas_spi_platform_data igep2_libertas_data = {
-	.use_dummy_writes	= 1,
-	.gpio_cs		= IGEP2_LIBERTAS_CS,
-	.setup			= igep2_libertas_setup,
-	.teardown		= igep2_libertas_teardown,
-};
-#endif
-
 static struct spi_board_info igep2_spi_board_info[] __initdata = {
         {
                 .modalias               = "spidev",
@@ -181,73 +137,8 @@ static struct spi_board_info igep2_spi_board_info[] __initdata = {
                 .max_speed_hz           = 20000000,
                 .mode                   = SPI_MODE_2,
         },
-#if 0 /* defined(CONFIG_LIBERTAS_SPI) || defined(CONFIG_LIBERTAS_SPI_MODULE) */
-	{
-		.modalias		= "libertas_spi",
-		.bus_num		= 3,
-		.chip_select 		= 0,
-		.max_speed_hz		= 13000000,
-		.mode			= SPI_MODE_0,
-		.irq			= OMAP_GPIO_IRQ(IGEP2_LIBERTAS_GPIO),
-		.platform_data		= &igep2_libertas_data,
-	},
-#endif
-};
-#if 0
-static struct mtd_partition igep2_nand_partitions[] = {
-	/* All the partition sizes are listed in terms of NAND block size */
-	{
-		.name		= "X-Loader",
-		.offset		= 0,
-		.size		= 4 * NAND_BLOCK_SIZE,
-		.mask_flags	= MTD_WRITEABLE,	/* force read-only */
-	},
-	{
-		.name		= "U-Boot",
-		.offset		= MTDPART_OFS_APPEND,	/* Offset = 0x80000 */
-		.size		= 15 * NAND_BLOCK_SIZE,
-		.mask_flags	= MTD_WRITEABLE,	/* force read-only */
-	},
-	{
-		.name		= "U-Boot Env",
-		.offset		= MTDPART_OFS_APPEND,	/* Offset = 0x260000 */
-		.size		= 1 * NAND_BLOCK_SIZE,
-	},
-	{
-		.name		= "Kernel",
-		.offset		= MTDPART_OFS_APPEND,	/* Offset = 0x280000 */
-		.size		= 32 * NAND_BLOCK_SIZE,
-	},
-	{
-		.name		= "File System",
-		.offset		= MTDPART_OFS_APPEND,	/* Offset = 0x680000 */
-		.size		= MTDPART_SIZ_FULL,
-	},
 };
 
-static struct omap_nand_platform_data igep2_nand_data = {
-	.options	= NAND_BUSWIDTH_16,
-	.parts		= igep2_nand_partitions,
-	.nr_parts	= ARRAY_SIZE(igep2_nand_partitions),
-	.dma_channel	= -1,		/* disable DMA in OMAP NAND driver */
-	.nand_setup	= NULL,
-	.dev_ready	= NULL,
-};
-
-static struct resource igep2_nand_resource = {
-	.flags		= IORESOURCE_MEM,
-};
-
-static struct platform_device igep2_nand_device = {
-	.name	= "omap2-nand",
-	.id		= -1,
-	.dev	= {
-		.platform_data	= &igep2_nand_data,
-	},
-	.num_resources	= 1,
-	.resource	= &igep2_nand_resource,
-};
-#endif
 static struct omap_uart_config igep2_uart_config __initdata = {
 	.enabled_uarts	= ((1 << 0) | (1 << 1) | (1 << 2)),
 };
@@ -276,21 +167,6 @@ static int igep2_twl_gpio_setup(struct device *dev,
 		unsigned gpio, unsigned ngpio)
 {
 	twl4030_mmc_init(mmc);
-
-	/* REVISIT: need ehci-omap hooks for external VBUS
-	 * power switch and overcurrent detect
-	 */
-#if 0
-	gpio_request(gpio + 1, "EHCI_nOC");
-	gpio_direction_input(gpio + 1);
-
-	/* TWL4030_GPIO_MAX + 0 == ledA, EHCI nEN_USB_PWR (out, active low) */
-	gpio_request(gpio + TWL4030_GPIO_MAX, "nEN_USB_PWR");
-	gpio_direction_output(gpio + TWL4030_GPIO_MAX, 1);
-
-	/* TWL4030_GPIO_MAX + 1 == ledB, PMU_STAT (out, active low LED) */
-	/* gpio_leds[2].gpio = gpio + TWL4030_GPIO_MAX + 1; */
-#endif
 	return 0;
 }
 
@@ -346,7 +222,6 @@ static int __init igep2_i2c_init(void)
 
 static void __init igep2_init_irq(void)
 {
-/*	omap2_init_common_hw(mt46h32m32lf6_sdrc_params); */
 	omap2_init_common_hw(NULL);
 	omap_init_irq();
 	omap_gpio_init();
@@ -408,46 +283,6 @@ static struct omap_board_config_kernel igep2_config[] __initdata = {
 static struct platform_device *igep2_devices[] __initdata = {
 	&igep2_dss_device,
 };
-
-#if 0
-static void __init igep2_flash_init(void)
-{
-	u8 cs = 0;
-	u8 nandcs = GPMC_CS_NUM + 1;
-
-	u32 gpmc_base_add = OMAP34XX_GPMC_VIRT;
-
-	/* find out the chip-select on which NAND exists */
-	while (cs < GPMC_CS_NUM) {
-		u32 ret = 0;
-		ret = gpmc_cs_read_reg(cs, GPMC_CS_CONFIG1);
-
-		if ((ret & 0xC00) == 0x800) {
-			printk(KERN_INFO "Found NAND on CS%d\n", cs);
-			if (nandcs > GPMC_CS_NUM)
-				nandcs = cs;
-		}
-		cs++;
-	}
-
-	if (nandcs > GPMC_CS_NUM) {
-		printk(KERN_INFO "NAND: Unable to find configuration "
-				 "in GPMC\n ");
-		return;
-	}
-
-	if (nandcs < GPMC_CS_NUM) {
-		igep2_nand_data.cs = nandcs;
-		igep2_nand_data.gpmc_cs_baseaddr = (void *)
-			(gpmc_base_add + GPMC_CS0_BASE + nandcs * GPMC_CS_SIZE);
-		igep2_nand_data.gpmc_baseaddr = (void *) (gpmc_base_add);
-
-		printk(KERN_INFO "Registering NAND on CS%d\n", nandcs);
-		if (platform_device_register(&igep2_nand_device) < 0)
-			printk(KERN_ERR "Unable to register NAND device\n");
-	}
-}
-#endif
 
 static void __init igep2_init(void)
 {
