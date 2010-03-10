@@ -41,8 +41,9 @@ extern void igep2_flash_init(void);
 #define IGEP2_RC_GPIO_WIFI_NRESET 	139
 #define IGEP2_RC_GPIO_BT_NRESET 	137
 
-#define IGEP2_GPIO_LED_GREEN 	26
-#define IGEP2_GPIO_LED_RED 	27
+#define IGEP2_GPIO_LED0_GREEN  26
+#define IGEP2_GPIO_LED0_RED    27
+#define IGEP2_GPIO_LED1_RED    28
 
 #define IGEP2_GPIO_EXT_PHY_USB	24
 

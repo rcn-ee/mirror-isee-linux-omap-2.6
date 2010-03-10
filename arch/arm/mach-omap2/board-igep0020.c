@@ -122,6 +122,48 @@ static inline void __init igep2_init_smsc911x(void)
 static inline void __init igep2_init_smsc911x(void) { return; }
 #endif
 
+#if defined(CONFIG_LEDS_GPIO) || defined(CONFIG_LEDS_GPIO_MODULE)
+#include <linux/leds.h>
+
+static struct gpio_led igep2_gpio_leds[] = {
+	{
+		.name = "led0:red",
+		.gpio = IGEP2_GPIO_LED0_RED,
+	},
+	{
+		.name = "led0:green",
+		.default_trigger = "heartbeat",
+		.gpio = IGEP2_GPIO_LED0_GREEN,
+	},
+	{
+		.name = "led1:red",
+		.gpio = IGEP2_GPIO_LED1_RED,
+	},
+};
+
+static struct gpio_led_platform_data igep2_led_pdata = {
+	.leds		= igep2_gpio_leds,
+	.num_leds	= ARRAY_SIZE(igep2_gpio_leds),
+
+};
+
+static struct platform_device igep2_led_device = {
+	.name	= "leds-gpio",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &igep2_led_pdata,
+		},
+};
+
+static void __init igep2_init_led(void)
+{
+	platform_device_register(&igep2_led_device);
+}
+
+#else
+static inline void igep2_init_led(void) {}
+#endif
+
 static struct spi_board_info igep2_spi_board_info[] __initdata = {
         {
                 .modalias               = "spidev",
@@ -374,18 +416,31 @@ static void __init igep2_init(void)
 
 	igep2_init_smsc911x();
 	igep2_init_wifi_bt();
+	igep2_init_led();
 
-	/* GPIO userspace leds (green & red) */
-	if ((gpio_request(IGEP2_GPIO_LED_GREEN, "GPIO_LED_GREEN") == 0) && (gpio_direction_output(IGEP2_GPIO_LED_GREEN, 1) == 0)) {
-		gpio_export(IGEP2_GPIO_LED_GREEN, 1);
-	} else {
-		printk(KERN_ERR "could not obtain gpio for " "GPIO_LED_GREEN\n");
-	}
-	if ((gpio_request(IGEP2_GPIO_LED_RED, "GPIO_LED_RED") == 0) && (gpio_direction_output(IGEP2_GPIO_LED_RED, 1) == 0)) {
-		gpio_export(IGEP2_GPIO_LED_RED, 1);
-	} else {
-		printk(KERN_ERR "could not obtain gpio for " "GPIO_LED_RED\n");
-	}
+	/* GPIO userspace leds */
+#if !defined(CONFIG_LEDS_GPIO) && !defined(CONFIG_LEDS_GPIO_MODULE)
+	if ((gpio_request(IGEP2_GPIO_LED0_RED, "led0:red") == 0) &&
+	   (gpio_direction_output(IGEP2_GPIO_LED0_RED, 1) == 0)) {
+		gpio_export(IGEP2_GPIO_LED0_RED, 0);
+		gpio_set_value(IGEP2_GPIO_LED0_RED, 0);
+	} else
+                printk(KERN_ERR "IGEP leds: Could not obtain gpio GPIO_LED0_RED\n");
+
+	if ((gpio_request(IGEP2_GPIO_LED0_GREEN, "led0:green") == 0) &&
+	   (gpio_direction_output(IGEP2_GPIO_LED0_GREEN, 1) == 0)) {
+		gpio_export(IGEP2_GPIO_LED0_GREEN, 0);
+		gpio_set_value(IGEP2_GPIO_LED0_GREEN, 0);
+	} else
+		printk(KERN_ERR "IGEP leds: Could not obtain gpio GPIO_LED0_GREEN\n");
+
+	if ((gpio_request(IGEP2_GPIO_LED1_RED, "led1:red") == 0) &&
+	   (gpio_direction_output(IGEP2_GPIO_LED1_RED, 1) == 0)) {
+		gpio_export(IGEP2_GPIO_LED1_RED, 0);
+		gpio_set_value(IGEP2_GPIO_LED1_RED, 0);
+	} else
+		printk(KERN_ERR "IGEP leds: Could not obtain gpio GPIO_LED1_RED\n");
+#endif
 
 	/* GPIO USB host reset */
     if ((gpio_request(IGEP2_GPIO_EXT_PHY_USB, "GPIO_EXT_PHY_USB") == 0) && (gpio_direction_output(IGEP2_GPIO_EXT_PHY_USB, 1) == 0)) {
