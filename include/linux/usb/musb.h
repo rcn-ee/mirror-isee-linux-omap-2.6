@@ -76,6 +76,9 @@ struct musb_hdrc_platform_data {
 	/* (HOST or OTG) msec/2 after VBUS on till power good */
 	u8		potpgt;
 
+	/* (HOST or OTG) program PHY for external Vbus */
+	unsigned	extvbus:1;
+
 	/* Power the device on or off */
 	int		(*set_power)(int state);
 
@@ -84,6 +87,9 @@ struct musb_hdrc_platform_data {
 
 	/* MUSB configuration-specific details */
 	struct musb_hdrc_config	*config;
+
+	/* Architecture specific board data	*/
+	void		*board_data;
 };
 
 
