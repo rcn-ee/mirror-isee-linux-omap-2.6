@@ -535,8 +535,3 @@ void hw_breakpoint_pmu_read(struct perf_event *bp)
 {
 	/* TODO */
 }
-
-void hw_breakpoint_pmu_unthrottle(struct perf_event *bp)
-{
-	/* TODO */
-}

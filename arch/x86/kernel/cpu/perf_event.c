@@ -1040,7 +1040,66 @@ void perf_event_print_debug(void)
 	local_irq_restore(flags);
 }
 
-static void x86_pmu_stop(struct perf_event *event)
+static void intel_pmu_drain_bts_buffer(struct cpu_hw_events *cpuc)
+{
+	struct debug_store *ds = cpuc->ds;
+	struct bts_record {
+		u64	from;
+		u64	to;
+		u64	flags;
+	};
+	struct perf_event *event = cpuc->events[X86_PMC_IDX_FIXED_BTS];
+	struct bts_record *at, *top;
+	struct perf_output_handle handle;
+	struct perf_event_header header;
+	struct perf_sample_data data;
+	struct pt_regs regs;
+
+	if (!event)
+		return;
+
+	if (!ds)
+		return;
+
+	at  = (struct bts_record *)(unsigned long)ds->bts_buffer_base;
+	top = (struct bts_record *)(unsigned long)ds->bts_index;
+
+	if (top <= at)
+		return;
+
+	ds->bts_index = ds->bts_buffer_base;
+
+	perf_sample_data_init(&data, 0);
+
+	data.period	= event->hw.last_period;
+	regs.ip		= 0;
+
+	/*
+	 * Prepare a generic sample, i.e. fill in the invariant fields.
+	 * We will overwrite the from and to address before we output
+	 * the sample.
+	 */
+	perf_prepare_sample(&header, &data, event, &regs);
+
+	if (perf_output_begin(&handle, event,
+			      header.size * (top - at), 1, 1))
+		return;
+
+	for (; at < top; at++) {
+		data.ip		= at->from;
+		data.addr	= at->to;
+
+		perf_output_sample(&handle, &header, &data, event);
+	}
+
+	perf_output_end(&handle);
+
+	/* There's new data available. */
+	event->hw.interrupts++;
+	event->pending_kill = POLL_IN;
+}
+
+static void x86_pmu_disable(struct perf_event *event)
 {
 	struct cpu_hw_events *cpuc = &__get_cpu_var(cpu_hw_events);
 	struct hw_perf_event *hwc = &event->hw;
@@ -1060,12 +1119,127 @@ static void x86_pmu_stop(struct perf_event *event)
 	x86_perf_event_update(event, hwc, idx);
 
 	cpuc->events[idx] = NULL;
+	clear_bit(idx, cpuc->used_mask);
+
+	perf_event_update_userpage(event);
+}
+
+/*
+ * Save and restart an expired event. Called by NMI contexts,
+ * so it has to be careful about preempting normal event ops:
+ */
+static int intel_pmu_save_and_restart(struct perf_event *event)
+{
+	struct hw_perf_event *hwc = &event->hw;
+	int idx = hwc->idx;
+	int ret;
+
+	x86_perf_event_update(event, hwc, idx);
+	ret = x86_perf_event_set_period(event, hwc, idx);
+
+	if (event->state == PERF_EVENT_STATE_ACTIVE)
+		intel_pmu_enable_event(hwc, idx);
+
+	return ret;
+}
+
+static void intel_pmu_reset(void)
+{
+	struct debug_store *ds = __get_cpu_var(cpu_hw_events).ds;
+	unsigned long flags;
+	int idx;
+
+	if (!x86_pmu.num_events)
+		return;
+
+	local_irq_save(flags);
+
+	printk("clearing PMU state on CPU#%d\n", smp_processor_id());
+
+	for (idx = 0; idx < x86_pmu.num_events; idx++) {
+		checking_wrmsrl(x86_pmu.eventsel + idx, 0ull);
+		checking_wrmsrl(x86_pmu.perfctr  + idx, 0ull);
+	}
+	for (idx = 0; idx < x86_pmu.num_events_fixed; idx++) {
+		checking_wrmsrl(MSR_ARCH_PERFMON_FIXED_CTR0 + idx, 0ull);
+	}
+	if (ds)
+		ds->bts_index = ds->bts_buffer_base;
+
+	local_irq_restore(flags);
+}
+
+static int p6_pmu_handle_irq(struct pt_regs *regs)
+{
+	struct perf_sample_data data;
+	struct cpu_hw_events *cpuc;
+	struct perf_event *event;
+	struct hw_perf_event *hwc;
+	int idx, handled = 0;
+	u64 val;
+
+	perf_sample_data_init(&data, 0);
+
+	cpuc = &__get_cpu_var(cpu_hw_events);
+
+	for (idx = 0; idx < x86_pmu.num_events; idx++) {
+		if (!test_bit(idx, cpuc->active_mask))
+			continue;
+
+		event = cpuc->events[idx];
+		hwc = &event->hw;
+
+		val = x86_perf_event_update(event, hwc, idx);
+		if (val & (1ULL << (x86_pmu.event_bits - 1)))
+			continue;
+
+		/*
+		 * event overflow
+		 */
+		handled		= 1;
+		data.period	= event->hw.last_period;
+
+		if (!x86_perf_event_set_period(event, hwc, idx))
+			continue;
+
+		if (perf_event_overflow(event, 1, &data, regs))
+			p6_pmu_disable_event(hwc, idx);
+	}
+
+	if (handled)
+		inc_irq_stat(apic_perf_irqs);
+
+	return handled;
 }
 
 static void x86_pmu_disable(struct perf_event *event)
 {
-	struct cpu_hw_events *cpuc = &__get_cpu_var(cpu_hw_events);
-	int i;
+	struct perf_sample_data data;
+	struct cpu_hw_events *cpuc;
+	int bit, loops;
+	u64 ack, status;
+
+	perf_sample_data_init(&data, 0);
+
+	cpuc = &__get_cpu_var(cpu_hw_events);
+
+	perf_disable();
+	intel_pmu_drain_bts_buffer(cpuc);
+	status = intel_pmu_get_status();
+	if (!status) {
+		perf_enable();
+		return 0;
+	}
+
+	loops = 0;
+again:
+	if (++loops > 100) {
+		WARN_ONCE(1, "perfevents: irq loop stuck!\n");
+		perf_event_print_debug();
+		intel_pmu_reset();
+		perf_enable();
+		return 1;
+	}
 
 	x86_pmu_stop(event);
 

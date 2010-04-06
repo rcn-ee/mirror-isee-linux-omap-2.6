@@ -94,15 +94,19 @@ static int annotate__hist_hit(struct hist_entry *he, u64 ip)
 	h->sum++;
 	h->ip[offset]++;
 
-	pr_debug3("%#Lx %s: count++ [ip: %#Lx, %#Lx] => %Ld\n", he->sym->start,
-		  he->sym->name, ip, ip - he->sym->start, h->ip[offset]);
+	if (verbose >= 3)
+		printf("%p %s: count++ [ip: %p, %08Lx] => %Ld\n",
+			(void *)(unsigned long)he->sym->start,
+			he->sym->name,
+			(void *)(unsigned long)ip, ip - he->sym->start,
+			h->ip[offset]);
 	return 0;
 }
 
 static int perf_session__add_hist_entry(struct perf_session *self,
 					struct addr_location *al, u64 count)
 {
-	bool hit;
+ 	bool hit;
 	struct hist_entry *he;
 
 	if (sym_hist_filter != NULL &&
@@ -117,8 +121,8 @@ static int perf_session__add_hist_entry(struct perf_session *self,
 	}
 
 	he = __perf_session__add_hist_entry(self, al, NULL, count, &hit);
-	if (he == NULL)
-		return -ENOMEM;
+ 	if (he == NULL)
+ 		return -ENOMEM;
 
 	return annotate__hist_hit(he, al->addr);
 }
@@ -131,8 +135,8 @@ static int process_sample_event(event_t *event, struct perf_session *session)
 		    event->ip.pid, event->ip.ip);
 
 	if (event__preprocess_sample(event, session, &al, NULL) < 0) {
-		pr_warning("problem processing %d event, skipping it.\n",
-			   event->header.type);
+		fprintf(stderr, "problem processing %d event, skipping it.\n",
+			event->header.type);
 		return -1;
 	}
 
