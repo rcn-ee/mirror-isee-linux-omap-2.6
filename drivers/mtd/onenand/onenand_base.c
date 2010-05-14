@@ -1497,7 +1497,7 @@ static int onenand_bbt_wait(struct mtd_info *mtd, int state)
 	if (interrupt & ONENAND_INT_READ) {
 		int ecc = onenand_read_ecc(this);
 		if (ecc & ONENAND_ECC_2BIT_ALL) {
-			printk(KERN_WARNING "%s: ecc error = 0x%04x, "
+			printk(KERN_DEBUG "%s: ecc error = 0x%04x, "
 				"controller error 0x%04x\n",
 				__func__, ecc, ctrl);
 			return ONENAND_BBT_READ_ECC_ERROR;
