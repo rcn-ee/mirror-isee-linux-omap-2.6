@@ -131,6 +131,25 @@ static const u8 twl6030_rtc_reg_map[] = {
 /* REG_SECONDS_REG through REG_YEARS_REG is how many registers? */
 #define ALL_TIME_REGS		6
 
+/*
+ * PM_RECEIVER block register offsets (use TWL4030_MODULE_PM_RECEIVER)
+ */
+
+#define TWL4030_PM_RECEIVER_BB_CFG		0x12
+
+/* PM_RECEIVER  BB_CFG bitfields */
+#define BIT_PM_RECEIVER_BB_CFG_BBCHEN		0x10
+#define BIT_PM_RECEIVER_BB_CFG_BBSEL		0x0C
+#define BIT_PM_RECEIVER_BB_CFG_BBSEL_2V5	0x00
+#define BIT_PM_RECEIVER_BB_CFG_BBSEL_3V0	0x04
+#define BIT_PM_RECEIVER_BB_CFG_BBSEL_3V1	0x08
+#define BIT_PM_RECEIVER_BB_CFG_BBSEL_3V2	0x0c
+#define BIT_PM_RECEIVER_BB_CFG_BBISEL		0x03
+#define BIT_PM_RECEIVER_BB_CFG_BBISEL_25UA	0x00
+#define BIT_PM_RECEIVER_BB_CFG_BBISEL_150UA	0x01
+#define BIT_PM_RECEIVER_BB_CFG_BBISEL_500UA	0x02
+#define BIT_PM_RECEIVER_BB_CFG_BBISEL_1MA	0x03
+
 /*----------------------------------------------------------------------*/
 static u8  *rtc_reg_map;
 
@@ -507,6 +526,15 @@ static int __devinit twl_rtc_probe(struct platform_device *pdev)
 	ret = twl_rtc_read_u8(&rtc_irq_bits, REG_RTC_INTERRUPTS_REG);
 	if (ret < 0)
 		goto out2;
+
+	/* Enable backup battery charging (3.0V, 500uA charge current) */
+	ret = twl_i2c_write_u8(TWL_MODULE_PM_RECEIVER,
+		BIT_PM_RECEIVER_BB_CFG_BBCHEN |
+		BIT_PM_RECEIVER_BB_CFG_BBSEL_3V0 |
+		BIT_PM_RECEIVER_BB_CFG_BBISEL_500UA,
+		TWL4030_PM_RECEIVER_BB_CFG);
+	if (ret < 0)
+		dev_err(&pdev->dev, "Could not enable backup battery charging.\n");
 
 	return ret;
 
