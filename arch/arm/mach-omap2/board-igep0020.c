@@ -285,6 +285,16 @@ static int igep2_twl_gpio_setup(struct device *dev,
 	igep2_vmmc1_supply.dev = mmc[0].dev;
 	igep2_vmmc2_supply.dev = mmc[1].dev;
 
+	/* REVISIT: need ehci-omap hooks for external VBUS
+	 * power switch and overcurrent detect
+	 */
+	gpio_request(gpio + 1, "GPIO_EHCI_NOC");
+	gpio_direction_input(gpio + 1);
+
+	/* TWL4030_GPIO_MAX + 0 == ledA, GPIO_USBH_CPEN (out, active low) */
+	gpio_request(gpio + TWL4030_GPIO_MAX, "GPIO_USB_CPEN");
+	gpio_direction_output(gpio + TWL4030_GPIO_MAX, 0);
+
 	return 0;
 };
 
