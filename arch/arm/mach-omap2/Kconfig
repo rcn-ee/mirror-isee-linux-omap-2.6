@@ -139,6 +139,11 @@ config MACH_IGEP0020
 	depends on ARCH_OMAP3
 	select OMAP_PACKAGE_CBB
 
+config MACH_IGEP0030
+	bool "IGEP OMAP3 module"
+	depends on ARCH_OMAP3
+	select OMAP_PACKAGE_CBB
+
 config MACH_OMAP_3630SDP
 	bool "OMAP3630 SDP board"
 	depends on ARCH_OMAP3
