@@ -420,8 +420,18 @@ static void __init igep3_init_wifi_bt(void)
 		pr_warning("IGEP: Could not obtain gpio GPIO_BT_NRESET\n");
 }
 
+#ifdef CONFIG_OMAP_MUX
+static struct omap_board_mux board_mux[] __initdata = {
+	{ .reg_offset = OMAP_MUX_TERMINATOR },
+};
+#else
+#define board_mux	NULL
+#endif
+
 static void __init igep3_init(void)
 {
+	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
+
 	omap_serial_init();
 	usb_musb_init(&musb_board_data);
 	usb_ehci_init(&ehci_pdata);
