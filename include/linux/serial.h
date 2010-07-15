@@ -11,6 +11,8 @@
 #define _LINUX_SERIAL_H
 
 #include <linux/types.h>
+#include <linux/timer.h>
+#include <linux/rs485.h>
 
 #ifdef __KERNEL__
 #include <asm/page.h>
@@ -206,14 +208,15 @@ struct serial_icounter_struct {
  */
 
 struct serial_rs485 {
-	__u32	flags;			/* RS485 feature flags */
-#define SER_RS485_ENABLED		(1 << 0)
-#define SER_RS485_RTS_ON_SEND		(1 << 1)
-#define SER_RS485_RTS_AFTER_SEND	(1 << 2)
-	__u32	delay_rts_before_send;	/* Milliseconds */
-	__u32	padding[6];		/* Memory is cheap, new structs
-					   are a royal PITA .. */
+       struct   serial_rs485_settings   settings;
+       struct   timer_list              pre_post_timer;
+       __u32    pre_jiffies;
+       __u32    post_jiffies;
+       unsigned int mctrl_mask;
+       unsigned int mctrl_xmit; /* Bits for Tx. */
 };
+
+
 
 #ifdef __KERNEL__
 #include <linux/compiler.h>

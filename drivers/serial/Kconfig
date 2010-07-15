@@ -1490,4 +1490,32 @@ config SERIAL_GRLIB_GAISLER_APBUART_CONSOLE
 	help
 	Support for running a console on the GRLIB APBUART
 
+comment "serial port extensions"
+        depends on EXPERIMENTAL
+
+config SERIAL_PORT_DIRECTION_CONTROL
+        bool "Allow hand shake line half duplex direction signaling"
+        default n
+        select SERIAL_CORE
+        help
+          Some serial communications devices are half-duplex and require
+          a signal to give the required direction of communications.
+
+          One common example of this is when using a MAX202 - MAX485 chip
+          pair (or similar) as a bridge between a RS232 interface and a
+          RS485 interface.
+
+          Another example is when using simple radio modems, which may have a
+          further requirement that the direction should be asserted for a
+          specified time before transmission, and held for a specified time
+          after packet transmission.
+
+          Select this option to enable kernel control of the handshaking
+          lines to give direction control.  This will make a serial port
+          ioctl (TIOCSRS485) available for enabling this feature as well as
+          for configuration of handshaking line to use (RTS or DTR),
+          the sense of the line, and pre and post transmission delays.
+
+          Unless you know that you need this say N.
+
 endmenu

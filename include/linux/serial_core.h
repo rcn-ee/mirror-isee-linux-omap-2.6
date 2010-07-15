@@ -192,6 +192,8 @@
 #include <linux/tty.h>
 #include <linux/mutex.h>
 #include <linux/sysrq.h>
+#include <linux/timer.h>
+#include <linux/serial.h>
 
 struct uart_port;
 struct serial_struct;
@@ -340,6 +342,9 @@ struct uart_port {
 	unsigned char		suspended;
 	unsigned char		unused[2];
 	void			*private_data;		/* generic platform data pointer */
+#ifdef CONFIG_SERIAL_PORT_DIRECTION_CONTROL
+	struct serial_rs485	rs485;
+#endif
 };
 
 /*

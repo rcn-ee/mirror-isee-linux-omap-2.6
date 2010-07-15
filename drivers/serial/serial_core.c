@@ -62,6 +62,7 @@ static void uart_change_speed(struct uart_state *state,
 					struct ktermios *old_termios);
 static void uart_wait_until_sent(struct tty_struct *tty, int timeout);
 static void uart_change_pm(struct uart_state *state, int pm_state);
+static void direction_control_uart_start(struct tty_struct *tty);
 
 /*
  * This routine is used by the interrupt handler to schedule processing in
@@ -105,6 +106,12 @@ static void uart_start(struct tty_struct *tty)
 	struct uart_port *port = state->uart_port;
 	unsigned long flags;
 
+#ifdef CONFIG_SERIAL_PORT_DIRECTION_CONTROL
+	if (port->rs485.settings.flags & SER_RS485_MODE) {
+		direction_control_uart_start(tty);
+		return;
+	}
+#endif
 	spin_lock_irqsave(&port->lock, flags);
 	__uart_start(tty);
 	spin_unlock_irqrestore(&port->lock, flags);
@@ -130,8 +137,15 @@ uart_update_mctrl(struct uart_port *port, unsigned int set, unsigned int clear)
 	spin_unlock_irqrestore(&port->lock, flags);
 }
 
+#ifdef CONFIG_SERIAL_PORT_DIRECTION_CONTROL
+#define uart_set_mctrl(port, set) \
+	uart_update_mctrl(port, (set) & ~port->rs485.mctrl_mask, 0)
+#define uart_clear_mctrl(port, clear) \
+	uart_update_mctrl(port, 0, (clear) & ~port->rs485.mctrl_mask)
+#else
 #define uart_set_mctrl(port, set)	uart_update_mctrl(port, set, 0)
 #define uart_clear_mctrl(port, clear)	uart_update_mctrl(port, 0, clear)
+#endif
 
 /*
  * Startup the port.  This will be called once per open.  All calls
@@ -462,6 +476,169 @@ uart_change_speed(struct uart_state *state, struct ktermios *old_termios)
 
 	uport->ops->set_termios(uport, termios, old_termios);
 }
+
+#ifdef CONFIG_SERIAL_PORT_DIRECTION_CONTROL
+/**
+ * direction_control_init() - initialise direction control state variables.
+ * @tty:	tty for UART
+ *
+ * Initialisation call to setup state variables used for the direction
+ * control logic.
+ * Note that the direction control settings themselves have persistence
+ * across device openings.
+ */
+static void direction_control_init(struct tty_struct *tty)
+{
+	struct uart_state *state = tty->driver_data;
+	struct uart_port *port = state->uart_port;
+	struct serial_rs485 *rs = &port->rs485;
+
+	init_timer(&rs->pre_post_timer);
+	rs->pre_post_timer.function = NULL;
+	rs->pre_post_timer.data = (unsigned long)tty;
+}
+
+/**
+ * direction_control_timed_post_xmit() - Post transmission delay callback
+ * @data:	Holds pointer to the tty structure, recorded when timer is
+ * 		set up.
+ *
+ * This is a kernel timer callback function, that is called after the post
+ * transmission delay has expired.  It uses a modem control call to set the
+ * RTS or DTR line for inbound communications.
+ *
+ * Note: This software timing approach limits direction control timing to
+ * 	granularity to that of the System timer. (Timing is only good to the
+ * 	nearest jiffy).
+ **/
+static void direction_control_timed_post_xmit(unsigned long data)
+{
+	struct tty_struct *tty = (struct tty_struct *)data;
+	struct uart_state *state = tty->driver_data;
+	struct uart_port *port = state->uart_port;
+	struct serial_rs485 *rs = &port->rs485;
+	uart_update_mctrl(port,
+			  rs->mctrl_mask & ~rs->mctrl_xmit,
+			  rs->mctrl_mask & rs->mctrl_xmit);
+	rs->pre_post_timer.function = NULL;	/* Back to idle state */
+}
+
+/**
+ * direction_control_timed_xmit_end_detect() - End of transmission polling
+ * @data:	Holds pointer to the tty structure, recorded when timer is
+ * 		set up.
+ *
+ * This is a kernel timer callback function, called on every timer tick until
+ * it is detected that there is no more data to transmit.  The post
+ * transmission delay is then scheduled.
+ **/
+static void direction_control_timed_xmit_end_detect(unsigned long data)
+{
+	struct tty_struct *tty = (struct tty_struct *)data;
+	struct uart_state *state = tty->driver_data;
+	struct uart_port *port = state->uart_port;
+	struct serial_rs485 *rs = &port->rs485;
+
+	if (port->ops->tx_empty(port)) {
+		if (rs->post_jiffies) {
+			/*
+			 * Schedule line turn around after required delay.
+			 */
+			rs->pre_post_timer.function =
+				direction_control_timed_post_xmit;
+			rs->pre_post_timer.expires = jiffies + rs->post_jiffies;
+			add_timer(&rs->pre_post_timer);
+		} else {
+			/*
+			 * No delay required turn line around now.
+			 */
+			direction_control_timed_post_xmit(data);
+		}
+	} else {
+		/* 
+		 * Transmission not finished, so try again next jiffy.
+		 */
+		add_timer(&rs->pre_post_timer);
+	}
+}
+
+/**
+ * direction_control_timed_start_xmit() - Trigger data transmission
+ * @data:	tty pointer for UART type case as unsigned long.
+ * 		(To conform to timer callback function prototype)
+ *
+ * Kicks the UART into transmission mode, and schedules polling of the
+ * UART status for transmission completion once per jiffy.
+ * Called from a timer if a pre-transmission delay is required or directly if
+ * not.
+ */
+static void direction_control_timed_start_xmit(unsigned long data)
+{
+	struct tty_struct *tty = (struct tty_struct *)data;
+	struct uart_state *state = tty->driver_data;
+	struct uart_port *port = state->uart_port;
+	struct serial_rs485 *rs = &port->rs485;
+	unsigned long flags;
+
+	rs->pre_post_timer.function = direction_control_timed_xmit_end_detect;
+	rs->pre_post_timer.expires  = jiffies;
+	add_timer(&rs->pre_post_timer);
+	spin_lock_irqsave(&port->lock, flags);
+	__uart_start(tty);
+	spin_unlock_irqrestore(&port->lock, flags);
+}
+
+/**
+ * direction_control_uart_start() - UART Tx start, with direction control
+ * @tty:	tty for UART
+ *
+ * Changes RTS and/or DTR handshaking lines to prepare for data transmission.
+ * Schedules a delayed transmission if a required, or initiates immediate
+ * transmission if pre transmission delay not required.
+ */
+static void direction_control_uart_start(struct tty_struct *tty)
+{
+	struct uart_state *state = tty->driver_data;
+	struct uart_port *port = state->uart_port;
+	struct serial_rs485 *rs = &port->rs485;
+	if (!rs->pre_post_timer.function) {	/* Was in idle (Rx) state? */
+		/*
+		 * Set RTS or DTR for transmission.
+		 */
+		uart_update_mctrl(port,
+				  rs->mctrl_mask & rs->mctrl_xmit,
+				  rs->mctrl_mask & ~rs->mctrl_xmit);
+
+		if (rs->pre_jiffies) {
+			/*
+			 * Pre transmission delay required, schedule timer.
+			 */
+			rs->pre_post_timer.function =
+			    direction_control_timed_start_xmit;
+			rs->pre_post_timer.expires = jiffies + rs->pre_jiffies;
+			add_timer(&rs->pre_post_timer);
+		} else {
+			/*
+			 * No pre transmission delay required start
+			 * immediate transmission.
+			 */
+			direction_control_timed_start_xmit((unsigned long)tty);
+		}
+	} else if (rs->pre_post_timer.function ==
+		   direction_control_timed_start_xmit) {
+		/*
+		 * Nothing to do - already in pre xmit delay.
+		 */
+	} else {
+		/*
+		 * Transmitting or in post transmit delay, reschedule the end
+		 * of transmission polling.
+		 */
+		del_timer(&port->rs485.pre_post_timer);
+		direction_control_timed_start_xmit((unsigned long)tty);
+	}
+}
+#endif
 
 static inline int
 __uart_put_char(struct uart_port *port, struct circ_buf *circ, unsigned char c)
@@ -1100,6 +1277,70 @@ static int uart_get_count(struct uart_state *state,
 	return copy_to_user(icnt, &icount, sizeof(icount)) ? -EFAULT : 0;
 }
 
+#ifdef CONFIG_SERIAL_PORT_DIRECTION_CONTROL
+/*
+ * Get the current direction control settings.
+ */
+static int rs485_get_settings(struct tty_struct *tty,
+			      struct serial_rs485_settings __user * uarg)
+{
+	struct uart_state *state = tty->driver_data;
+	int ret;
+	ret = copy_to_user(uarg, &state->uart_port->rs485.settings, sizeof(*uarg));
+	ret = ret ? -EFAULT : 0;
+	return ret;
+}
+
+/*
+ * Set the current direction control settings.
+ */
+static int rs485_set_settings(struct tty_struct *tty,
+			      struct serial_rs485_settings __user * uarg)
+{
+	struct uart_state *state = tty->driver_data;
+	struct serial_rs485 *rs = &state->uart_port->rs485;
+
+	/*-- Get requested settings. */
+	if (copy_from_user(&rs->settings, uarg, sizeof(rs->settings))) {
+		return -EFAULT;
+	}
+	/*
+	 * Alter requested settings to match our capabilities.
+	 * The user can query this by reading the setting back.
+	 */
+	rs->settings.delay_before_send =
+		jiffies_to_usecs(usecs_to_jiffies(
+					rs->settings.delay_before_send));
+
+	rs->settings.delay_after_send =
+		jiffies_to_usecs(usecs_to_jiffies(
+					rs->settings.delay_after_send));
+
+	/*
+	 * Pre-calculate values based on settings, to make interrupt code
+	 * more efficient.
+	 */
+	rs->pre_jiffies = usecs_to_jiffies(rs->settings.delay_before_send);
+	rs->post_jiffies = usecs_to_jiffies(rs->settings.delay_after_send);
+
+	rs->mctrl_mask = 0;
+	rs->mctrl_xmit = 0;
+	if (rs->settings.flags & SER_RS485_MODE_RTS) {
+		rs->mctrl_mask |= TIOCM_RTS;
+		if ( !(rs->settings.flags & SER_RS485_RTS_TX_LOW) ) {
+			rs->mctrl_xmit |= TIOCM_RTS;
+		}
+	}
+	if (rs->settings.flags & SER_RS485_MODE_DTR) {
+		rs->mctrl_mask |= TIOCM_DTR;
+		if ( !(rs->settings.flags & SER_RS485_DTR_TX_LOW) ) {
+			rs->mctrl_xmit |= TIOCM_DTR;
+		}
+	}
+	return 0;
+}
+#endif
+
 /*
  * Called via sys_ioctl.  We can use spin_lock_irq() here.
  */
@@ -1133,6 +1374,14 @@ uart_ioctl(struct tty_struct *tty, struct file *filp, unsigned int cmd,
 	case TIOCSERSWILD: /* obsolete */
 		ret = 0;
 		break;
+#ifdef CONFIG_SERIAL_PORT_DIRECTION_CONTROL
+	case TIOCGRS485:
+		ret = rs485_get_settings(tty, uarg);
+		break;
+	case TIOCSRS485:
+		ret = rs485_set_settings(tty, uarg);
+		break;
+#endif
 	}
 
 	if (ret != -ENOIOCTLCMD)
@@ -1684,6 +1933,9 @@ static int uart_open(struct tty_struct *tty, struct file *filp)
 		set_bit(ASYNCB_NORMAL_ACTIVE, &port->flags);
 
 		uart_update_termios(state);
+#ifdef CONFIG_SERIAL_PORT_DIRECTION_CONTROL
+		direction_control_init(tty);
+#endif
 	}
 
 fail:
