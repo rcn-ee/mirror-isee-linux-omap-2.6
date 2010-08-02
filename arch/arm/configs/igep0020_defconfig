@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.33.6
-# Thu Jul 29 11:33:24 2010
+# Mon Aug  2 13:13:52 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -2001,7 +2001,43 @@ CONFIG_UIO=y
 #
 # TI VLYNQ
 #
-# CONFIG_STAGING is not set
+CONFIG_STAGING=y
+# CONFIG_STAGING_EXCLUDE_BUILD is not set
+# CONFIG_USB_IP_COMMON is not set
+# CONFIG_W35UND is not set
+# CONFIG_PRISM2_USB is not set
+# CONFIG_ECHO is not set
+# CONFIG_OTUS is not set
+# CONFIG_COMEDI is not set
+# CONFIG_ASUS_OLED is not set
+# CONFIG_TRANZPORT is not set
+
+#
+# Qualcomm MSM Camera And Video
+#
+
+#
+# Camera Sensor Selection
+#
+# CONFIG_INPUT_GPIO is not set
+# CONFIG_POHMELFS is not set
+# CONFIG_PLAN9AUTH is not set
+# CONFIG_LINE6_USB is not set
+# CONFIG_USB_SERIAL_QUATECH2 is not set
+# CONFIG_USB_SERIAL_QUATECH_USB2 is not set
+# CONFIG_VT6656 is not set
+# CONFIG_FB_UDL is not set
+
+#
+# RAR Register Driver
+#
+# CONFIG_RAR_REGISTER is not set
+# CONFIG_IIO is not set
+# CONFIG_RAMZSWAP is not set
+# CONFIG_BATMAN_ADV is not set
+# CONFIG_STRIP is not set
+# CONFIG_FB_SM7XX is not set
+CONFIG_OMAP3_SGX=y
 CONFIG_MPU_BRIDGE=m
 CONFIG_BRIDGE_MEMPOOL_SIZE=0x600000
 # CONFIG_BRIDGE_DEBUG is not set
