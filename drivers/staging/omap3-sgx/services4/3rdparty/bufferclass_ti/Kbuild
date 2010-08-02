@@ -1,0 +1,7 @@
+ccflags-y += -DLINUX
+ccflags-y += -Idrivers/staging/omap3-sgx/include4
+ccflags-y += -Idrivers/staging/omap3-sgx/services4/include
+
+obj-m :=  bufferclass_ti.o
+bufferclass_ti-y := bc_cat.o
+
