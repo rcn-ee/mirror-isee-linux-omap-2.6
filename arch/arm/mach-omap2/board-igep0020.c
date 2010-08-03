@@ -272,6 +272,54 @@ static struct omap2_hsmmc_info mmc[] = {
 	{}      /* Terminator */
 };
 
+#if defined(CONFIG_LEDS_GPIO) || defined(CONFIG_LEDS_GPIO_MODULE)
+#include <linux/leds.h>
+
+static struct gpio_led igep2_gpio_leds[] = {
+	[0] = {
+		.name = "led0:red",
+		.gpio = IGEP2_GPIO_LED0_RED,
+		.default_trigger = "default-off",
+	},
+	[1] = {
+		.name = "led0:green",
+		.gpio = IGEP2_GPIO_LED0_GREEN,
+		.default_trigger = "default-off",
+	},
+	[2] = {
+		.name = "led1:red",
+		.gpio = IGEP2_GPIO_LED1_RED,
+		.default_trigger = "default-off",
+	},
+	[3] = {
+		.name = "led1:green",
+		.default_trigger = "heartbeat",
+		.gpio = -EINVAL, /* gets replaced */
+	},
+};
+
+static struct gpio_led_platform_data igep2_led_pdata = {
+	.leds           = igep2_gpio_leds,
+	.num_leds       = ARRAY_SIZE(igep2_gpio_leds),
+};
+
+static struct platform_device igep2_led_device = {
+	 .name   = "leds-gpio",
+	 .id     = -1,
+	 .dev    = {
+		 .platform_data  =  &igep2_led_pdata,
+	},
+};
+
+static void __init igep2_init_led(void)
+{
+	platform_device_register(&igep2_led_device);
+}
+
+#else
+static inline void igep2_init_led(void) {}
+#endif
+
 static int igep2_twl_gpio_setup(struct device *dev,
 		unsigned gpio, unsigned ngpio)
 {
@@ -295,6 +343,18 @@ static int igep2_twl_gpio_setup(struct device *dev,
 	gpio_request(gpio + TWL4030_GPIO_MAX, "GPIO_USB_CPEN");
 	gpio_direction_output(gpio + TWL4030_GPIO_MAX, 0);
 
+	/* TWL4030_GPIO_MAX + 1 == ledB (out, active low LED) */
+#if !defined(CONFIG_LEDS_GPIO) && !defined(CONFIG_LEDS_GPIO_MODULE)
+	if ((gpio_request(gpio + TWL4030_GPIO_MAX + 1, "led1:green") == 0) &&
+	    (gpio_direction_output(gpio + TWL4030_GPIO_MAX + 1, 1) == 0)) {
+		gpio_export(gpio + TWL4030_GPIO_MAX + 1, 0);
+		gpio_set_value(gpio + TWL4030_GPIO_MAX + 1, 0);
+	} else
+		pr_warning("IGEP v2: Could not obtain gpio GPIO_LED1_GREEN\n");
+#else
+	igep2_gpio_leds[3].gpio = gpio + TWL4030_GPIO_MAX + 1;
+#endif
+
 	return 0;
 };
 
@@ -302,7 +362,7 @@ static struct twl4030_gpio_platform_data igep2_gpio_data = {
 	.gpio_base	= OMAP_MAX_GPIO_LINES,
 	.irq_base	= TWL4030_GPIO_IRQ_BASE,
 	.irq_end	= TWL4030_GPIO_IRQ_END,
-	.use_leds	= false,
+	.use_leds	= true,
 	.setup		= igep2_twl_gpio_setup,
 };
 
@@ -375,47 +435,6 @@ static void __init igep2_display_init(void)
 	    gpio_direction_output(IGEP2_GPIO_DVI_PUP, 1))
 		pr_err("IGEP v2: Could not obtain gpio GPIO_DVI_PUP\n");
 }
-
-#if defined(CONFIG_LEDS_GPIO) || defined(CONFIG_LEDS_GPIO_MODULE)
-#include <linux/leds.h>
-
-static struct gpio_led igep2_gpio_leds[] = {
-	{
-		.name = "led0:red",
-		.gpio = IGEP2_GPIO_LED0_RED,
-	},
-	{
-		.name = "led0:green",
-		.default_trigger = "heartbeat",
-		.gpio = IGEP2_GPIO_LED0_GREEN,
-	},
-	{
-		.name = "led1:red",
-		.gpio = IGEP2_GPIO_LED1_RED,
-	},
-};
-
-static struct gpio_led_platform_data igep2_led_pdata = {
-	.leds           = igep2_gpio_leds,
-	.num_leds       = ARRAY_SIZE(igep2_gpio_leds),
-};
-
-static struct platform_device igep2_led_device = {
-	 .name   = "leds-gpio",
-	 .id     = -1,
-	 .dev    = {
-		 .platform_data  =  &igep2_led_pdata,
-	},
-};
-
-static void __init igep2_init_led(void)
-{
-	platform_device_register(&igep2_led_device);
-}
-
-#else
-static inline void igep2_init_led(void) {}
-#endif
 
 static struct platform_device *igep2_devices[] __initdata = {
 	&igep2_dss_device,
