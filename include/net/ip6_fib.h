@@ -124,13 +124,11 @@ static inline struct inet6_dev *ip6_dst_idev(struct dst_entry *dst)
 }
 
 struct fib6_walker_t {
-	struct list_head lh;
+	struct fib6_walker_t *prev, *next;
 	struct fib6_node *root, *node;
 	struct rt6_info *leaf;
 	unsigned char state;
 	unsigned char prune;
-	unsigned int skip;
-	unsigned int count;
 	int (*func)(struct fib6_walker_t *);
 	void *args;
 };

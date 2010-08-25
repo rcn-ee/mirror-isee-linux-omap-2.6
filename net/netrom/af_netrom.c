@@ -1267,13 +1267,28 @@ static int nr_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 
 static void *nr_info_start(struct seq_file *seq, loff_t *pos)
 {
+	struct sock *s;
+	struct hlist_node *node;
+	int i = 1;
+
 	spin_lock_bh(&nr_list_lock);
-	return seq_hlist_start_head(&nr_list, *pos);
+	if (*pos == 0)
+		return SEQ_START_TOKEN;
+
+	sk_for_each(s, node, &nr_list) {
+		if (i == *pos)
+			return s;
+		++i;
+	}
+	return NULL;
 }
 
 static void *nr_info_next(struct seq_file *seq, void *v, loff_t *pos)
 {
-	return seq_hlist_next(v, &nr_list, pos);
+	++*pos;
+
+	return (v == SEQ_START_TOKEN) ? sk_head(&nr_list)
+		: sk_next((struct sock *)v);
 }
 
 static void nr_info_stop(struct seq_file *seq, void *v)
@@ -1283,7 +1298,7 @@ static void nr_info_stop(struct seq_file *seq, void *v)
 
 static int nr_info_show(struct seq_file *seq, void *v)
 {
-	struct sock *s = sk_entry(v);
+	struct sock *s = v;
 	struct net_device *dev;
 	struct nr_sock *nr;
 	const char *devname;

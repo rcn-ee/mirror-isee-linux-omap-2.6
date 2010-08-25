@@ -146,13 +146,31 @@ int ax25_uid_ioctl(int cmd, struct sockaddr_ax25 *sax)
 static void *ax25_uid_seq_start(struct seq_file *seq, loff_t *pos)
 	__acquires(ax25_uid_lock)
 {
+	struct ax25_uid_assoc *pt;
+	struct hlist_node *node;
+	int i = 1;
+
 	read_lock(&ax25_uid_lock);
-	return seq_hlist_start_head(&ax25_uid_list, *pos);
+
+	if (*pos == 0)
+		return SEQ_START_TOKEN;
+
+	ax25_uid_for_each(pt, node, &ax25_uid_list) {
+		if (i == *pos)
+			return pt;
+		++i;
+	}
+	return NULL;
 }
 
 static void *ax25_uid_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 {
-	return seq_hlist_next(v, &ax25_uid_list, pos);
+	++*pos;
+	if (v == SEQ_START_TOKEN)
+		return ax25_uid_list.first;
+	else
+		return hlist_entry(((ax25_uid_assoc *)v)->uid_node.next,
+			   ax25_uid_assoc, uid_node);
 }
 
 static void ax25_uid_seq_stop(struct seq_file *seq, void *v)
@@ -168,9 +186,8 @@ static int ax25_uid_seq_show(struct seq_file *seq, void *v)
 	if (v == SEQ_START_TOKEN)
 		seq_printf(seq, "Policy: %d\n", ax25_uid_policy);
 	else {
-		struct ax25_uid_assoc *pt;
+		struct ax25_uid_assoc *pt = v;
 
-		pt = hlist_entry(v, struct ax25_uid_assoc, uid_node);
 		seq_printf(seq, "%6d %s\n", pt->uid, ax2asc(buf, &pt->call));
 	}
 	return 0;

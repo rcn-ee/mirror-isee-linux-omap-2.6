@@ -354,9 +354,6 @@ static int pipe_do_rcv(struct sock *sk, struct sk_buff *skb)
 		queue = &pn->ctrlreq_queue;
 		goto queue;
 
-	case PNS_PIPE_ALIGNED_DATA:
-		__skb_pull(skb, 1);
-		/* fall through */
 	case PNS_PIPE_DATA:
 		__skb_pull(skb, 3); /* Pipe data header */
 		if (!pn_flow_safe(pn->rx_fc)) {
@@ -444,7 +441,6 @@ static int pep_connreq_rcv(struct sock *sk, struct sk_buff *skb)
 	struct sockaddr_pn dst;
 	u16 peer_type;
 	u8 pipe_handle, enabled, n_sb;
-	u8 aligned = 0;
 
 	if (!pskb_pull(skb, sizeof(*hdr) + 4))
 		return -EINVAL;
@@ -483,9 +479,6 @@ static int pep_connreq_rcv(struct sock *sk, struct sk_buff *skb)
 				return -EINVAL;
 			peer_type = (peer_type & 0xff00) | data[0];
 			break;
-		case PN_PIPE_SB_ALIGNED_DATA:
-			aligned = data[0] != 0;
-			break;
 		}
 		n_sb--;
 	}
@@ -517,7 +510,6 @@ static int pep_connreq_rcv(struct sock *sk, struct sk_buff *skb)
 	newpn->rx_credits = 0;
 	newpn->rx_fc = newpn->tx_fc = PN_LEGACY_FLOW_CONTROL;
 	newpn->init_enable = enabled;
-	newpn->aligned = aligned;
 
 	BUG_ON(!skb_queue_empty(&newsk->sk_receive_queue));
 	skb_queue_head(&newsk->sk_receive_queue, skb);
@@ -837,15 +829,11 @@ static int pipe_skb_send(struct sock *sk, struct sk_buff *skb)
 		return -ENOBUFS;
 	}
 
-	skb_push(skb, 3 + pn->aligned);
+	skb_push(skb, 3);
 	skb_reset_transport_header(skb);
 	ph = pnp_hdr(skb);
 	ph->utid = 0;
-	if (pn->aligned) {
-		ph->message_id = PNS_PIPE_ALIGNED_DATA;
-		ph->data[0] = 0; /* padding */
-	} else
-		ph->message_id = PNS_PIPE_DATA;
+	ph->message_id = PNS_PIPE_DATA;
 	ph->pipe_handle = pn->pipe_handle;
 
 	return pn_skb_send(sk, skb, &pipe_srv);
@@ -860,9 +848,7 @@ static int pep_sendmsg(struct kiocb *iocb, struct sock *sk,
 	int flags = msg->msg_flags;
 	int err, done;
 
-	if ((msg->msg_flags & ~(MSG_DONTWAIT|MSG_EOR|MSG_NOSIGNAL|
-				MSG_CMSG_COMPAT)) ||
-			!(msg->msg_flags & MSG_EOR))
+	if (msg->msg_flags & MSG_OOB || !(msg->msg_flags & MSG_EOR))
 		return -EOPNOTSUPP;
 
 	skb = sock_alloc_send_skb(sk, MAX_PNPIPE_HEADER + len,
@@ -941,9 +927,6 @@ int pep_write(struct sock *sk, struct sk_buff *skb)
 	struct sk_buff *rskb, *fs;
 	int flen = 0;
 
-	if (pep_sk(sk)->aligned)
-		return pipe_skb_send(sk, skb);
-
 	rskb = alloc_skb(MAX_PNPIPE_HEADER, GFP_ATOMIC);
 	if (!rskb) {
 		kfree_skb(skb);
@@ -983,10 +966,6 @@ static int pep_recvmsg(struct kiocb *iocb, struct sock *sk,
 	struct sk_buff *skb;
 	int err;
 
-	if (flags & ~(MSG_OOB|MSG_PEEK|MSG_TRUNC|MSG_DONTWAIT|MSG_WAITALL|
-			MSG_NOSIGNAL|MSG_CMSG_COMPAT))
-		return -EOPNOTSUPP;
-
 	if (unlikely(1 << sk->sk_state & (TCPF_LISTEN | TCPF_CLOSE)))
 		return -ENOTCONN;
 
@@ -994,8 +973,6 @@ static int pep_recvmsg(struct kiocb *iocb, struct sock *sk,
 		/* Dequeue and acknowledge control request */
 		struct pep_sock *pn = pep_sk(sk);
 
-		if (flags & MSG_PEEK)
-			return -EOPNOTSUPP;
 		skb = skb_dequeue(&pn->ctrlreq_queue);
 		if (skb) {
 			pep_ctrlreq_error(sk, skb, PN_PIPE_NO_ERROR,

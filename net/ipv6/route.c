@@ -914,7 +914,7 @@ static void ip6_link_failure(struct sk_buff *skb)
 {
 	struct rt6_info *rt;
 
-	icmpv6_send(skb, ICMPV6_DEST_UNREACH, ICMPV6_ADDR_UNREACH, 0);
+	icmpv6_send(skb, ICMPV6_DEST_UNREACH, ICMPV6_ADDR_UNREACH, 0, skb->dev);
 
 	rt = (struct rt6_info *) skb_dst(skb);
 	if (rt) {
@@ -1878,7 +1878,7 @@ static int ip6_pkt_drop(struct sk_buff *skb, u8 code, int ipstats_mib_noroutes)
 	switch (ipstats_mib_noroutes) {
 	case IPSTATS_MIB_INNOROUTES:
 		type = ipv6_addr_type(&ipv6_hdr(skb)->daddr);
-		if (type == IPV6_ADDR_ANY) {
+		if (type == IPV6_ADDR_ANY || type == IPV6_ADDR_RESERVED) {
 			IP6_INC_STATS(dev_net(dst->dev), ip6_dst_idev(dst),
 				      IPSTATS_MIB_INADDRERRORS);
 			break;
@@ -1889,7 +1889,7 @@ static int ip6_pkt_drop(struct sk_buff *skb, u8 code, int ipstats_mib_noroutes)
 			      ipstats_mib_noroutes);
 		break;
 	}
-	icmpv6_send(skb, ICMPV6_DEST_UNREACH, code, 0);
+	icmpv6_send(skb, ICMPV6_DEST_UNREACH, code, 0, skb->dev);
 	kfree_skb(skb);
 	return 0;
 }
@@ -2617,7 +2617,7 @@ ctl_table ipv6_route_table_template[] = {
 	{ }
 };
 
-struct ctl_table * __net_init ipv6_route_sysctl_init(struct net *net)
+struct ctl_table *ipv6_route_sysctl_init(struct net *net)
 {
 	struct ctl_table *table;
 
@@ -2642,7 +2642,7 @@ struct ctl_table * __net_init ipv6_route_sysctl_init(struct net *net)
 }
 #endif
 
-static int __net_init ip6_route_net_init(struct net *net)
+static int ip6_route_net_init(struct net *net)
 {
 	int ret = -ENOMEM;
 
@@ -2707,7 +2707,7 @@ out_ip6_dst_ops:
 	goto out;
 }
 
-static void __net_exit ip6_route_net_exit(struct net *net)
+static void ip6_route_net_exit(struct net *net)
 {
 #ifdef CONFIG_PROC_FS
 	proc_net_remove(net, "ipv6_route");

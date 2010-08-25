@@ -6,10 +6,10 @@ mac80211-y := \
 	sta_info.o \
 	wep.o \
 	wpa.o \
-	scan.o offchannel.o \
+	scan.o \
 	ht.o agg-tx.o agg-rx.o \
 	ibss.o \
-	mlme.o work.o \
+	mlme.o \
 	iface.o \
 	rate.o \
 	michael.o \

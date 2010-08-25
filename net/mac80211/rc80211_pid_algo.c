@@ -157,7 +157,9 @@ static void rate_control_pid_sample(struct rc_pid_info *pinfo,
 
 	/* In case nothing happened during the previous control interval, turn
 	 * the sharpening factor on. */
-	period = msecs_to_jiffies(pinfo->sampling_period);
+	period = (HZ * pinfo->sampling_period + 500) / 1000;
+	if (!period)
+		period = 1;
 	if (jiffies - spinfo->last_sample > 2 * period)
 		spinfo->sharp_cnt = pinfo->sharpen_duration;
 
@@ -250,7 +252,9 @@ static void rate_control_pid_tx_status(void *priv, struct ieee80211_supported_ba
 	}
 
 	/* Update PID controller state. */
-	period = msecs_to_jiffies(pinfo->sampling_period);
+	period = (HZ * pinfo->sampling_period + 500) / 1000;
+	if (!period)
+		period = 1;
 	if (time_after(jiffies, spinfo->last_sample + period))
 		rate_control_pid_sample(pinfo, sband, sta, spinfo);
 }

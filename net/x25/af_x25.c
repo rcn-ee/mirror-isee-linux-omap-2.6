@@ -55,7 +55,6 @@
 #include <linux/notifier.h>
 #include <linux/init.h>
 #include <linux/compat.h>
-#include <linux/ctype.h>
 
 #include <net/x25.h>
 #include <net/compat.h>
@@ -513,20 +512,15 @@ static int x25_create(struct net *net, struct socket *sock, int protocol,
 {
 	struct sock *sk;
 	struct x25_sock *x25;
-	int rc = -EAFNOSUPPORT;
+	int rc = -ESOCKTNOSUPPORT;
 
 	if (!net_eq(net, &init_net))
+		return -EAFNOSUPPORT;
+
+	if (sock->type != SOCK_SEQPACKET || protocol)
 		goto out;
 
-	rc = -ESOCKTNOSUPPORT;
-	if (sock->type != SOCK_SEQPACKET)
-		goto out;
-
-	rc = -EINVAL;
-	if (protocol)
-		goto out;
-
-	rc = -ENOBUFS;
+	rc = -ENOMEM;
 	if ((sk = x25_alloc_socket(net)) == NULL)
 		goto out;
 
@@ -649,7 +643,7 @@ static int x25_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 {
 	struct sock *sk = sock->sk;
 	struct sockaddr_x25 *addr = (struct sockaddr_x25 *)uaddr;
-	int len, i, rc = 0;
+	int rc = 0;
 
 	lock_kernel();
 	if (!sock_flag(sk, SOCK_ZAPPED) ||
@@ -657,14 +651,6 @@ static int x25_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	    addr->sx25_family != AF_X25) {
 		rc = -EINVAL;
 		goto out;
-	}
-
-	len = strlen(addr->sx25_addr.x25_addr);
-	for (i = 0; i < len; i++) {
-		if (!isdigit(addr->sx25_addr.x25_addr[i])) {
-			rc = -EINVAL;
-			goto out;
-		}
 	}
 
 	x25_sk(sk)->source_addr = addr->sx25_addr;

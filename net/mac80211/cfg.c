@@ -1,7 +1,7 @@
 /*
  * mac80211 configuration hooks for cfg80211
  *
- * Copyright 2006-2010	Johannes Berg <johannes@sipsolutions.net>
+ * Copyright 2006, 2007	Johannes Berg <johannes@sipsolutions.net>
  *
  * This file is GPLv2 as found in COPYING.
  */
@@ -78,14 +78,16 @@ static int ieee80211_change_iface(struct wiphy *wiphy,
 				  enum nl80211_iftype type, u32 *flags,
 				  struct vif_params *params)
 {
-	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+	struct ieee80211_sub_if_data *sdata;
 	int ret;
 
-	if (ieee80211_sdata_running(sdata))
+	if (netif_running(dev))
 		return -EBUSY;
 
 	if (!nl80211_params_check(type, params))
 		return -EINVAL;
+
+	sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 
 	ret = ieee80211_if_change_type(sdata, type);
 	if (ret)
@@ -147,7 +149,7 @@ static int ieee80211_add_key(struct wiphy *wiphy, struct net_device *dev,
 	rcu_read_lock();
 
 	if (mac_addr) {
-		sta = sta_info_get_bss(sdata, mac_addr);
+		sta = sta_info_get(sdata->local, mac_addr);
 		if (!sta) {
 			ieee80211_key_free(key);
 			err = -ENOENT;
@@ -178,7 +180,7 @@ static int ieee80211_del_key(struct wiphy *wiphy, struct net_device *dev,
 	if (mac_addr) {
 		ret = -ENOENT;
 
-		sta = sta_info_get_bss(sdata, mac_addr);
+		sta = sta_info_get(sdata->local, mac_addr);
 		if (!sta)
 			goto out_unlock;
 
@@ -225,7 +227,7 @@ static int ieee80211_get_key(struct wiphy *wiphy, struct net_device *dev,
 	rcu_read_lock();
 
 	if (mac_addr) {
-		sta = sta_info_get_bss(sdata, mac_addr);
+		sta = sta_info_get(sdata->local, mac_addr);
 		if (!sta)
 			goto out;
 
@@ -412,13 +414,15 @@ static int ieee80211_dump_station(struct wiphy *wiphy, struct net_device *dev,
 static int ieee80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 				 u8 *mac, struct station_info *sinfo)
 {
-	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+	struct ieee80211_local *local = wdev_priv(dev->ieee80211_ptr);
 	struct sta_info *sta;
 	int ret = -ENOENT;
 
 	rcu_read_lock();
 
-	sta = sta_info_get_bss(sdata, mac);
+	/* XXX: verify sta->dev == dev */
+
+	sta = sta_info_get(local, mac);
 	if (sta) {
 		ret = 0;
 		sta_set_sinfo(sta, sinfo);
@@ -513,8 +517,6 @@ static int ieee80211_config_beacon(struct ieee80211_sub_if_data *sdata,
 	else
 		if (old)
 			memcpy(new->tail, old->tail, new_tail_len);
-
-	sdata->vif.bss_conf.dtim_period = new->dtim_period;
 
 	rcu_assign_pointer(sdata->u.ap.beacon, new);
 
@@ -729,7 +731,7 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 	} else
 		sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 
-	if (compare_ether_addr(mac, sdata->vif.addr) == 0)
+	if (compare_ether_addr(mac, dev->dev_addr) == 0)
 		return -EINVAL;
 
 	if (is_multicast_ether_addr(mac))
@@ -748,7 +750,9 @@ static int ieee80211_add_station(struct wiphy *wiphy, struct net_device *dev,
 	layer2_update = sdata->vif.type == NL80211_IFTYPE_AP_VLAN ||
 		sdata->vif.type == NL80211_IFTYPE_AP;
 
-	err = sta_info_insert_rcu(sta);
+	rcu_read_lock();
+
+	err = sta_info_insert(sta);
 	if (err) {
 		rcu_read_unlock();
 		return err;
@@ -767,13 +771,27 @@ static int ieee80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 {
 	struct ieee80211_local *local = wiphy_priv(wiphy);
 	struct ieee80211_sub_if_data *sdata;
+	struct sta_info *sta;
 
 	sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 
-	if (mac)
-		return sta_info_destroy_addr_bss(sdata, mac);
+	if (mac) {
+		rcu_read_lock();
 
-	sta_info_flush(local, sdata);
+		/* XXX: get sta belonging to dev */
+		sta = sta_info_get(local, mac);
+		if (!sta) {
+			rcu_read_unlock();
+			return -ENOENT;
+		}
+
+		sta_info_unlink(&sta);
+		rcu_read_unlock();
+
+		sta_info_destroy(sta);
+	} else
+		sta_info_flush(local, sdata);
+
 	return 0;
 }
 
@@ -782,14 +800,14 @@ static int ieee80211_change_station(struct wiphy *wiphy,
 				    u8 *mac,
 				    struct station_parameters *params)
 {
-	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	struct ieee80211_local *local = wiphy_priv(wiphy);
 	struct sta_info *sta;
 	struct ieee80211_sub_if_data *vlansdata;
 
 	rcu_read_lock();
 
-	sta = sta_info_get_bss(sdata, mac);
+	/* XXX: get sta belonging to dev */
+	sta = sta_info_get(local, mac);
 	if (!sta) {
 		rcu_read_unlock();
 		return -ENOENT;
@@ -828,6 +846,7 @@ static int ieee80211_change_station(struct wiphy *wiphy,
 static int ieee80211_add_mpath(struct wiphy *wiphy, struct net_device *dev,
 				 u8 *dst, u8 *next_hop)
 {
+	struct ieee80211_local *local = wiphy_priv(wiphy);
 	struct ieee80211_sub_if_data *sdata;
 	struct mesh_path *mpath;
 	struct sta_info *sta;
@@ -836,7 +855,7 @@ static int ieee80211_add_mpath(struct wiphy *wiphy, struct net_device *dev,
 	sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 
 	rcu_read_lock();
-	sta = sta_info_get(sdata, next_hop);
+	sta = sta_info_get(local, next_hop);
 	if (!sta) {
 		rcu_read_unlock();
 		return -ENOENT;
@@ -875,6 +894,7 @@ static int ieee80211_change_mpath(struct wiphy *wiphy,
 				    struct net_device *dev,
 				    u8 *dst, u8 *next_hop)
 {
+	struct ieee80211_local *local = wiphy_priv(wiphy);
 	struct ieee80211_sub_if_data *sdata;
 	struct mesh_path *mpath;
 	struct sta_info *sta;
@@ -883,7 +903,7 @@ static int ieee80211_change_mpath(struct wiphy *wiphy,
 
 	rcu_read_lock();
 
-	sta = sta_info_get(sdata, next_hop);
+	sta = sta_info_get(local, next_hop);
 	if (!sta) {
 		rcu_read_unlock();
 		return -ENOENT;
@@ -1071,13 +1091,6 @@ static int ieee80211_change_bss(struct wiphy *wiphy,
 			params->use_short_preamble;
 		changed |= BSS_CHANGED_ERP_PREAMBLE;
 	}
-
-	if (!sdata->vif.bss_conf.use_short_slot &&
-	    sdata->local->hw.conf.channel->band == IEEE80211_BAND_5GHZ) {
-		sdata->vif.bss_conf.use_short_slot = true;
-		changed |= BSS_CHANGED_ERP_SLOT;
-	}
-
 	if (params->use_short_slot_time >= 0) {
 		sdata->vif.bss_conf.use_short_slot =
 			params->use_short_slot_time;
@@ -1121,13 +1134,6 @@ static int ieee80211_set_txq_params(struct wiphy *wiphy,
 	p.cw_max = params->cwmax;
 	p.cw_min = params->cwmin;
 	p.txop = params->txop;
-
-	/*
-	 * Setting tx queue params disables u-apsd because it's only
-	 * called in master mode.
-	 */
-	p.uapsd = false;
-
 	if (drv_conf_tx(local, params->queue, &p)) {
 		printk(KERN_DEBUG "%s: failed to set TX queue "
 		       "parameters for queue %d\n",
@@ -1230,13 +1236,6 @@ static int ieee80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
 	struct ieee80211_local *local = wiphy_priv(wiphy);
 	int err;
 
-	if (changed & WIPHY_PARAM_COVERAGE_CLASS) {
-		err = drv_set_coverage_class(local, wiphy->coverage_class);
-
-		if (err)
-			return err;
-	}
-
 	if (changed & WIPHY_PARAM_RTS_THRESHOLD) {
 		err = drv_set_rts_threshold(local, wiphy->rts_threshold);
 
@@ -1324,50 +1323,6 @@ static int ieee80211_testmode_cmd(struct wiphy *wiphy, void *data, int len)
 }
 #endif
 
-int __ieee80211_request_smps(struct ieee80211_sub_if_data *sdata,
-			     enum ieee80211_smps_mode smps_mode)
-{
-	const u8 *ap;
-	enum ieee80211_smps_mode old_req;
-	int err;
-
-	old_req = sdata->u.mgd.req_smps;
-	sdata->u.mgd.req_smps = smps_mode;
-
-	if (old_req == smps_mode &&
-	    smps_mode != IEEE80211_SMPS_AUTOMATIC)
-		return 0;
-
-	/*
-	 * If not associated, or current association is not an HT
-	 * association, there's no need to send an action frame.
-	 */
-	if (!sdata->u.mgd.associated ||
-	    sdata->local->oper_channel_type == NL80211_CHAN_NO_HT) {
-		mutex_lock(&sdata->local->iflist_mtx);
-		ieee80211_recalc_smps(sdata->local, sdata);
-		mutex_unlock(&sdata->local->iflist_mtx);
-		return 0;
-	}
-
-	ap = sdata->u.mgd.associated->bssid;
-
-	if (smps_mode == IEEE80211_SMPS_AUTOMATIC) {
-		if (sdata->u.mgd.powersave)
-			smps_mode = IEEE80211_SMPS_DYNAMIC;
-		else
-			smps_mode = IEEE80211_SMPS_OFF;
-	}
-
-	/* send SM PS frame to AP */
-	err = ieee80211_send_smps_action(sdata, smps_mode,
-					 ap, ap);
-	if (err)
-		sdata->u.mgd.req_smps = old_req;
-
-	return err;
-}
-
 static int ieee80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 				    bool enabled, int timeout)
 {
@@ -1388,11 +1343,6 @@ static int ieee80211_set_power_mgmt(struct wiphy *wiphy, struct net_device *dev,
 	sdata->u.mgd.powersave = enabled;
 	conf->dynamic_ps_timeout = timeout;
 
-	/* no change, but if automatic follow powersave */
-	mutex_lock(&sdata->u.mgd.mtx);
-	__ieee80211_request_smps(sdata, sdata->u.mgd.req_smps);
-	mutex_unlock(&sdata->u.mgd.mtx);
-
 	if (local->hw.flags & IEEE80211_HW_SUPPORTS_DYNAMIC_PS)
 		ieee80211_hw_config(local, IEEE80211_CONF_CHANGE_PS);
 
@@ -1408,52 +1358,39 @@ static int ieee80211_set_bitrate_mask(struct wiphy *wiphy,
 {
 	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
 	struct ieee80211_local *local = wdev_priv(dev->ieee80211_ptr);
-	int i;
+	int i, err = -EINVAL;
+	u32 target_rate;
+	struct ieee80211_supported_band *sband;
 
-	/*
-	 * This _could_ be supported by providing a hook for
-	 * drivers for this function, but at this point it
-	 * doesn't seem worth bothering.
-	 */
-	if (local->hw.flags & IEEE80211_HW_HAS_RATE_CONTROL)
-		return -EOPNOTSUPP;
+	sband = local->hw.wiphy->bands[local->hw.conf.channel->band];
 
+	/* target_rate = -1, rate->fixed = 0 means auto only, so use all rates
+	 * target_rate = X, rate->fixed = 1 means only rate X
+	 * target_rate = X, rate->fixed = 0 means all rates <= X */
+	sdata->max_ratectrl_rateidx = -1;
+	sdata->force_unicast_rateidx = -1;
 
-	for (i = 0; i < IEEE80211_NUM_BANDS; i++)
-		sdata->rc_rateidx_mask[i] = mask->control[i].legacy;
+	if (mask->fixed)
+		target_rate = mask->fixed / 100;
+	else if (mask->maxrate)
+		target_rate = mask->maxrate / 100;
+	else
+		return 0;
 
-	return 0;
-}
+	for (i=0; i< sband->n_bitrates; i++) {
+		struct ieee80211_rate *brate = &sband->bitrates[i];
+		int this_rate = brate->bitrate;
 
-static int ieee80211_remain_on_channel(struct wiphy *wiphy,
-				       struct net_device *dev,
-				       struct ieee80211_channel *chan,
-				       enum nl80211_channel_type channel_type,
-				       unsigned int duration,
-				       u64 *cookie)
-{
-	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
+		if (target_rate == this_rate) {
+			sdata->max_ratectrl_rateidx = i;
+			if (mask->fixed)
+				sdata->force_unicast_rateidx = i;
+			err = 0;
+			break;
+		}
+	}
 
-	return ieee80211_wk_remain_on_channel(sdata, chan, channel_type,
-					      duration, cookie);
-}
-
-static int ieee80211_cancel_remain_on_channel(struct wiphy *wiphy,
-					      struct net_device *dev,
-					      u64 cookie)
-{
-	struct ieee80211_sub_if_data *sdata = IEEE80211_DEV_TO_SUB_IF(dev);
-
-	return ieee80211_wk_cancel_remain_on_channel(sdata, cookie);
-}
-
-static int ieee80211_action(struct wiphy *wiphy, struct net_device *dev,
-			    struct ieee80211_channel *chan,
-			    enum nl80211_channel_type channel_type,
-			    const u8 *buf, size_t len, u64 *cookie)
-{
-	return ieee80211_mgd_action(IEEE80211_DEV_TO_SUB_IF(dev), chan,
-				    channel_type, buf, len, cookie);
+	return err;
 }
 
 struct cfg80211_ops mac80211_config_ops = {
@@ -1502,7 +1439,4 @@ struct cfg80211_ops mac80211_config_ops = {
 	CFG80211_TESTMODE_CMD(ieee80211_testmode_cmd)
 	.set_power_mgmt = ieee80211_set_power_mgmt,
 	.set_bitrate_mask = ieee80211_set_bitrate_mask,
-	.remain_on_channel = ieee80211_remain_on_channel,
-	.cancel_remain_on_channel = ieee80211_cancel_remain_on_channel,
-	.action = ieee80211_action,
 };

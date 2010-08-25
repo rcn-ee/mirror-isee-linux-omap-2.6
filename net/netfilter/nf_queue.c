@@ -265,6 +265,7 @@ void nf_reinject(struct nf_queue_entry *entry, unsigned int verdict)
 		local_bh_disable();
 		entry->okfn(skb);
 		local_bh_enable();
+	case NF_STOLEN:
 		break;
 	case NF_QUEUE:
 		if (!__nf_queue(skb, elem, entry->pf, entry->hook,
@@ -272,7 +273,6 @@ void nf_reinject(struct nf_queue_entry *entry, unsigned int verdict)
 				verdict >> NF_VERDICT_BITS))
 			goto next_hook;
 		break;
-	case NF_STOLEN:
 	default:
 		kfree_skb(skb);
 	}

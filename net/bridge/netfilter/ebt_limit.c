@@ -84,29 +84,13 @@ static bool ebt_limit_mt_check(const struct xt_mtchk_param *par)
 	return true;
 }
 
-
-#ifdef CONFIG_COMPAT
-/*
- * no conversion function needed --
- * only avg/burst have meaningful values in userspace.
- */
-struct ebt_compat_limit_info {
-	compat_uint_t avg, burst;
-	compat_ulong_t prev;
-	compat_uint_t credit, credit_cap, cost;
-};
-#endif
-
 static struct xt_match ebt_limit_mt_reg __read_mostly = {
 	.name		= "limit",
 	.revision	= 0,
 	.family		= NFPROTO_BRIDGE,
 	.match		= ebt_limit_mt,
 	.checkentry	= ebt_limit_mt_check,
-	.matchsize	= sizeof(struct ebt_limit_info),
-#ifdef CONFIG_COMPAT
-	.compatsize	= sizeof(struct ebt_compat_limit_info),
-#endif
+	.matchsize	= XT_ALIGN(sizeof(struct ebt_limit_info)),
 	.me		= THIS_MODULE,
 };
 

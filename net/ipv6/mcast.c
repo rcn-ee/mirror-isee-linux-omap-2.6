@@ -793,10 +793,10 @@ static void mld_add_delrec(struct inet6_dev *idev, struct ifmcaddr6 *im)
 	}
 	spin_unlock_bh(&im->mca_lock);
 
-	spin_lock_bh(&idev->mc_lock);
+	write_lock_bh(&idev->mc_lock);
 	pmc->next = idev->mc_tomb;
 	idev->mc_tomb = pmc;
-	spin_unlock_bh(&idev->mc_lock);
+	write_unlock_bh(&idev->mc_lock);
 }
 
 static void mld_del_delrec(struct inet6_dev *idev, struct in6_addr *pmca)
@@ -804,7 +804,7 @@ static void mld_del_delrec(struct inet6_dev *idev, struct in6_addr *pmca)
 	struct ifmcaddr6 *pmc, *pmc_prev;
 	struct ip6_sf_list *psf, *psf_next;
 
-	spin_lock_bh(&idev->mc_lock);
+	write_lock_bh(&idev->mc_lock);
 	pmc_prev = NULL;
 	for (pmc=idev->mc_tomb; pmc; pmc=pmc->next) {
 		if (ipv6_addr_equal(&pmc->mca_addr, pmca))
@@ -817,8 +817,7 @@ static void mld_del_delrec(struct inet6_dev *idev, struct in6_addr *pmca)
 		else
 			idev->mc_tomb = pmc->next;
 	}
-	spin_unlock_bh(&idev->mc_lock);
-
+	write_unlock_bh(&idev->mc_lock);
 	if (pmc) {
 		for (psf=pmc->mca_tomb; psf; psf=psf_next) {
 			psf_next = psf->sf_next;
@@ -833,10 +832,10 @@ static void mld_clear_delrec(struct inet6_dev *idev)
 {
 	struct ifmcaddr6 *pmc, *nextpmc;
 
-	spin_lock_bh(&idev->mc_lock);
+	write_lock_bh(&idev->mc_lock);
 	pmc = idev->mc_tomb;
 	idev->mc_tomb = NULL;
-	spin_unlock_bh(&idev->mc_lock);
+	write_unlock_bh(&idev->mc_lock);
 
 	for (; pmc; pmc = nextpmc) {
 		nextpmc = pmc->next;
@@ -1697,7 +1696,7 @@ static void mld_send_cr(struct inet6_dev *idev)
 	int type, dtype;
 
 	read_lock_bh(&idev->lock);
-	spin_lock(&idev->mc_lock);
+	write_lock_bh(&idev->mc_lock);
 
 	/* deleted MCA's */
 	pmc_prev = NULL;
@@ -1731,7 +1730,7 @@ static void mld_send_cr(struct inet6_dev *idev)
 		} else
 			pmc_prev = pmc;
 	}
-	spin_unlock(&idev->mc_lock);
+	write_unlock_bh(&idev->mc_lock);
 
 	/* change recs */
 	for (pmc=idev->mc_list; pmc; pmc=pmc->next) {
@@ -2312,7 +2311,7 @@ void ipv6_mc_up(struct inet6_dev *idev)
 void ipv6_mc_init_dev(struct inet6_dev *idev)
 {
 	write_lock_bh(&idev->lock);
-	spin_lock_init(&idev->mc_lock);
+	rwlock_init(&idev->mc_lock);
 	idev->mc_gq_running = 0;
 	setup_timer(&idev->mc_gq_timer, mld_gq_timer_expire,
 			(unsigned long)idev);
@@ -2647,7 +2646,7 @@ static const struct file_operations igmp6_mcf_seq_fops = {
 	.release	=	seq_release_net,
 };
 
-static int __net_init igmp6_proc_init(struct net *net)
+static int igmp6_proc_init(struct net *net)
 {
 	int err;
 
@@ -2667,22 +2666,23 @@ out_proc_net_igmp6:
 	goto out;
 }
 
-static void __net_exit igmp6_proc_exit(struct net *net)
+static void igmp6_proc_exit(struct net *net)
 {
 	proc_net_remove(net, "mcfilter6");
 	proc_net_remove(net, "igmp6");
 }
 #else
-static inline int igmp6_proc_init(struct net *net)
+static int igmp6_proc_init(struct net *net)
 {
 	return 0;
 }
-static inline void igmp6_proc_exit(struct net *net)
+static void igmp6_proc_exit(struct net *net)
 {
+	;
 }
 #endif
 
-static int __net_init igmp6_net_init(struct net *net)
+static int igmp6_net_init(struct net *net)
 {
 	int err;
 
@@ -2708,7 +2708,7 @@ out_sock_create:
 	goto out;
 }
 
-static void __net_exit igmp6_net_exit(struct net *net)
+static void igmp6_net_exit(struct net *net)
 {
 	inet_ctl_sock_destroy(net->ipv6.igmp_sk);
 	igmp6_proc_exit(net);

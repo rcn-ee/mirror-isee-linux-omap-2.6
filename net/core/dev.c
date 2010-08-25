@@ -1113,12 +1113,31 @@ void dev_load(struct net *net, const char *name)
 }
 EXPORT_SYMBOL(dev_load);
 
-static int __dev_open(struct net_device *dev)
+/**
+ *	dev_open	- prepare an interface for use.
+ *	@dev:	device to open
+ *
+ *	Takes a device from down to up state. The device's private open
+ *	function is invoked and then the multicast lists are loaded. Finally
+ *	the device is moved into the up state and a %NETDEV_UP message is
+ *	sent to the netdev notifier chain.
+ *
+ *	Calling this function on an active interface is a nop. On a failure
+ *	a negative errno code is returned.
+ */
+int dev_open(struct net_device *dev)
 {
 	const struct net_device_ops *ops = dev->netdev_ops;
 	int ret;
 
 	ASSERT_RTNL();
+
+	/*
+	 *	Is it already up?
+	 */
+
+	if (dev->flags & IFF_UP)
+		return 0;
 
 	/*
 	 *	Is it even present?
@@ -1168,56 +1187,35 @@ static int __dev_open(struct net_device *dev)
 		 *	Wakeup transmit queue engine
 		 */
 		dev_activate(dev);
+
+		/*
+		 *	... and announce new interface.
+		 */
+		call_netdevice_notifiers(NETDEV_UP, dev);
 	}
-
-	return ret;
-}
-
-/**
- *	dev_open	- prepare an interface for use.
- *	@dev:	device to open
- *
- *	Takes a device from down to up state. The device's private open
- *	function is invoked and then the multicast lists are loaded. Finally
- *	the device is moved into the up state and a %NETDEV_UP message is
- *	sent to the netdev notifier chain.
- *
- *	Calling this function on an active interface is a nop. On a failure
- *	a negative errno code is returned.
- */
-int dev_open(struct net_device *dev)
-{
-	int ret;
-
-	/*
-	 *	Is it already up?
-	 */
-	if (dev->flags & IFF_UP)
-		return 0;
-
-	/*
-	 *	Open device
-	 */
-	ret = __dev_open(dev);
-	if (ret < 0)
-		return ret;
-
-	/*
-	 *	... and announce new interface.
-	 */
-	rtmsg_ifinfo(RTM_NEWLINK, dev, IFF_UP|IFF_RUNNING);
-	call_netdevice_notifiers(NETDEV_UP, dev);
 
 	return ret;
 }
 EXPORT_SYMBOL(dev_open);
 
-static int __dev_close(struct net_device *dev)
+/**
+ *	dev_close - shutdown an interface.
+ *	@dev: device to shutdown
+ *
+ *	This function moves an active device into down state. A
+ *	%NETDEV_GOING_DOWN is sent to the netdev notifier chain. The device
+ *	is then deactivated and finally a %NETDEV_DOWN is sent to the notifier
+ *	chain.
+ */
+int dev_close(struct net_device *dev)
 {
 	const struct net_device_ops *ops = dev->netdev_ops;
-
 	ASSERT_RTNL();
+
 	might_sleep();
+
+	if (!(dev->flags & IFF_UP))
+		return 0;
 
 	/*
 	 *	Tell people we are going down, so that they can
@@ -1254,34 +1252,14 @@ static int __dev_close(struct net_device *dev)
 	dev->flags &= ~IFF_UP;
 
 	/*
+	 * Tell people we are down
+	 */
+	call_netdevice_notifiers(NETDEV_DOWN, dev);
+
+	/*
 	 *	Shutdown NET_DMA
 	 */
 	net_dmaengine_put();
-
-	return 0;
-}
-
-/**
- *	dev_close - shutdown an interface.
- *	@dev: device to shutdown
- *
- *	This function moves an active device into down state. A
- *	%NETDEV_GOING_DOWN is sent to the netdev notifier chain. The device
- *	is then deactivated and finally a %NETDEV_DOWN is sent to the notifier
- *	chain.
- */
-int dev_close(struct net_device *dev)
-{
-	if (!(dev->flags & IFF_UP))
-		return 0;
-
-	__dev_close(dev);
-
-	/*
-	 * Tell people we are down
-	 */
-	rtmsg_ifinfo(RTM_NEWLINK, dev, IFF_UP|IFF_RUNNING);
-	call_netdevice_notifiers(NETDEV_DOWN, dev);
 
 	return 0;
 }
@@ -1450,7 +1428,7 @@ static inline void net_timestamp(struct sk_buff *skb)
  *
  * return values:
  *	NET_RX_SUCCESS	(no congestion)
- *	NET_RX_DROP     (packet was dropped)
+ *	NET_RX_DROP     (packet was dropped, but freed)
  *
  * dev_forward_skb can be used for injecting an skb from the
  * start_xmit function of one device into the receive queue
@@ -1464,16 +1442,19 @@ int dev_forward_skb(struct net_device *dev, struct sk_buff *skb)
 {
 	skb_orphan(skb);
 
-	if (!(dev->flags & IFF_UP))
+	if (!(dev->flags & IFF_UP) ||
+	    (skb->len > (dev->mtu + dev->hard_header_len))) {
+		kfree_skb(skb);
 		return NET_RX_DROP;
+	}
 
-	if (skb->len > (dev->mtu + dev->hard_header_len))
-		return NET_RX_DROP;
-
-	skb_set_dev(skb, dev);
+	skb_dst_drop(skb);
 	skb->tstamp.tv64 = 0;
 	skb->pkt_type = PACKET_HOST;
 	skb->protocol = eth_type_trans(skb, dev);
+	skb->mark = 0;
+	secpath_reset(skb);
+	nf_reset(skb);
 	return netif_rx(skb);
 }
 EXPORT_SYMBOL_GPL(dev_forward_skb);
@@ -1632,36 +1613,6 @@ static bool dev_can_checksum(struct net_device *dev, struct sk_buff *skb)
 
 	return false;
 }
-
-/**
- * skb_dev_set -- assign a new device to a buffer
- * @skb: buffer for the new device
- * @dev: network device
- *
- * If an skb is owned by a device already, we have to reset
- * all data private to the namespace a device belongs to
- * before assigning it a new device.
- */
-#ifdef CONFIG_NET_NS
-void skb_set_dev(struct sk_buff *skb, struct net_device *dev)
-{
-	skb_dst_drop(skb);
-	if (skb->dev && !net_eq(dev_net(skb->dev), dev_net(dev))) {
-		secpath_reset(skb);
-		nf_reset(skb);
-		skb_init_secmark(skb);
-		skb->mark = 0;
-		skb->priority = 0;
-		skb->nf_trace = 0;
-		skb->ipvs_property = 0;
-#ifdef CONFIG_NET_SCHED
-		skb->tc_index = 0;
-#endif
-	}
-	skb->dev = dev;
-}
-EXPORT_SYMBOL(skb_set_dev);
-#endif /* CONFIG_NET_NS */
 
 /*
  * Invalidate hardware checksum when packet is to be mangled, and
@@ -1902,14 +1853,6 @@ gso:
 
 		skb->next = nskb->next;
 		nskb->next = NULL;
-
-		/*
-		 * If device doesnt need nskb->dst, release it right now while
-		 * its hot in this cpu cache
-		 */
-		if (dev->priv_flags & IFF_XMIT_DST_RELEASE)
-			skb_dst_drop(nskb);
-
 		rc = ops->ndo_start_xmit(nskb, dev);
 		if (unlikely(rc != NETDEV_TX_OK)) {
 			if (rc & ~NETDEV_TX_MASK)
@@ -1972,12 +1915,11 @@ static inline u16 dev_cap_txqueue(struct net_device *dev, u16 queue_index)
 static struct netdev_queue *dev_pick_tx(struct net_device *dev,
 					struct sk_buff *skb)
 {
-	u16 queue_index;
+	int queue_index;
 	struct sock *sk = skb->sk;
 
-	if (sk_tx_queue_recorded(sk)) {
-		queue_index = sk_tx_queue_get(sk);
-	} else {
+	queue_index = sk_tx_queue_get(sk);
+	if (queue_index < 0) {
 		const struct net_device_ops *ops = dev->netdev_ops;
 
 		if (ops->ndo_select_queue) {
@@ -2031,21 +1973,6 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
 	return rc;
 }
 
-/*
- * Returns true if either:
- *	1. skb has frag_list and the device doesn't support FRAGLIST, or
- *	2. skb is fragmented and the device does not support SG, or if
- *	   at least one of fragments is in highmem and device does not
- *	   support DMA from it.
- */
-static inline int skb_needs_linearize(struct sk_buff *skb,
-				      struct net_device *dev)
-{
-	return (skb_has_frags(skb) && !(dev->features & NETIF_F_FRAGLIST)) ||
-	       (skb_shinfo(skb)->nr_frags && (!(dev->features & NETIF_F_SG) ||
-					      illegal_highdma(dev, skb)));
-}
-
 /**
  *	dev_queue_xmit - transmit a buffer
  *	@skb: buffer to transmit
@@ -2082,8 +2009,18 @@ int dev_queue_xmit(struct sk_buff *skb)
 	if (netif_needs_gso(dev, skb))
 		goto gso;
 
-	/* Convert a paged skb to linear, if required */
-	if (skb_needs_linearize(skb, dev) && __skb_linearize(skb))
+	if (skb_has_frags(skb) &&
+	    !(dev->features & NETIF_F_FRAGLIST) &&
+	    __skb_linearize(skb))
+		goto out_kfree_skb;
+
+	/* Fragmented skb is linearized if device does not support SG,
+	 * or if at least one of fragments is in highmem and device
+	 * does not support DMA from it.
+	 */
+	if (skb_shinfo(skb)->nr_frags &&
+	    (!(dev->features & NETIF_F_SG) || illegal_highdma(dev, skb)) &&
+	    __skb_linearize(skb))
 		goto out_kfree_skb;
 
 	/* If packet is not checksummed and device does not support
@@ -2103,7 +2040,7 @@ gso:
 	rcu_read_lock_bh();
 
 	txq = dev_pick_tx(dev, skb);
-	q = rcu_dereference_bh(txq->qdisc);
+	q = rcu_dereference(txq->qdisc);
 
 #ifdef CONFIG_NET_CLS_ACT
 	skb->tc_verd = SET_TC_AT(skb->tc_verd, AT_EGRESS);
@@ -2485,7 +2422,6 @@ int netif_receive_skb(struct sk_buff *skb)
 	struct net_device *orig_dev;
 	struct net_device *master;
 	struct net_device *null_or_orig;
-	struct net_device *null_or_bond;
 	int ret = NET_RX_DROP;
 	__be16 type;
 
@@ -2552,24 +2488,12 @@ ncls:
 	if (!skb)
 		goto out;
 
-	/*
-	 * Make sure frames received on VLAN interfaces stacked on
-	 * bonding interfaces still make their way to any base bonding
-	 * device that may have registered for a specific ptype.  The
-	 * handler may have to adjust skb->dev and orig_dev.
-	 */
-	null_or_bond = NULL;
-	if ((skb->dev->priv_flags & IFF_802_1Q_VLAN) &&
-	    (vlan_dev_real_dev(skb->dev)->priv_flags & IFF_BONDING)) {
-		null_or_bond = vlan_dev_real_dev(skb->dev);
-	}
-
 	type = skb->protocol;
 	list_for_each_entry_rcu(ptype,
 			&ptype_base[ntohs(type) & PTYPE_HASH_MASK], list) {
-		if (ptype->type == type && (ptype->dev == null_or_orig ||
-		     ptype->dev == skb->dev || ptype->dev == orig_dev ||
-		     ptype->dev == null_or_bond)) {
+		if (ptype->type == type &&
+		    (ptype->dev == null_or_orig || ptype->dev == skb->dev ||
+		     ptype->dev == orig_dev)) {
 			if (pt_prev)
 				ret = deliver_skb(skb, pt_prev, orig_dev);
 			pt_prev = ptype;
@@ -2638,7 +2562,7 @@ out:
 	return netif_receive_skb(skb);
 }
 
-static void napi_gro_flush(struct napi_struct *napi)
+void napi_gro_flush(struct napi_struct *napi)
 {
 	struct sk_buff *skb, *next;
 
@@ -2651,6 +2575,7 @@ static void napi_gro_flush(struct napi_struct *napi)
 	napi->gro_count = 0;
 	napi->gro_list = NULL;
 }
+EXPORT_SYMBOL(napi_gro_flush);
 
 enum gro_result dev_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 {
@@ -3042,7 +2967,7 @@ static void net_rx_action(struct softirq_action *h)
 		 * entries to the tail of this list, and only ->poll()
 		 * calls can remove this head entry from the list.
 		 */
-		n = list_first_entry(list, struct napi_struct, poll_list);
+		n = list_entry(list->next, struct napi_struct, poll_list);
 
 		have = netpoll_poll_lock(n);
 
@@ -3261,7 +3186,7 @@ static void dev_seq_printf_stats(struct seq_file *seq, struct net_device *dev)
 {
 	const struct net_device_stats *stats = dev_get_stats(dev);
 
-	seq_printf(seq, "%6s: %7lu %7lu %4lu %4lu %4lu %5lu %10lu %9lu "
+	seq_printf(seq, "%6s:%8lu %7lu %4lu %4lu %4lu %5lu %10lu %9lu "
 		   "%8lu %7lu %4lu %4lu %4lu %5lu %7lu %10lu\n",
 		   dev->name, stats->rx_bytes, stats->rx_packets,
 		   stats->rx_errors,
@@ -3716,10 +3641,10 @@ void __dev_set_rx_mode(struct net_device *dev)
 		/* Unicast addresses changes may only happen under the rtnl,
 		 * therefore calling __dev_set_promiscuity here is safe.
 		 */
-		if (!netdev_uc_empty(dev) && !dev->uc_promisc) {
+		if (dev->uc.count > 0 && !dev->uc_promisc) {
 			__dev_set_promiscuity(dev, 1);
 			dev->uc_promisc = 1;
-		} else if (netdev_uc_empty(dev) && dev->uc_promisc) {
+		} else if (dev->uc.count == 0 && dev->uc_promisc) {
 			__dev_set_promiscuity(dev, -1);
 			dev->uc_promisc = 0;
 		}
@@ -4287,7 +4212,7 @@ static void dev_addr_discard(struct net_device *dev)
 	netif_addr_lock_bh(dev);
 
 	__dev_addr_discard(&dev->mc_list);
-	netdev_mc_count(dev) = 0;
+	dev->mc_count = 0;
 
 	netif_addr_unlock_bh(dev);
 }
@@ -4323,10 +4248,18 @@ unsigned dev_get_flags(const struct net_device *dev)
 }
 EXPORT_SYMBOL(dev_get_flags);
 
-int __dev_change_flags(struct net_device *dev, unsigned int flags)
+/**
+ *	dev_change_flags - change device settings
+ *	@dev: device
+ *	@flags: device state flags
+ *
+ *	Change settings on device based state flags. The flags are
+ *	in the userspace exported format.
+ */
+int dev_change_flags(struct net_device *dev, unsigned flags)
 {
+	int ret, changes;
 	int old_flags = dev->flags;
-	int ret;
 
 	ASSERT_RTNL();
 
@@ -4357,11 +4290,16 @@ int __dev_change_flags(struct net_device *dev, unsigned int flags)
 
 	ret = 0;
 	if ((old_flags ^ flags) & IFF_UP) {	/* Bit is different  ? */
-		ret = ((old_flags & IFF_UP) ? __dev_close : __dev_open)(dev);
+		ret = ((old_flags & IFF_UP) ? dev_close : dev_open)(dev);
 
 		if (!ret)
 			dev_set_rx_mode(dev);
 	}
+
+	if (dev->flags & IFF_UP &&
+	    ((old_flags ^ dev->flags) & ~(IFF_UP | IFF_PROMISC | IFF_ALLMULTI |
+					  IFF_VOLATILE)))
+		call_netdevice_notifiers(NETDEV_CHANGE, dev);
 
 	if ((flags ^ dev->gflags) & IFF_PROMISC) {
 		int inc = (flags & IFF_PROMISC) ? 1 : -1;
@@ -4381,47 +4319,11 @@ int __dev_change_flags(struct net_device *dev, unsigned int flags)
 		dev_set_allmulti(dev, inc);
 	}
 
-	return ret;
-}
-
-void __dev_notify_flags(struct net_device *dev, unsigned int old_flags)
-{
-	unsigned int changes = dev->flags ^ old_flags;
-
-	if (changes & IFF_UP) {
-		if (dev->flags & IFF_UP)
-			call_netdevice_notifiers(NETDEV_UP, dev);
-		else
-			call_netdevice_notifiers(NETDEV_DOWN, dev);
-	}
-
-	if (dev->flags & IFF_UP &&
-	    (changes & ~(IFF_UP | IFF_PROMISC | IFF_ALLMULTI | IFF_VOLATILE)))
-		call_netdevice_notifiers(NETDEV_CHANGE, dev);
-}
-
-/**
- *	dev_change_flags - change device settings
- *	@dev: device
- *	@flags: device state flags
- *
- *	Change settings on device based state flags. The flags are
- *	in the userspace exported format.
- */
-int dev_change_flags(struct net_device *dev, unsigned flags)
-{
-	int ret, changes;
-	int old_flags = dev->flags;
-
-	ret = __dev_change_flags(dev, flags);
-	if (ret < 0)
-		return ret;
-
-	changes = old_flags ^ dev->flags;
+	/* Exclude state transition flags, already notified */
+	changes = (old_flags ^ dev->flags) & ~(IFF_UP | IFF_RUNNING);
 	if (changes)
 		rtmsg_ifinfo(RTM_NEWLINK, dev, changes);
 
-	__dev_notify_flags(dev, old_flags);
 	return ret;
 }
 EXPORT_SYMBOL(dev_change_flags);
@@ -4912,10 +4814,6 @@ static void rollback_registered_many(struct list_head *head)
 		*/
 		call_netdevice_notifiers(NETDEV_UNREGISTER, dev);
 
-		if (!dev->rtnl_link_ops ||
-		    dev->rtnl_link_state == RTNL_LINK_INITIALIZED)
-			rtmsg_ifinfo(RTM_DELLINK, dev, ~0U);
-
 		/*
 		 *	Flush the unicast and multicast chains
 		 */
@@ -4933,7 +4831,7 @@ static void rollback_registered_many(struct list_head *head)
 	}
 
 	/* Process any work delayed until the end of the batch */
-	dev = list_first_entry(head, struct net_device, unreg_list);
+	dev = list_entry(head->next, struct net_device, unreg_list);
 	call_netdevice_notifiers(NETDEV_UNREGISTER_BATCH, dev);
 
 	synchronize_net();
@@ -5142,9 +5040,7 @@ int register_netdevice(struct net_device *dev)
 	 *	Prevent userspace races by waiting until the network
 	 *	device is fully setup before sending notifications.
 	 */
-	if (!dev->rtnl_link_ops ||
-	    dev->rtnl_link_state == RTNL_LINK_INITIALIZED)
-		rtmsg_ifinfo(RTM_NEWLINK, dev, ~0U);
+	rtmsg_ifinfo(RTM_NEWLINK, dev, ~0U);
 
 out:
 	return ret;
@@ -5321,7 +5217,7 @@ void netdev_run_todo(void)
 
 	while (!list_empty(&list)) {
 		struct net_device *dev
-			= list_first_entry(&list, struct net_device, todo_list);
+			= list_entry(list.next, struct net_device, todo_list);
 		list_del(&dev->todo_list);
 
 		if (unlikely(dev->reg_state != NETREG_UNREGISTERING)) {
@@ -5472,8 +5368,6 @@ struct net_device *alloc_netdev_mq(int sizeof_priv, const char *name,
 
 	netdev_init_queues(dev);
 
-	INIT_LIST_HEAD(&dev->ethtool_ntuple_list.list);
-	dev->ethtool_ntuple_list.count = 0;
 	INIT_LIST_HEAD(&dev->napi_list);
 	INIT_LIST_HEAD(&dev->unreg_list);
 	INIT_LIST_HEAD(&dev->link_watch_list);
@@ -5509,9 +5403,6 @@ void free_netdev(struct net_device *dev)
 
 	/* Flush device addresses */
 	dev_addr_flush(dev);
-
-	/* Clear ethtool n-tuple list */
-	ethtool_ntuple_flush(dev);
 
 	list_for_each_entry_safe(p, n, &dev->napi_list, dev_list)
 		netif_napi_del(p);

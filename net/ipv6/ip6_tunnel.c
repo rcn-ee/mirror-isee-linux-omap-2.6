@@ -74,6 +74,7 @@ MODULE_LICENSE("GPL");
 		     (addr)->s6_addr32[2] ^ (addr)->s6_addr32[3]) & \
 		    (HASH_SIZE - 1))
 
+static void ip6_fb_tnl_dev_init(struct net_device *dev);
 static void ip6_tnl_dev_init(struct net_device *dev);
 static void ip6_tnl_dev_setup(struct net_device *dev);
 
@@ -622,7 +623,7 @@ ip6ip6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 		if (rt && rt->rt6i_dev)
 			skb2->dev = rt->rt6i_dev;
 
-		icmpv6_send(skb2, rel_type, rel_code, rel_info);
+		icmpv6_send(skb2, rel_type, rel_code, rel_info, skb2->dev);
 
 		if (rt)
 			dst_release(&rt->u.dst);
@@ -1014,7 +1015,7 @@ ip6ip6_tnl_xmit(struct sk_buff *skb, struct net_device *dev)
 		tel = (struct ipv6_tlv_tnl_enc_lim *)&skb_network_header(skb)[offset];
 		if (tel->encap_limit == 0) {
 			icmpv6_send(skb, ICMPV6_PARAMPROB,
-				    ICMPV6_HDR_FIELD, offset + 2);
+				    ICMPV6_HDR_FIELD, offset + 2, skb->dev);
 			return -1;
 		}
 		encap_limit = tel->encap_limit - 1;
@@ -1033,7 +1034,7 @@ ip6ip6_tnl_xmit(struct sk_buff *skb, struct net_device *dev)
 	err = ip6_tnl_xmit2(skb, dev, dsfield, &fl, encap_limit, &mtu);
 	if (err != 0) {
 		if (err == -EMSGSIZE)
-			icmpv6_send(skb, ICMPV6_PKT_TOOBIG, 0, mtu);
+			icmpv6_send(skb, ICMPV6_PKT_TOOBIG, 0, mtu, dev);
 		return -1;
 	}
 
@@ -1363,7 +1364,7 @@ static void ip6_tnl_dev_init(struct net_device *dev)
  * Return: 0
  **/
 
-static void __net_init ip6_fb_tnl_dev_init(struct net_device *dev)
+static void ip6_fb_tnl_dev_init(struct net_device *dev)
 {
 	struct ip6_tnl *t = netdev_priv(dev);
 	struct net *net = dev_net(dev);
@@ -1387,7 +1388,7 @@ static struct xfrm6_tunnel ip6ip6_handler = {
 	.priority	=	1,
 };
 
-static void __net_exit ip6_tnl_destroy_tunnels(struct ip6_tnl_net *ip6n)
+static void ip6_tnl_destroy_tunnels(struct ip6_tnl_net *ip6n)
 {
 	int h;
 	struct ip6_tnl *t;
@@ -1406,7 +1407,7 @@ static void __net_exit ip6_tnl_destroy_tunnels(struct ip6_tnl_net *ip6n)
 	unregister_netdevice_many(&list);
 }
 
-static int __net_init ip6_tnl_init_net(struct net *net)
+static int ip6_tnl_init_net(struct net *net)
 {
 	struct ip6_tnl_net *ip6n = net_generic(net, ip6_tnl_net_id);
 	int err;
@@ -1435,7 +1436,7 @@ err_alloc_dev:
 	return err;
 }
 
-static void __net_exit ip6_tnl_exit_net(struct net *net)
+static void ip6_tnl_exit_net(struct net *net)
 {
 	struct ip6_tnl_net *ip6n = net_generic(net, ip6_tnl_net_id);
 
@@ -1461,29 +1462,27 @@ static int __init ip6_tunnel_init(void)
 {
 	int  err;
 
+	if (xfrm6_tunnel_register(&ip4ip6_handler, AF_INET)) {
+		printk(KERN_ERR "ip6_tunnel init: can't register ip4ip6\n");
+		err = -EAGAIN;
+		goto out;
+	}
+
+	if (xfrm6_tunnel_register(&ip6ip6_handler, AF_INET6)) {
+		printk(KERN_ERR "ip6_tunnel init: can't register ip6ip6\n");
+		err = -EAGAIN;
+		goto unreg_ip4ip6;
+	}
+
 	err = register_pernet_device(&ip6_tnl_net_ops);
 	if (err < 0)
-		goto out_pernet;
-
-	err = xfrm6_tunnel_register(&ip4ip6_handler, AF_INET);
-	if (err < 0) {
-		printk(KERN_ERR "ip6_tunnel init: can't register ip4ip6\n");
-		goto out_ip4ip6;
-	}
-
-	err = xfrm6_tunnel_register(&ip6ip6_handler, AF_INET6);
-	if (err < 0) {
-		printk(KERN_ERR "ip6_tunnel init: can't register ip6ip6\n");
-		goto out_ip6ip6;
-	}
-
+		goto err_pernet;
 	return 0;
-
-out_ip6ip6:
+err_pernet:
+	xfrm6_tunnel_deregister(&ip6ip6_handler, AF_INET6);
+unreg_ip4ip6:
 	xfrm6_tunnel_deregister(&ip4ip6_handler, AF_INET);
-out_ip4ip6:
-	unregister_pernet_device(&ip6_tnl_net_ops);
-out_pernet:
+out:
 	return err;
 }
 

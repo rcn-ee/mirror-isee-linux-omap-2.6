@@ -40,21 +40,6 @@
 #include <net/ip_vs.h>
 
 
-#ifndef CONFIG_IP_VS_TAB_BITS
-#define CONFIG_IP_VS_TAB_BITS	12
-#endif
-
-/*
- * Connection hash size. Default is what was selected at compile time.
-*/
-int ip_vs_conn_tab_bits = CONFIG_IP_VS_TAB_BITS;
-module_param_named(conn_tab_bits, ip_vs_conn_tab_bits, int, 0444);
-MODULE_PARM_DESC(conn_tab_bits, "Set connections' hash size");
-
-/* size and mask values */
-int ip_vs_conn_tab_size;
-int ip_vs_conn_tab_mask;
-
 /*
  *  Connection hash table: for input and output packets lookups of IPVS
  */
@@ -140,11 +125,11 @@ static unsigned int ip_vs_conn_hashkey(int af, unsigned proto,
 	if (af == AF_INET6)
 		return jhash_3words(jhash(addr, 16, ip_vs_conn_rnd),
 				    (__force u32)port, proto, ip_vs_conn_rnd)
-			& ip_vs_conn_tab_mask;
+			& IP_VS_CONN_TAB_MASK;
 #endif
 	return jhash_3words((__force u32)addr->ip, (__force u32)port, proto,
 			    ip_vs_conn_rnd)
-		& ip_vs_conn_tab_mask;
+		& IP_VS_CONN_TAB_MASK;
 }
 
 
@@ -161,6 +146,7 @@ static inline int ip_vs_conn_hash(struct ip_vs_conn *cp)
 	hash = ip_vs_conn_hashkey(cp->af, cp->protocol, &cp->caddr, cp->cport);
 
 	ct_write_lock(hash);
+	spin_lock(&cp->lock);
 
 	if (!(cp->flags & IP_VS_CONN_F_HASHED)) {
 		list_add(&cp->c_list, &ip_vs_conn_tab[hash]);
@@ -173,6 +159,7 @@ static inline int ip_vs_conn_hash(struct ip_vs_conn *cp)
 		ret = 0;
 	}
 
+	spin_unlock(&cp->lock);
 	ct_write_unlock(hash);
 
 	return ret;
@@ -192,6 +179,7 @@ static inline int ip_vs_conn_unhash(struct ip_vs_conn *cp)
 	hash = ip_vs_conn_hashkey(cp->af, cp->protocol, &cp->caddr, cp->cport);
 
 	ct_write_lock(hash);
+	spin_lock(&cp->lock);
 
 	if (cp->flags & IP_VS_CONN_F_HASHED) {
 		list_del(&cp->c_list);
@@ -201,6 +189,7 @@ static inline int ip_vs_conn_unhash(struct ip_vs_conn *cp)
 	} else
 		ret = 0;
 
+	spin_unlock(&cp->lock);
 	ct_write_unlock(hash);
 
 	return ret;
@@ -775,7 +764,7 @@ static void *ip_vs_conn_array(struct seq_file *seq, loff_t pos)
 	int idx;
 	struct ip_vs_conn *cp;
 
-	for (idx = 0; idx < ip_vs_conn_tab_size; idx++) {
+	for(idx = 0; idx < IP_VS_CONN_TAB_SIZE; idx++) {
 		ct_read_lock_bh(idx);
 		list_for_each_entry(cp, &ip_vs_conn_tab[idx], c_list) {
 			if (pos-- == 0) {
@@ -812,7 +801,7 @@ static void *ip_vs_conn_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 	idx = l - ip_vs_conn_tab;
 	ct_read_unlock_bh(idx);
 
-	while (++idx < ip_vs_conn_tab_size) {
+	while (++idx < IP_VS_CONN_TAB_SIZE) {
 		ct_read_lock_bh(idx);
 		list_for_each_entry(cp, &ip_vs_conn_tab[idx], c_list) {
 			seq->private = &ip_vs_conn_tab[idx];
@@ -991,8 +980,8 @@ void ip_vs_random_dropentry(void)
 	/*
 	 * Randomly scan 1/32 of the whole table every second
 	 */
-	for (idx = 0; idx < (ip_vs_conn_tab_size>>5); idx++) {
-		unsigned hash = net_random() & ip_vs_conn_tab_mask;
+	for (idx = 0; idx < (IP_VS_CONN_TAB_SIZE>>5); idx++) {
+		unsigned hash = net_random() & IP_VS_CONN_TAB_MASK;
 
 		/*
 		 *  Lock is actually needed in this loop.
@@ -1044,7 +1033,7 @@ static void ip_vs_conn_flush(void)
 	struct ip_vs_conn *cp;
 
   flush_again:
-	for (idx = 0; idx < ip_vs_conn_tab_size; idx++) {
+	for (idx=0; idx<IP_VS_CONN_TAB_SIZE; idx++) {
 		/*
 		 *  Lock is actually needed in this loop.
 		 */
@@ -1075,15 +1064,10 @@ int __init ip_vs_conn_init(void)
 {
 	int idx;
 
-	/* Compute size and mask */
-	ip_vs_conn_tab_size = 1 << ip_vs_conn_tab_bits;
-	ip_vs_conn_tab_mask = ip_vs_conn_tab_size - 1;
-
 	/*
 	 * Allocate the connection hash table and initialize its list heads
 	 */
-	ip_vs_conn_tab = vmalloc(ip_vs_conn_tab_size *
-				 sizeof(struct list_head));
+	ip_vs_conn_tab = vmalloc(IP_VS_CONN_TAB_SIZE*sizeof(struct list_head));
 	if (!ip_vs_conn_tab)
 		return -ENOMEM;
 
@@ -1098,12 +1082,12 @@ int __init ip_vs_conn_init(void)
 
 	pr_info("Connection hash table configured "
 		"(size=%d, memory=%ldKbytes)\n",
-		ip_vs_conn_tab_size,
-		(long)(ip_vs_conn_tab_size*sizeof(struct list_head))/1024);
+		IP_VS_CONN_TAB_SIZE,
+		(long)(IP_VS_CONN_TAB_SIZE*sizeof(struct list_head))/1024);
 	IP_VS_DBG(0, "Each connection entry needs %Zd bytes at least\n",
 		  sizeof(struct ip_vs_conn));
 
-	for (idx = 0; idx < ip_vs_conn_tab_size; idx++) {
+	for (idx = 0; idx < IP_VS_CONN_TAB_SIZE; idx++) {
 		INIT_LIST_HEAD(&ip_vs_conn_tab[idx]);
 	}
 

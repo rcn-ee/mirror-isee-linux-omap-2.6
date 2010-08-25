@@ -327,6 +327,7 @@ static int netlbl_unlhsh_add_addr4(struct netlbl_unlhsh_iface *iface,
 	entry->list.addr = addr->s_addr & mask->s_addr;
 	entry->list.mask = mask->s_addr;
 	entry->list.valid = 1;
+	INIT_RCU_HEAD(&entry->rcu);
 	entry->secid = secid;
 
 	spin_lock(&netlbl_unlhsh_lock);
@@ -372,6 +373,7 @@ static int netlbl_unlhsh_add_addr6(struct netlbl_unlhsh_iface *iface,
 	entry->list.addr.s6_addr32[3] &= mask->s6_addr32[3];
 	ipv6_addr_copy(&entry->list.mask, mask);
 	entry->list.valid = 1;
+	INIT_RCU_HEAD(&entry->rcu);
 	entry->secid = secid;
 
 	spin_lock(&netlbl_unlhsh_lock);
@@ -408,6 +410,7 @@ static struct netlbl_unlhsh_iface *netlbl_unlhsh_add_iface(int ifindex)
 	INIT_LIST_HEAD(&iface->addr4_list);
 	INIT_LIST_HEAD(&iface->addr6_list);
 	iface->valid = 1;
+	INIT_RCU_HEAD(&iface->rcu);
 
 	spin_lock(&netlbl_unlhsh_lock);
 	if (ifindex > 0) {

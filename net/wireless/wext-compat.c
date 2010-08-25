@@ -1099,8 +1099,8 @@ int cfg80211_wext_siwpower(struct net_device *dev,
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
 	struct cfg80211_registered_device *rdev = wiphy_to_dev(wdev->wiphy);
-	bool ps = wdev->ps;
-	int timeout = wdev->ps_timeout;
+	bool ps = wdev->wext.ps;
+	int timeout = wdev->wext.ps_timeout;
 	int err;
 
 	if (wdev->iftype != NL80211_IFTYPE_STATION)
@@ -1133,8 +1133,8 @@ int cfg80211_wext_siwpower(struct net_device *dev,
 	if (err)
 		return err;
 
-	wdev->ps = ps;
-	wdev->ps_timeout = timeout;
+	wdev->wext.ps = ps;
+	wdev->wext.ps_timeout = timeout;
 
 	return 0;
 
@@ -1147,7 +1147,7 @@ int cfg80211_wext_giwpower(struct net_device *dev,
 {
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
 
-	wrq->disabled = !wdev->ps;
+	wrq->disabled = !wdev->wext.ps;
 
 	return 0;
 }
@@ -1204,46 +1204,20 @@ int cfg80211_wext_siwrate(struct net_device *dev,
 	struct wireless_dev *wdev = dev->ieee80211_ptr;
 	struct cfg80211_registered_device *rdev = wiphy_to_dev(wdev->wiphy);
 	struct cfg80211_bitrate_mask mask;
-	u32 fixed, maxrate;
-	struct ieee80211_supported_band *sband;
-	int band, ridx;
-	bool match = false;
 
 	if (!rdev->ops->set_bitrate_mask)
 		return -EOPNOTSUPP;
 
-	memset(&mask, 0, sizeof(mask));
-	fixed = 0;
-	maxrate = (u32)-1;
+	mask.fixed = 0;
+	mask.maxrate = 0;
 
 	if (rate->value < 0) {
 		/* nothing */
 	} else if (rate->fixed) {
-		fixed = rate->value / 100000;
+		mask.fixed = rate->value / 1000; /* kbps */
 	} else {
-		maxrate = rate->value / 100000;
+		mask.maxrate = rate->value / 1000; /* kbps */
 	}
-
-	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
-		sband = wdev->wiphy->bands[band];
-		if (sband == NULL)
-			continue;
-		for (ridx = 0; ridx < sband->n_bitrates; ridx++) {
-			struct ieee80211_rate *srate = &sband->bitrates[ridx];
-			if (fixed == srate->bitrate) {
-				mask.control[band].legacy = 1 << ridx;
-				match = true;
-				break;
-			}
-			if (srate->bitrate <= maxrate) {
-				mask.control[band].legacy |= 1 << ridx;
-				match = true;
-			}
-		}
-	}
-
-	if (!match)
-		return -EINVAL;
 
 	return rdev->ops->set_bitrate_mask(wdev->wiphy, dev, NULL, &mask);
 }

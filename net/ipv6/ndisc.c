@@ -585,6 +585,7 @@ static void ndisc_send_na(struct net_device *dev, struct neighbour *neigh,
 		src_addr = solicited_addr;
 		if (ifp->flags & IFA_F_OPTIMISTIC)
 			override = 0;
+		inc_opt |= ifp->idev->cnf.force_tllao;
 		in6_ifa_put(ifp);
 	} else {
 		if (ipv6_dev_get_saddr(dev_net(dev), dev, daddr,
@@ -598,7 +599,6 @@ static void ndisc_send_na(struct net_device *dev, struct neighbour *neigh,
 	icmp6h.icmp6_solicited = solicited;
 	icmp6h.icmp6_override = override;
 
-	inc_opt |= ifp->idev->cnf.force_tllao;
 	__ndisc_send(dev, neigh, daddr, src_addr,
 		     &icmp6h, solicited_addr,
 		     inc_opt ? ND_OPT_TARGET_LL_ADDR : 0);
@@ -1772,7 +1772,7 @@ int ndisc_ifinfo_sysctl_change(struct ctl_table *ctl, int write, void __user *bu
 
 #endif
 
-static int __net_init ndisc_net_init(struct net *net)
+static int ndisc_net_init(struct net *net)
 {
 	struct ipv6_pinfo *np;
 	struct sock *sk;
@@ -1797,7 +1797,7 @@ static int __net_init ndisc_net_init(struct net *net)
 	return 0;
 }
 
-static void __net_exit ndisc_net_exit(struct net *net)
+static void ndisc_net_exit(struct net *net)
 {
 	inet_ctl_sock_destroy(net->ipv6.ndisc_sk);
 }
@@ -1820,7 +1820,8 @@ int __init ndisc_init(void)
 	neigh_table_init(&nd_tbl);
 
 #ifdef CONFIG_SYSCTL
-	err = neigh_sysctl_register(NULL, &nd_tbl.parms, "ipv6",
+	err = neigh_sysctl_register(NULL, &nd_tbl.parms, NET_IPV6,
+				    NET_IPV6_NEIGH, "ipv6",
 				    &ndisc_ifinfo_sysctl_change);
 	if (err)
 		goto out_unregister_pernet;

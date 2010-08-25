@@ -745,7 +745,7 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 		struct timeval tm;
 	} v;
 
-	int lv = sizeof(int);
+	unsigned int lv = sizeof(int);
 	int len;
 
 	if (get_user(len, optlen))
@@ -1077,8 +1077,7 @@ static void __sk_free(struct sock *sk)
 	if (sk->sk_destruct)
 		sk->sk_destruct(sk);
 
-	filter = rcu_dereference_check(sk->sk_filter,
-				       atomic_read(&sk->sk_wmem_alloc) == 0);
+	filter = rcu_dereference(sk->sk_filter);
 	if (filter) {
 		sk_filter_uncharge(sk, filter);
 		rcu_assign_pointer(sk->sk_filter, NULL);
@@ -2153,13 +2152,13 @@ int sock_prot_inuse_get(struct net *net, struct proto *prot)
 }
 EXPORT_SYMBOL_GPL(sock_prot_inuse_get);
 
-static int __net_init sock_inuse_init_net(struct net *net)
+static int sock_inuse_init_net(struct net *net)
 {
 	net->core.inuse = alloc_percpu(struct prot_inuse);
 	return net->core.inuse ? 0 : -ENOMEM;
 }
 
-static void __net_exit sock_inuse_exit_net(struct net *net)
+static void sock_inuse_exit_net(struct net *net)
 {
 	free_percpu(net->core.inuse);
 }
@@ -2241,10 +2240,13 @@ int proto_register(struct proto *prot, int alloc_slab)
 		}
 
 		if (prot->rsk_prot != NULL) {
-			prot->rsk_prot->slab_name = kasprintf(GFP_KERNEL, "request_sock_%s", prot->name);
+			static const char mask[] = "request_sock_%s";
+
+			prot->rsk_prot->slab_name = kmalloc(strlen(prot->name) + sizeof(mask) - 1, GFP_KERNEL);
 			if (prot->rsk_prot->slab_name == NULL)
 				goto out_free_sock_slab;
 
+			sprintf(prot->rsk_prot->slab_name, mask, prot->name);
 			prot->rsk_prot->slab = kmem_cache_create(prot->rsk_prot->slab_name,
 								 prot->rsk_prot->obj_size, 0,
 								 SLAB_HWCACHE_ALIGN, NULL);
@@ -2257,11 +2259,14 @@ int proto_register(struct proto *prot, int alloc_slab)
 		}
 
 		if (prot->twsk_prot != NULL) {
-			prot->twsk_prot->twsk_slab_name = kasprintf(GFP_KERNEL, "tw_sock_%s", prot->name);
+			static const char mask[] = "tw_sock_%s";
+
+			prot->twsk_prot->twsk_slab_name = kmalloc(strlen(prot->name) + sizeof(mask) - 1, GFP_KERNEL);
 
 			if (prot->twsk_prot->twsk_slab_name == NULL)
 				goto out_free_request_sock_slab;
 
+			sprintf(prot->twsk_prot->twsk_slab_name, mask, prot->name);
 			prot->twsk_prot->twsk_slab =
 				kmem_cache_create(prot->twsk_prot->twsk_slab_name,
 						  prot->twsk_prot->twsk_obj_size,
