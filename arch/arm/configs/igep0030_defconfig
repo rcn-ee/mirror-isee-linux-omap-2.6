@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.33.7
-# Wed Aug 25 10:30:44 2010
+# Wed Aug 25 14:37:40 2010
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -258,8 +258,10 @@ CONFIG_ARCH_OMAP3=y
 #
 # OMAP Feature Selections
 #
-# CONFIG_OMAP_RESET_CLOCKS is not set
-# CONFIG_OMAP_MUX is not set
+CONFIG_OMAP_RESET_CLOCKS=y
+CONFIG_OMAP_MUX=y
+CONFIG_OMAP_MUX_DEBUG=y
+CONFIG_OMAP_MUX_WARNINGS=y
 CONFIG_OMAP_MCBSP=y
 CONFIG_OMAP_MBOX_FWK=m
 CONFIG_OMAP_IOMMU=m
