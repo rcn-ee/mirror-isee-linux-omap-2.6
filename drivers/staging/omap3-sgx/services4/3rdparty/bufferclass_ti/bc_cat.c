@@ -488,7 +488,6 @@ static int __init bc_cat_init(void)
 
     /* texture buffer width should be multiple of 8 for OMAP3 ES3.x,
      * or 32 for ES2.x */
-    /*width_align = omap_rev_lt_3_0() ? 32 : 8;*/
     width_align = 8;
     
     major = register_chrdev(0, DEVNAME, &bc_cat_fops);

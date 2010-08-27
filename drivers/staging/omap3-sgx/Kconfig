@@ -1,5 +1,5 @@
 config OMAP3_SGX
-	bool "OMAP3 SGX support (TI: 3.01.00.06)"
+	bool "OMAP3 SGX support (TI: 3.01.00.07)"
 	depends on OMAP2_DSS && m
 	help
-	  This is TI's OMAP3 SGX Kernel Modules 3.01.00.06
+	  This is TI's OMAP3 SGX Kernel Modules 3.01.00.07

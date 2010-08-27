@@ -9,7 +9,11 @@ export BUILD = release
 export KBUILD_EXTRA_SYMBOLS = `pwd`/services4/srvkm/env/linux/kbuild/Module.symvers
 
 SGXCORE = 530
+ifeq ($(TI_PLATFORM),omap3630)
+CORE = -DSGX530 -DSUPPORT_SGX530 -DSGX_CORE_REV=125
+else
 CORE = -DSGX530 -DSUPPORT_SGX530 -DSGX_CORE_REV=121
+endif
 
 SUPPORT_SGX = 1
 SUPPORT_HW_RECOVERY = 1
