@@ -787,6 +787,10 @@ void __init omap_serial_init_port(int port)
 		return;
 	}
 
+	/* Don't proceed if there's no clocks available */
+	if (!uart->ick || !uart->fck)
+		return;
+
 	omap_uart_enable_clocks(uart);
 
 	omap_uart_reset(uart);
