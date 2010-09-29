@@ -613,6 +613,9 @@ static void __init igep2_wlan_bt_init(void)
 static inline void igep2_wlan_bt_init(void) { }
 #endif
 
+/* Expansion board: IGEP0022 */
+extern void __init igep0022_init(void);
+
 static void __init igep2_init(void)
 {
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
@@ -637,6 +640,8 @@ static void __init igep2_init(void)
 	 */
 	igep2_wlan_bt_init();
 
+	/* Expansion board: IGEP0022 */
+	igep0022_init();
 }
 
 MACHINE_START(IGEP0020, "IGEP v2 board")
