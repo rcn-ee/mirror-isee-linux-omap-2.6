@@ -277,22 +277,22 @@ static struct omap2_hsmmc_info mmc[] = {
 
 static struct gpio_led igep2_gpio_leds[] = {
 	[0] = {
-		.name = "led0:red",
+		.name = "gpio-led:red:d0",
 		.gpio = IGEP2_GPIO_LED0_RED,
-		.default_trigger = "default-off",
+		.default_trigger = "default-off"
 	},
 	[1] = {
-		.name = "led0:green",
+		.name = "gpio-led:green:d0",
 		.gpio = IGEP2_GPIO_LED0_GREEN,
 		.default_trigger = "default-off",
 	},
 	[2] = {
-		.name = "led1:red",
+		.name = "gpio-led:red:d1",
 		.gpio = IGEP2_GPIO_LED1_RED,
 		.default_trigger = "default-off",
 	},
 	[3] = {
-		.name = "led1:green",
+		.name = "gpio-led:green:d1",
 		.default_trigger = "heartbeat",
 		.gpio = -EINVAL, /* gets replaced */
 	},
@@ -311,13 +311,36 @@ static struct platform_device igep2_led_device = {
 	},
 };
 
-static void __init igep2_init_led(void)
+static void __init igep2_leds_init(void)
 {
 	platform_device_register(&igep2_led_device);
 }
 
 #else
-static inline void igep2_init_led(void) {}
+static inline void igep2_leds_init(void)
+{
+	if ((gpio_request(IGEP2_GPIO_LED0_RED, "gpio-led:red:d0") == 0) &&
+	    (gpio_direction_output(IGEP2_GPIO_LED0_RED, 1) == 0)) {
+		gpio_export(IGEP2_GPIO_LED0_RED, 0);
+		gpio_set_value(IGEP2_GPIO_LED0_RED, 0);
+	} else
+		pr_warning("IGEP v2: Could not obtain gpio GPIO_LED0_RED\n");
+
+	if ((gpio_request(IGEP2_GPIO_LED0_GREEN, "gpio-led:green:d0") == 0) &&
+	    (gpio_direction_output(IGEP2_GPIO_LED0_GREEN, 1) == 0)) {
+		gpio_export(IGEP2_GPIO_LED0_GREEN, 0);
+		gpio_set_value(IGEP2_GPIO_LED0_GREEN, 0);
+	} else
+		pr_warning("IGEP v2: Could not obtain gpio GPIO_LED0_GREEN\n");
+
+	if ((gpio_request(IGEP2_GPIO_LED1_RED, "gpio-led:red:d1") == 0) &&
+	    (gpio_direction_output(IGEP2_GPIO_LED1_RED, 1) == 0)) {
+		gpio_export(IGEP2_GPIO_LED1_RED, 0);
+		gpio_set_value(IGEP2_GPIO_LED1_RED, 0);
+	} else
+		pr_warning("IGEP v2: Could not obtain gpio GPIO_LED1_RED\n");
+
+}
 #endif
 
 static int igep2_twl_gpio_setup(struct device *dev,
@@ -345,8 +368,8 @@ static int igep2_twl_gpio_setup(struct device *dev,
 
 	/* TWL4030_GPIO_MAX + 1 == ledB (out, active low LED) */
 #if !defined(CONFIG_LEDS_GPIO) && !defined(CONFIG_LEDS_GPIO_MODULE)
-	if ((gpio_request(gpio + TWL4030_GPIO_MAX + 1, "led1:green") == 0) &&
-	    (gpio_direction_output(gpio + TWL4030_GPIO_MAX + 1, 1) == 0)) {
+	if ((gpio_request(gpio+TWL4030_GPIO_MAX+1, "gpio-led:green:d1") == 0)
+	    && (gpio_direction_output(gpio + TWL4030_GPIO_MAX + 1, 1) == 0)) {
 		gpio_export(gpio + TWL4030_GPIO_MAX + 1, 0);
 		gpio_set_value(gpio + TWL4030_GPIO_MAX + 1, 0);
 	} else
@@ -358,7 +381,7 @@ static int igep2_twl_gpio_setup(struct device *dev,
 	return 0;
 };
 
-static struct twl4030_gpio_platform_data igep2_gpio_data = {
+static struct twl4030_gpio_platform_data igep2_twl4030_gpio_pdata = {
 	.gpio_base	= OMAP_MAX_GPIO_LINES,
 	.irq_base	= TWL4030_GPIO_IRQ_BASE,
 	.irq_end	= TWL4030_GPIO_IRQ_END,
@@ -465,7 +488,7 @@ static struct twl4030_platform_data igep2_twldata = {
 	/* platform_data for children goes here */
 	.usb		= &igep2_usb_data,
 	.codec		= &igep2_codec_data,
-	.gpio		= &igep2_gpio_data,
+	.gpio		= &igep2_twl4030_gpio_pdata,
 	.vmmc1          = &igep2_vmmc1,
 	.vmmc2		= &igep2_vmmc2,
 	.vpll2		= &igep2_vpll2,
@@ -592,34 +615,11 @@ static void __init igep2_init(void)
 		pr_err("IGEP platform: Unknow\n");
 
 	igep2_flash_init();
-	igep2_init_led();
+	igep2_leds_init();
 	igep2_display_init();
 	igep2_init_smsc911x();
 	igep2_init_wifi_bt();
 
-	/* GPIO userspace leds */
-#if !defined(CONFIG_LEDS_GPIO) && !defined(CONFIG_LEDS_GPIO_MODULE)
-	if ((gpio_request(IGEP2_GPIO_LED0_RED, "led0:red") == 0) &&
-	    (gpio_direction_output(IGEP2_GPIO_LED0_RED, 1) == 0)) {
-		gpio_export(IGEP2_GPIO_LED0_RED, 0);
-		gpio_set_value(IGEP2_GPIO_LED0_RED, 0);
-	} else
-		pr_warning("IGEP v2: Could not obtain gpio GPIO_LED0_RED\n");
-
-	if ((gpio_request(IGEP2_GPIO_LED0_GREEN, "led0:green") == 0) &&
-	    (gpio_direction_output(IGEP2_GPIO_LED0_GREEN, 1) == 0)) {
-		gpio_export(IGEP2_GPIO_LED0_GREEN, 0);
-		gpio_set_value(IGEP2_GPIO_LED0_GREEN, 0);
-	} else
-		pr_warning("IGEP v2: Could not obtain gpio GPIO_LED0_GREEN\n");
-
-	if ((gpio_request(IGEP2_GPIO_LED1_RED, "led1:red") == 0) &&
-	    (gpio_direction_output(IGEP2_GPIO_LED1_RED, 1) == 0)) {
-		gpio_export(IGEP2_GPIO_LED1_RED, 0);
-		gpio_set_value(IGEP2_GPIO_LED1_RED, 0);
-	} else
-		pr_warning("IGEP v2: Could not obtain gpio GPIO_LED1_RED\n");
-#endif
 }
 
 MACHINE_START(IGEP0020, "IGEP v2 board")
