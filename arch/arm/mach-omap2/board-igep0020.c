@@ -76,10 +76,10 @@ static void __init igep2_get_revision(void)
 	if ((gpio_request(IGEP2_GPIO_LED1_RED, "GPIO_HW0_REV") == 0) &&
 	    (gpio_direction_input(IGEP2_GPIO_LED1_RED) == 0)) {
 		ret = gpio_get_value(IGEP2_GPIO_LED1_RED);
-		if (hwrev == 0) {
+		if (ret == 0) {
 			pr_info("IGEP2: Hardware Revision C (B-NON compatible)\n");
 			hwrev = IGEP2_BOARD_HWREV_C;
-		} else if (hwrev ==  1) {
+		} else if (ret ==  1) {
 			pr_info("IGEP2: Hardware Revision B/C (B compatible)\n");
 			hwrev = IGEP2_BOARD_HWREV_B;
 		} else {
@@ -580,7 +580,7 @@ static void __init igep2_wlan_bt_init(void)
 		npd = IGEP2_RB_GPIO_WIFI_NPD;
 		wreset = IGEP2_RB_GPIO_WIFI_NRESET;
 		btreset = IGEP2_RB_GPIO_BT_NRESET;
-	} else if (hwrev == IGEP2_BOARD_HWREV_B) {
+	} else if (hwrev == IGEP2_BOARD_HWREV_C) {
 		npd = IGEP2_RC_GPIO_WIFI_NPD;
 		wreset = IGEP2_RC_GPIO_WIFI_NRESET;
 		btreset = IGEP2_RC_GPIO_BT_NRESET;
