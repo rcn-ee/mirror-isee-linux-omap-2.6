@@ -640,8 +640,8 @@ static void __init igep2_init(void)
 	 */
 	igep2_wlan_bt_init();
 
-	/* Expansion board: IGEP0022 */
-	igep0022_init();
+	/* Expansion board: IGEP0022
+	igep0022_init(); */
 }
 
 MACHINE_START(IGEP0020, "IGEP v2 board")
