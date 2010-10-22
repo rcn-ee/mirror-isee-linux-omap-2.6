@@ -1964,6 +1964,9 @@ static int onenand_write_ops_nolock(struct mtd_info *mtd, loff_t to,
 
 			/* In partial page write we don't update bufferram */
 			onenand_update_bufferram(mtd, to, !ret && !subpage);
+			ONENAND_SET_BUFFERRAM1(this);
+			onenand_update_bufferram(mtd, to + this->writesize, !ret && !subpage);
+
 			if (ret) {
 				printk(KERN_ERR "%s: write failed %d\n",
 					__func__, ret);
