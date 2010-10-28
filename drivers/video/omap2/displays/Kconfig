@@ -69,4 +69,11 @@ config PANEL_POWERTIP_PH480272T
 	select BACKLIGHT_CLASS_DEVICE
         help
           LCD Panel used in IGEP boards.
+
+config PANEL_SEIKO_70WVW1TZ3
+	tristate "Seiko 70WVW1TZ3 LCD Panel"
+	depends on OMAP2_DSS
+	select BACKLIGHT_CLASS_DEVICE
+        help
+          7.0 inch LCD Panel used in IGEP boards.
 endmenu
