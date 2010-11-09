@@ -40,38 +40,6 @@
 #define IGEP2_GPIO_TVP5151_PDN		126
 #define IGEP2_GPIO_TVP5151_RESET	167
 
-#if defined(CONFIG_FB_OMAP2) || \
-	defined(CONFIG_FB_OMAP2_MODULE)
-
-static struct omap_dss_device igep0022_lcd43_device = {
-	.type			= OMAP_DISPLAY_TYPE_DPI,
-	.name			= "lcd-43",
-	.driver_name		= "ph480272t",
-	.phy.dpi.data_lines	= 24,
-};
-
-static struct omap_dss_device igep0022_lcd70_device = {
-	.type			= OMAP_DISPLAY_TYPE_DPI,
-	.name			= "lcd-70",
-	.driver_name		= "70wvw1tz3",
-	.phy.dpi.data_lines	= 24,
-};
-
-static void igep0022_display_init(void)
-{
-	/* Powertip 4.3 inch (480 x RGB x 272) TFT with Touch-Panel */
-	if (omap_dss_register_device(&igep0022_lcd43_device))
-		pr_err("IGEP: Could not register device 'lcd-43'\n");
-
-	/* Seiko 7.0 inch WVGA (800 x RGB x 480) TFT with Touch-Panel */
-	if (omap_dss_register_device(&igep0022_lcd70_device))
-		pr_err("IGEP: Could not register device 'lcd-70'\n");
-}
-
-#else
-static inline void igep0022_display_init(void) {}
-#endif
-
 #if defined(CONFIG_TOUCHSCREEN_ADS7846) || \
 	defined(CONFIG_TOUCHSCREEN_ADS7846_MODULE)
 
@@ -325,13 +293,6 @@ void __init igep0022_init(void)
 	 *        omap_mux_init_signal("uart1_rts.safe_mode", 0);
 	 *        omap_mux_init_signal("uart1_cts.safe_mode", 0);
 	 */
-
-	/*
-	 * Register display devices:
-	 *   - Powertip 4.3 inch (480 x RGB x 272) TFT with Touch-Panel
-	 *   - Seiko 7.0 inch WVGA (800 x RGB x 480) TFT with Touch-Panel
-	 */
-	igep0022_display_init();
 
 	/* AT24C01 EEPROM with I2C interface */
 	igep0022_at24c01_init();
