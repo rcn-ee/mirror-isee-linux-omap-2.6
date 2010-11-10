@@ -287,12 +287,11 @@ void __init igep0022_init(void)
 
 	/*
 	 * To use UART1 as RS232 port instead of RS485 we need configure
-	 * UART1_RTS and UART1_CTS pins in safe mode. By default RS485 mode is
-	 * used.
-	 *
-	 *        omap_mux_init_signal("uart1_rts.safe_mode", 0);
-	 *        omap_mux_init_signal("uart1_cts.safe_mode", 0);
+	 * UART1_RTS and UART1_CTS pins in safe mode. To set the RS485
+	 * comment next to lines.
 	 */
+	omap_mux_init_signal("uart1_rts.safe_mode", 0);
+	omap_mux_init_signal("uart1_cts.safe_mode", 0);
 
 	/* AT24C01 EEPROM with I2C interface */
 	igep0022_at24c01_init();
