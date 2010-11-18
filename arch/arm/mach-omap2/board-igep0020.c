@@ -19,6 +19,7 @@
 #include <linux/interrupt.h>
 
 #include <linux/regulator/machine.h>
+#include <linux/regulator/fixed.h>
 #include <linux/i2c/twl.h>
 
 #include <asm/mach-types.h>
@@ -245,9 +246,8 @@ static inline void __init igep2_init_smsc911x(void)
 static inline void __init igep2_init_smsc911x(void) { }
 #endif
 
-static struct regulator_consumer_supply igep2_vmmc1_supply = {
-	.supply		= "vmmc",
-};
+static struct regulator_consumer_supply igep2_vmmc1_supply =
+	REGULATOR_SUPPLY("vmmc", "mmci-omap-hs.0");
 
 /* VMMC1 for OMAP VDD_MMC1 (i/o) and MMC1 card */
 static struct regulator_init_data igep2_vmmc1 = {
@@ -262,6 +262,52 @@ static struct regulator_init_data igep2_vmmc1 = {
 	},
 	.num_consumer_supplies  = 1,
 	.consumer_supplies      = &igep2_vmmc1_supply,
+};
+
+static struct regulator_consumer_supply igep2_vio_supply =
+	REGULATOR_SUPPLY("vmmc_aux", "mmci-omap-hs.1");
+
+static struct regulator_init_data igep2_vio = {
+	.constraints = {
+		.min_uV			= 1800000,
+		.max_uV			= 1800000,
+		.apply_uV		= 1,
+		.valid_modes_mask	= REGULATOR_MODE_NORMAL
+					| REGULATOR_MODE_STANDBY,
+		.valid_ops_mask		= REGULATOR_CHANGE_VOLTAGE
+					| REGULATOR_CHANGE_MODE
+					| REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies  = 1,
+	.consumer_supplies      = &igep2_vio_supply,
+};
+
+static struct regulator_consumer_supply igep2_vmmc2_supply =
+	REGULATOR_SUPPLY("vmmc", "mmci-omap-hs.1");
+
+static struct regulator_init_data igep2_vmmc2 = {
+	.constraints		= {
+		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
+		.always_on		= 1,
+	},
+	.num_consumer_supplies	= 1,
+	.consumer_supplies	= &igep2_vmmc2_supply,
+};
+
+static struct fixed_voltage_config igep2_vwlan = {
+	.supply_name		= "vwlan",
+	.microvolts		= 3300000,
+	.gpio			= -EINVAL,
+	.enabled_at_boot	= 1,
+	.init_data		= &igep2_vmmc2,
+};
+
+static struct platform_device igep2_vwlan_device = {
+	.name		= "reg-fixed-voltage",
+	.id		= 0,
+	.dev = {
+		.platform_data	= &igep2_vwlan,
+	},
 };
 
 static struct omap2_hsmmc_info mmc[] = {
@@ -361,12 +407,7 @@ static int igep2_twl_gpio_setup(struct device *dev,
 	omap2_hsmmc_init(mmc);
 
 	/*
-	 * link regulators to MMC adapters ... we "know" the
-	 * regulators will be set up only *after* we return.
-	 */
-	igep2_vmmc1_supply.dev = mmc[0].dev;
-
-	/* REVISIT: need ehci-omap hooks for external VBUS
+	 * REVISIT: need ehci-omap hooks for external VBUS
 	 * power switch and overcurrent detect
 	 */
 	gpio_request(gpio + 1, "GPIO_EHCI_NOC");
@@ -489,6 +530,7 @@ static void __init igep2_display_init(void)
 
 static struct platform_device *igep2_devices[] __initdata = {
 	&igep2_dss_device,
+	&igep2_vwlan_device,
 };
 
 static void __init igep2_init_irq(void)
@@ -517,7 +559,7 @@ static struct twl4030_platform_data igep2_twldata = {
 	.gpio		= &igep2_twl4030_gpio_pdata,
 	.vmmc1		= &igep2_vmmc1,
 	.vpll2		= &igep2_vpll2,
-
+	.vio		= &igep2_vio,
 };
 
 static struct i2c_board_info __initdata igep2_i2c1_boardinfo[] = {
