@@ -149,5 +149,7 @@ source "drivers/staging/msm/Kconfig"
 
 source "drivers/staging/omap3-sgx/Kconfig"
 
+source "drivers/staging/tidspbridge/Kconfig"
+
 endif # !STAGING_EXCLUDE_BUILD
 endif # STAGING
