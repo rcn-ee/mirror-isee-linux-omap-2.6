@@ -395,7 +395,7 @@ static int __devinit omap2_mbox_probe(struct platform_device *pdev)
 	if (false)
 		;
 #if defined(CONFIG_ARCH_OMAP3430)
-	else if (cpu_is_omap3430()) {
+	else if (cpu_is_omap3430() || cpu_is_omap3630()) {
 		list = omap3_mboxes;
 
 		list[0]->irq = platform_get_irq_byname(pdev, "dsp");
