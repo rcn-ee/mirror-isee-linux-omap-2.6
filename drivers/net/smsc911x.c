@@ -68,6 +68,11 @@ static int debug = 3;
 module_param(debug, int, 0);
 MODULE_PARM_DESC(debug, "Debug level (0=none,...,16=all)");
 
+/* Pass hardware MAC Option */
+static u8 smsc_9xxx_mac_addr[6];
+module_param_array_named(mac, smsc_9xxx_mac_addr, byte, NULL, 0);
+MODULE_PARM_DESC(mac, "six hex digits, ie. 0x1,0x2,0xc0,0x01,0xba,0xbe");
+
 struct smsc911x_data {
 	void __iomem *ioaddr;
 
@@ -2084,7 +2089,11 @@ static int __devinit smsc911x_drv_probe(struct platform_device *pdev)
 				"Mac Address is read from LAN911x EEPROM");
 		} else {
 			/* eeprom values are invalid, generate random MAC */
-			random_ether_addr(dev->dev_addr);
+			if (!is_zero_ether_addr(smsc_9xxx_mac_addr)){
+				memcpy(dev->dev_addr, smsc_9xxx_mac_addr, 6);
+			} else {
+				random_ether_addr(dev->dev_addr);
+			}
 			smsc911x_set_hw_mac_address(pdata, dev->dev_addr);
 			SMSC_TRACE(PROBE,
 				"MAC Address is set to random_ether_addr");
