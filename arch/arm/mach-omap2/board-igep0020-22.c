@@ -163,7 +163,7 @@ static inline void __init igep0022_modem_init(void)
 
 static struct at24_platform_data at24c01_pdata __initdata = {
 	.byte_len	= SZ_1K / 8,
-	.page_size	= 16,
+	.page_size	= 8,
 };
 
 static struct i2c_board_info at24c01_i2c_board_info[] __initdata = {
