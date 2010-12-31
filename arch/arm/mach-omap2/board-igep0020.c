@@ -163,7 +163,7 @@ static void __init igep2_init_led(void)
 #else
 static inline void igep2_init_led(void) {}
 #endif
-/*
+
 static struct spi_board_info igep2_spi_board_info[] __initdata = {
         {
                 .modalias               = "spidev",
@@ -172,15 +172,8 @@ static struct spi_board_info igep2_spi_board_info[] __initdata = {
                 .max_speed_hz           = 20000000,
                 .mode                   = SPI_MODE_2,
         },
-        {
-                .modalias               = "spidev",
-                .bus_num                = 2,
-                .chip_select            = 0,
-                .max_speed_hz           = 20000000,
-                .mode                   = SPI_MODE_2,
-        },
 };
-*/
+
 static struct omap_uart_config igep2_uart_config __initdata = {
 	.enabled_uarts	= ((1 << 0) | (1 << 1) | (1 << 2)),
 };
@@ -394,7 +387,7 @@ static void __init igep2_init(void)
 	omap_board_config = igep2_config;
 	omap_board_config_size = ARRAY_SIZE(igep2_config);
 
-//	spi_register_board_info(igep2_spi_board_info, ARRAY_SIZE(igep2_spi_board_info));
+	spi_register_board_info(igep2_spi_board_info, ARRAY_SIZE(igep2_spi_board_info));
 
 	omap_serial_init();
 	omap_cfg_reg(J25_34XX_GPIO170);
