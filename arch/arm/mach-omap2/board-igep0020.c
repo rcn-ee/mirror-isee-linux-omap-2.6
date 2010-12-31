@@ -19,6 +19,7 @@
 #include <linux/interrupt.h>
 #include <linux/input.h>
 
+#include <linux/spi/spi.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
 #include <linux/i2c/twl.h>
@@ -400,6 +401,27 @@ static inline void igep2_leds_init(void)
 }
 #endif
 
+
+static struct spi_board_info igep2B_spi_board_info[] __initdata = {
+        {
+                .modalias               = "spidev",
+                .bus_num                = 1,
+                .chip_select            = 3,
+                .max_speed_hz           = 20000000,
+                .mode                   = SPI_MODE_2,
+        },
+};
+
+static struct spi_board_info igep2_spi_board_info[] __initdata = {
+        {
+                .modalias               = "spidev",
+                .bus_num                = 2,
+                .chip_select            = 0,
+                .max_speed_hz           = 20000000,
+                .mode                   = SPI_MODE_2,
+        },
+};
+
 static int igep2_twl_gpio_setup(struct device *dev,
 		unsigned gpio, unsigned ngpio)
 {
@@ -705,6 +727,10 @@ static void __init igep2_init(void)
 	/* Register I2C busses and drivers */
 	igep2_i2c_init();
 	platform_add_devices(igep2_devices, ARRAY_SIZE(igep2_devices));
+	if (hwrev == IGEP2_BOARD_HWREV_B)
+		spi_register_board_info(igep2B_spi_board_info, ARRAY_SIZE(igep2B_spi_board_info));
+	else
+		spi_register_board_info(igep2_spi_board_info, ARRAY_SIZE(igep2_spi_board_info));
 	omap_serial_init();
 	usb_musb_init(&musb_board_data);
 	usb_ehci_init(&ehci_pdata);
