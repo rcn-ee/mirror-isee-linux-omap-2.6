@@ -33,7 +33,7 @@
 
 /* Max Resolution supported by the driver */
 #define VID_MAX_WIDTH		1280	/* Largest width */
-#define VID_MAX_HEIGHT		720	/* Largest height */
+#define VID_MAX_HEIGHT		768	/* Largest height */
 
 /* Mimimum requirement is 2x2 for DSS */
 #define VID_MIN_WIDTH		2
