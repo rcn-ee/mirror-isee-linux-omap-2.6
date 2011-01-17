@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.35.9
-# Tue Nov 30 17:55:47 2010
+# Mon Jan 17 11:18:45 2011
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -1361,6 +1361,7 @@ CONFIG_TPS6507X=m
 CONFIG_TWL4030_CORE=y
 CONFIG_TWL4030_POWER=y
 CONFIG_TWL4030_CODEC=y
+CONFIG_TWL4030_MADC=y
 # CONFIG_MFD_TC35892 is not set
 # CONFIG_MFD_TMIO is not set
 # CONFIG_MFD_T7L66XB is not set

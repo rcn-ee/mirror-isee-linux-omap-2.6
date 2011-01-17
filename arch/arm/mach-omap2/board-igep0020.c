@@ -603,6 +603,10 @@ static struct twl4030_keypad_data igep2_twl4030_keypad_data = {
 	.rep		= 1,
 };
 
+static struct twl4030_madc_platform_data igep2_twl4030_madc_pdata = {
+	.irq_line	= 1,
+};
+
 static struct twl4030_platform_data igep2_twldata = {
 	.irq_base	= TWL4030_IRQ_BASE,
 	.irq_end	= TWL4030_IRQ_END,
@@ -612,6 +616,7 @@ static struct twl4030_platform_data igep2_twldata = {
 	.codec		= &igep2_codec_data,
 	.gpio		= &igep2_twl4030_gpio_pdata,
 	.keypad		= &igep2_twl4030_keypad_data,
+	.madc		= &igep2_twl4030_madc_pdata,
 	.vmmc1		= &igep2_vmmc1,
 	.vpll2		= &igep2_vpll2,
 	.vio		= &igep2_vio,

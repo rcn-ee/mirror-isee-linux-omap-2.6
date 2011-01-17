@@ -325,6 +325,10 @@ static struct twl4030_usb_data igep3_usb_data = {
 	.usb_mode	= T2_USB_MODE_ULPI,
 };
 
+static struct twl4030_madc_platform_data igep3_madc_data = {
+        .irq_line       = 1,
+};
+
 static void __init igep3_init_irq(void)
 {
 	omap_board_config = igep3_config;
@@ -341,6 +345,7 @@ static struct twl4030_platform_data igep3_twldata = {
 	/* platform_data for children goes here */
 	.usb		= &igep3_usb_data,
 	.gpio		= &igep3_gpio_data,
+	.madc		= &igep3_madc_data,
 	.vmmc1		= &igep3_vmmc1,
 	.vmmc2		= &igep3_vmmc2,
 };
