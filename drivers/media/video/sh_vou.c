@@ -677,7 +677,7 @@ static int sh_vou_s_fmt_vid_out(struct file *file, void *priv,
 	struct sh_vou_geometry geo;
 	struct v4l2_mbus_framefmt mbfmt = {
 		/* Revisit: is this the correct code? */
-		.code = V4L2_MBUS_FMT_YUYV8_2X8_LE,
+		.code = V4L2_MBUS_FMT_YUYV8_2X8,
 		.field = V4L2_FIELD_INTERLACED,
 		.colorspace = V4L2_COLORSPACE_SMPTE170M,
 	};
@@ -725,7 +725,7 @@ static int sh_vou_s_fmt_vid_out(struct file *file, void *priv,
 	/* Sanity checks */
 	if ((unsigned)mbfmt.width > VOU_MAX_IMAGE_WIDTH ||
 	    (unsigned)mbfmt.height > VOU_MAX_IMAGE_HEIGHT ||
-	    mbfmt.code != V4L2_MBUS_FMT_YUYV8_2X8_LE)
+	    mbfmt.code != V4L2_MBUS_FMT_YUYV8_2X8)
 		return -EIO;
 
 	if (mbfmt.width != geo.output.width ||
@@ -936,7 +936,7 @@ static int sh_vou_s_crop(struct file *file, void *fh, struct v4l2_crop *a)
 	struct sh_vou_geometry geo;
 	struct v4l2_mbus_framefmt mbfmt = {
 		/* Revisit: is this the correct code? */
-		.code = V4L2_MBUS_FMT_YUYV8_2X8_LE,
+		.code = V4L2_MBUS_FMT_YUYV8_2X8,
 		.field = V4L2_FIELD_INTERLACED,
 		.colorspace = V4L2_COLORSPACE_SMPTE170M,
 	};
@@ -981,7 +981,7 @@ static int sh_vou_s_crop(struct file *file, void *fh, struct v4l2_crop *a)
 	/* Sanity checks */
 	if ((unsigned)mbfmt.width > VOU_MAX_IMAGE_WIDTH ||
 	    (unsigned)mbfmt.height > VOU_MAX_IMAGE_HEIGHT ||
-	    mbfmt.code != V4L2_MBUS_FMT_YUYV8_2X8_LE)
+	    mbfmt.code != V4L2_MBUS_FMT_YUYV8_2X8)
 		return -EIO;
 
 	geo.output.width = mbfmt.width;
@@ -1392,7 +1392,7 @@ static int __devinit sh_vou_probe(struct platform_device *pdev)
 		goto ereset;
 
 	subdev = v4l2_i2c_new_subdev_board(&vou_dev->v4l2_dev, i2c_adap,
-			vou_pdata->module_name, vou_pdata->board_info, NULL);
+			vou_pdata->board_info, NULL, 0);
 	if (!subdev) {
 		ret = -ENOMEM;
 		goto ei2cnd;

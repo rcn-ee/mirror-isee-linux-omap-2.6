@@ -21,6 +21,7 @@
 #ifndef _V4L2_DEVICE_H
 #define _V4L2_DEVICE_H
 
+#include <media/media-device.h>
 #include <media/v4l2-subdev.h>
 
 /* Each instance of a V4L2 device should create the v4l2_device struct,
@@ -32,11 +33,16 @@
 
 #define V4L2_DEVICE_NAME_SIZE (20 + 16)
 
+struct v4l2_ctrl_handler;
+
 struct v4l2_device {
 	/* dev->driver_data points to this struct.
 	   Note: dev might be NULL if there is no parent device
 	   as is the case with e.g. ISA devices. */
 	struct device *dev;
+#if defined(CONFIG_MEDIA_CONTROLLER)
+	struct media_device *mdev;
+#endif
 	/* used to keep track of the registered subdevs */
 	struct list_head subdevs;
 	/* lock this struct; can be used by the driver as well if this
@@ -47,6 +53,8 @@ struct v4l2_device {
 	/* notify callback called by some sub-devices. */
 	void (*notify)(struct v4l2_subdev *sd,
 			unsigned int notification, void *arg);
+	/* The control handler. May be NULL. */
+	struct v4l2_ctrl_handler *ctrl_handler;
 };
 
 /* Initialize v4l2_dev and make dev->driver_data point to v4l2_dev.
