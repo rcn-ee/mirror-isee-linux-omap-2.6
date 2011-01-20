@@ -16,17 +16,21 @@
 #include <linux/mutex.h>
 #include <linux/videodev2.h>
 
+#include <media/media-entity.h>
+
 #define VIDEO_MAJOR	81
 
 #define VFL_TYPE_GRABBER	0
 #define VFL_TYPE_VBI		1
 #define VFL_TYPE_RADIO		2
 #define VFL_TYPE_VTX		3
-#define VFL_TYPE_MAX		4
+#define VFL_TYPE_SUBDEV		4
+#define VFL_TYPE_MAX		5
 
 struct v4l2_ioctl_callbacks;
 struct video_device;
 struct v4l2_device;
+struct v4l2_ctrl_handler;
 
 /* Flag to mark the video_device struct as registered.
    Drivers can clear this flag if they want to block all future
@@ -56,6 +60,9 @@ struct v4l2_file_operations {
 
 struct video_device
 {
+#if defined(CONFIG_MEDIA_CONTROLLER)
+	struct media_entity entity;
+#endif
 	/* device ops */
 	const struct v4l2_file_operations *fops;
 
@@ -66,6 +73,9 @@ struct video_device
 	/* Set either parent or v4l2_dev if your driver uses v4l2_device */
 	struct device *parent;		/* device parent */
 	struct v4l2_device *v4l2_dev;	/* v4l2_device parent */
+
+	/* Control handler associated with this device node. May be NULL. */
+	struct v4l2_ctrl_handler *ctrl_handler;
 
 	/* device info */
 	char name[32];
@@ -95,18 +105,31 @@ struct video_device
 	const struct v4l2_ioctl_ops *ioctl_ops;
 };
 
+#define media_entity_to_video_device(entity) \
+	container_of(entity, struct video_device, entity)
 /* dev to video-device */
 #define to_video_device(cd) container_of(cd, struct video_device, dev)
+
+int __must_check __video_register_device(struct video_device *vdev, int type,
+		int nr, int warn_if_nr_in_use, struct module *owner);
 
 /* Register video devices. Note that if video_register_device fails,
    the release() callback of the video_device structure is *not* called, so
    the caller is responsible for freeing any data. Usually that means that
    you call video_device_release() on failure. */
-int __must_check video_register_device(struct video_device *vdev, int type, int nr);
+static inline int __must_check video_register_device(struct video_device *vdev,
+		int type, int nr)
+{
+	return __video_register_device(vdev, type, nr, 1, vdev->fops->owner);
+}
 
 /* Same as video_register_device, but no warning is issued if the desired
    device node number was already in use. */
-int __must_check video_register_device_no_warn(struct video_device *vdev, int type, int nr);
+static inline int __must_check video_register_device_no_warn(
+		struct video_device *vdev, int type, int nr)
+{
+	return __video_register_device(vdev, type, nr, 0, vdev->fops->owner);
+}
 
 /* Unregister video devices. Will do nothing if vdev == NULL or
    video_is_registered() returns false. */

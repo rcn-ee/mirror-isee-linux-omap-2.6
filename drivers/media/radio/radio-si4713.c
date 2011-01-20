@@ -291,8 +291,8 @@ static int radio_si4713_pdriver_probe(struct platform_device *pdev)
 		goto unregister_v4l2_dev;
 	}
 
-	sd = v4l2_i2c_new_subdev_board(&rsdev->v4l2_dev, adapter, "si4713_i2c",
-					pdata->subdev_board_info, NULL);
+	sd = v4l2_i2c_new_subdev_board(&rsdev->v4l2_dev, adapter,
+					pdata->subdev_board_info, NULL, 0);
 	if (!sd) {
 		dev_err(&pdev->dev, "Cannot get v4l2 subdevice\n");
 		rval = -ENODEV;

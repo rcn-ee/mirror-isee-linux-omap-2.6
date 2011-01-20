@@ -895,11 +895,11 @@ static int soc_camera_init_i2c(struct soc_camera_device *icd,
 	icl->board_info->platform_data = icd;
 
 	subdev = v4l2_i2c_new_subdev_board(&ici->v4l2_dev, adap,
-				icl->module_name, icl->board_info, NULL);
+				icl->board_info, NULL, 0);
 	if (!subdev)
 		goto ei2cnd;
 
-	client = subdev->priv;
+	client = v4l2_get_subdevdata(subdev);
 
 	/* Use to_i2c_client(dev) to recover the i2c client */
 	dev_set_drvdata(&icd->dev, &client->dev);
