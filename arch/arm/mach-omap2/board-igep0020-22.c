@@ -187,8 +187,9 @@ static inline void igep0022_at24c01_init(void) {}
 	defined(CONFIG_CAN_MCP251X_MODULE)
 
 static struct mcp251x_platform_data mcp251x_pdata = {
-	.oscillator_frequency = 20*1000*1000,
-	.model = CAN_MCP251X_MCP2515,
+	.oscillator_frequency	= 20*1000*1000,
+	.model			= CAN_MCP251X_MCP2515,
+	.irq_flags		= IRQF_TRIGGER_RISING,
 };
 
 static struct spi_board_info mcp251x_spi_board_info[] = {
