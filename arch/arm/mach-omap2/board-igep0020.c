@@ -18,6 +18,8 @@
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
 
+#include <linux/spi/spi.h>
+#include <linux/spi/ads7846.h>
 #include <linux/regulator/machine.h>
 #include <linux/i2c/twl.h>
 
@@ -29,7 +31,7 @@
 #include <plat/gpmc.h>
 #include <plat/usb.h>
 #include <plat/display.h>
-
+#include <plat/mcspi.h>
 
 #include "mux.h"
 #include "mmc-twl4030.h"
@@ -42,7 +44,8 @@
 #define IGEP2_GPIO_LED1_RED	28
 #define IGEP2_GPIO_DVI_PUP	170
 #define IGEP2_GPIO_WIFI_NPD	94
-#define IGEP2_GPIO_WIFI_NRESET 95
+#define IGEP2_GPIO_WIFI_NRESET	95
+#define IGEP2_GPIO_TSC2046_PDN	155
 
 #if defined(CONFIG_SMSC911X) || defined(CONFIG_SMSC911X_MODULE)
 
@@ -102,6 +105,70 @@ static inline void __init igep2_init_smsc911x(void)
 
 #else
 static inline void __init igep2_init_smsc911x(void) { }
+#endif
+
+#if defined(CONFIG_TOUCHSCREEN_ADS7846) || \
+	defined(CONFIG_TOUCHSCREEN_ADS7846_MODULE)
+
+static struct omap2_mcspi_device_config tsc2046_mcspi_config = {
+	.turbo_mode	= 0,
+	.single_channel	= 1,	/* 0: slave, 1: master */
+};
+
+static int ads7846_get_pendown_state(void)
+{
+	return !gpio_get_value(IGEP2_GPIO_TSC2046_PDN);
+}
+
+static struct ads7846_platform_data tsc2046_pdata = {
+	.x_max			= 0x0fff,
+	.y_max			= 0x0fff,
+	.x_plate_ohms		= 180,
+	.pressure_max		= 255,
+	.debounce_max		= 10,
+	.debounce_tol		= 3,
+	.debounce_rep		= 1,
+	.get_pendown_state	= ads7846_get_pendown_state,
+	.keep_vref_on		= 1,
+	.settle_delay_usecs	= 150,
+	.wakeup			= true,
+};
+
+static struct spi_board_info tsc2046_spi_board_info[] = {
+	{
+		/*
+		 * TSC2046 operates at a max freqency of 2MHz, so
+		 * operate slightly below at 1.5MHz
+		 */
+		.modalias		= "ads7846",
+		.bus_num		= 1,
+		.chip_select		= 1,
+		.max_speed_hz		= 1500000,
+		.controller_data	= &tsc2046_mcspi_config,
+		.irq			= OMAP_GPIO_IRQ(IGEP2_GPIO_TSC2046_PDN),
+		.platform_data		= &tsc2046_pdata,
+	},
+};
+
+static void __init igep0022_tsc2046_init(void)
+{
+	omap_mux_init_gpio(IGEP2_GPIO_TSC2046_PDN, OMAP_PIN_INPUT);
+	omap_mux_init_signal("mcspi1_cs1", 0);
+
+	if ((gpio_request(IGEP2_GPIO_TSC2046_PDN, "TSC2046 IRQ") == 0)
+		&& (gpio_direction_input(IGEP2_GPIO_TSC2046_PDN) == 0)) {
+		gpio_export(IGEP2_GPIO_TSC2046_PDN, 0);
+	} else {
+		pr_err("IGEP: Could not obtain gpio GPIO_TSC2046_PDN\n");
+        return;
+    }
+
+	spi_register_board_info(tsc2046_spi_board_info,
+				ARRAY_SIZE(tsc2046_spi_board_info));
+}
+
+#else
+static inline void igep0022_tsc2046_init(void) {}
 #endif
 
 static struct omap_board_config_kernel igep2_config[] __initdata = {
@@ -353,6 +420,9 @@ static void __init igep2_init(void)
 
 	igep2_display_init();
 	igep2_init_smsc911x();
+
+	/* Touchscreen interface using ADS7846/TSC2046 */
+	igep0022_tsc2046_init();
 
 	/* GPIO userspace leds */
 	if ((gpio_request(IGEP2_GPIO_LED0_RED, "GPIO_LED0_RED") == 0) &&
