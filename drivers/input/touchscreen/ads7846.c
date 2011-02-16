@@ -28,6 +28,7 @@
 #include <linux/spi/spi.h>
 #include <linux/spi/ads7846.h>
 #include <asm/irq.h>
+#include <asm/mach-types.h>
 
 /*
  * This code has been heavily tested on a Nokia 770, and lightly
@@ -618,6 +619,8 @@ static void ads7846_rx(void *ads)
 		y = pdata->y_max -
 			((pdata->y_max * (y - OMAP3EVM_YMIN)) / (OMAP3EVM_YMAX - OMAP3EVM_YMIN));
 #endif
+		if (machine_is_igep0020())
+			y ^= MAX_12BIT;
 
 		input_report_abs(input, ABS_X, x);
 		input_report_abs(input, ABS_Y, y);
