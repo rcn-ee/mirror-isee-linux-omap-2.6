@@ -32,9 +32,13 @@
 #include <plat/usb.h>
 #include <plat/display.h>
 #include <plat/mcspi.h>
+#include <plat/omap-pm.h>
 
+#include "sdram-numonyx-m65kxxxxam.h"
 #include "mux.h"
 #include "mmc-twl4030.h"
+#include "pm.h"
+#include "omap3-opp.h"
 
 #define IGEP2_SMSC911X_CS	5
 #define IGEP2_SMSC911X_GPIO	176
@@ -46,6 +50,22 @@
 #define IGEP2_GPIO_WIFI_NPD	94
 #define IGEP2_GPIO_WIFI_NRESET	95
 #define IGEP2_GPIO_TSC2046_PDN	155
+
+#ifdef CONFIG_PM
+static struct omap_opp * _omap35x_mpu_rate_table = omap35x_mpu_rate_table;
+static struct omap_opp * _omap37x_mpu_rate_table = omap37x_mpu_rate_table;
+static struct omap_opp * _omap35x_dsp_rate_table = omap35x_dsp_rate_table;
+static struct omap_opp * _omap37x_dsp_rate_table = omap37x_dsp_rate_table;
+static struct omap_opp * _omap35x_l3_rate_table = omap35x_l3_rate_table;
+static struct omap_opp * _omap37x_l3_rate_table = omap37x_l3_rate_table;
+#else   /* CONFIG_PM */
+static struct omap_opp * _omap35x_mpu_rate_table	= NULL;
+static struct omap_opp * _omap37x_mpu_rate_table	= NULL;
+static struct omap_opp * _omap35x_dsp_rate_table	= NULL;
+static struct omap_opp * _omap37x_dsp_rate_table	= NULL;
+static struct omap_opp * _omap35x_l3_rate_table		= NULL;
+static struct omap_opp * _omap37x_l3_rate_table		= NULL;
+#endif  /* CONFIG_PM */
 
 #if defined(CONFIG_SMSC911X) || defined(CONFIG_SMSC911X_MODULE)
 
@@ -351,7 +371,16 @@ static void __init igep2_init_irq(void)
 {
 	omap_board_config = igep2_config;
 	omap_board_config_size = ARRAY_SIZE(igep2_config);
-	omap2_init_common_hw(NULL, NULL, NULL, NULL, NULL);
+	if (cpu_is_omap3630()) {
+		omap2_init_common_hw(m65kxxxxam_sdrc_params, NULL,
+			_omap37x_mpu_rate_table, _omap37x_dsp_rate_table,
+			_omap37x_l3_rate_table);
+	}
+	else {
+		omap2_init_common_hw(m65kxxxxam_sdrc_params, NULL,
+			_omap35x_mpu_rate_table, _omap35x_dsp_rate_table,
+			_omap35x_l3_rate_table);
+        }
 	omap_init_irq();
 	omap_gpio_init();
 }
