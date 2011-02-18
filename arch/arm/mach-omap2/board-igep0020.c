@@ -348,6 +348,14 @@ static struct omap_dss_device igep2_dvi_device = {
 	.platform_disable	= igep2_disable_dvi,
 };
 
+/* Powertip 4.3 inch (480 x RGB x 272) TFT with Touch-Panel */
+static struct omap_dss_device igep2_lcd43_device = {
+	.type			= OMAP_DISPLAY_TYPE_DPI,
+	.name			= "lcd-43",
+	.driver_name		= "ph480272t",
+	.phy.dpi.data_lines	= 24,
+};
+
 /* Seiko 7.0 inch WVGA (800 x RGB x 480) TFT with Touch-Panel */
 static struct omap_dss_device igep2_lcd70_device = {
 	.type			= OMAP_DISPLAY_TYPE_DPI,
@@ -358,6 +366,7 @@ static struct omap_dss_device igep2_lcd70_device = {
 
 static struct omap_dss_device *igep2_dss_devices[] = {
 	&igep2_dvi_device,
+	&igep2_lcd43_device,
 	&igep2_lcd70_device,
 };
 
