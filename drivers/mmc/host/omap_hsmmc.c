@@ -1549,7 +1549,7 @@ static int omap_hsmmc_disable_fclk(struct mmc_host *mmc, int lazy)
 	struct omap_hsmmc_host *host = mmc_priv(mmc);
 
 	omap_hsmmc_context_save(host);
-	clk_disable(host->fclk);
+	/* clk_disable(host->fclk); */
 	dev_dbg(mmc_dev(host->mmc), "mmc_fclk: disabled\n");
 	return 0;
 }
