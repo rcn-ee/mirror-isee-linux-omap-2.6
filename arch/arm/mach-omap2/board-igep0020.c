@@ -16,6 +16,7 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/gpio.h>
+#include <linux/gpio_keys.h>
 #include <linux/interrupt.h>
 
 #include <linux/spi/spi.h>
@@ -555,6 +556,35 @@ static void __init igep2_wlan_bt_init(void)
 static inline void igep2_wlan_bt_init(void) { }
 #endif
 
+static struct gpio_keys_button igep0022_gpio_keys[] = {
+       {
+		.code   = KEY_ESC,
+		.gpio   = 184,
+		.desc   = "user0",
+		.wakeup = 1,
+	},
+};
+
+static struct gpio_keys_platform_data igep0022_gpio_keys_pdata = {
+	.buttons	= igep0022_gpio_keys,
+	.nbuttons	= ARRAY_SIZE(igep0022_gpio_keys),
+};
+
+static struct platform_device igep0022_gpio_keys_device = {
+	.name	= "gpio-keys",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &igep0022_gpio_keys_pdata,
+	},
+};
+
+static void __init igep022_gpio_keys_init(void)
+{
+	omap_mux_init_gpio(184, OMAP_PIN_INPUT_PULLUP);
+
+	platform_device_register(&igep0022_gpio_keys_device);
+}
+
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux board_mux[] __initdata = {
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
@@ -586,6 +616,9 @@ static void __init igep2_init(void)
 
 	/* Touchscreen interface using ADS7846/TSC2046 */
 	igep0022_tsc2046_init();
+
+	/* Use standard kernel driver for gpio_keys */
+	igep022_gpio_keys_init();
 
 	/* GPIO userspace leds */
 	if ((gpio_request(IGEP2_GPIO_LED0_RED, "GPIO_LED0_RED") == 0) &&
