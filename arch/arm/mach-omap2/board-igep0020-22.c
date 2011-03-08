@@ -300,8 +300,8 @@ void __init igep0022_init(void)
 	/* Touchscreen interface using ADS7846/TSC2046 */
 	igep0022_tsc2046_init();
 
-	/* GPIO's for GE865 modem interface */
-	igep0022_modem_init();
+	/* GPIO's for GE865 modem interface
+	igep0022_modem_init();*/
 
 	/* CAN driver for Microchip 251x CAN Controller with SPI Interface */
 	igep0022_mcp251x_init();
