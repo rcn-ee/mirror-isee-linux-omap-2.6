@@ -688,6 +688,28 @@ isp_video_get_format(struct file *file, void *fh, struct v4l2_format *format)
 }
 
 static int
+isp_video_enum_format(struct file *file, void *fh, struct v4l2_fmtdesc *fmtdesc)
+{
+	struct isp_video_fh *vfh = to_isp_video_fh(fh);
+	struct isp_video *video = video_drvdata(file);
+
+	if (fmtdesc->index)
+		return -EINVAL;
+
+	if (fmtdesc->type != video->type)
+		return -EINVAL;
+
+	fmtdesc->flags = 0;
+	fmtdesc->description[0] = 0;
+
+	mutex_lock(&video->mutex);
+	fmtdesc->pixelformat = vfh->format.fmt.pix.pixelformat;
+	mutex_unlock(&video->mutex);
+
+	return 0;
+}
+
+static int
 isp_video_set_format(struct file *file, void *fh, struct v4l2_format *format)
 {
 	struct isp_video_fh *vfh = to_isp_video_fh(fh);
@@ -1202,6 +1224,7 @@ isp_video_s_input(struct file *file, void *fh, unsigned int input)
 
 static const struct v4l2_ioctl_ops isp_video_ioctl_ops = {
 	.vidioc_querycap		= isp_video_querycap,
+	.vidioc_enum_fmt_vid_cap	= isp_video_enum_format,
 	.vidioc_g_fmt_vid_cap		= isp_video_get_format,
 	.vidioc_s_fmt_vid_cap		= isp_video_set_format,
 	.vidioc_try_fmt_vid_cap		= isp_video_try_format,
