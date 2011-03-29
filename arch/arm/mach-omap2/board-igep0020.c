@@ -488,6 +488,13 @@ static struct omap_dss_device igep2_dvi_device = {
 	.platform_disable	= igep2_disable_dvi,
 };
 
+static struct omap_dss_device igep2_tv_device = {
+	.name = "tv",
+	.driver_name = "venc",
+	.type = OMAP_DISPLAY_TYPE_VENC,
+	.phy.venc.type = OMAP_DSS_VENC_TYPE_SVIDEO,
+};
+
 /* Powertip 4.3 inch (480 x RGB x 272) TFT with Touch-Panel */
 static struct omap_dss_device igep0022_lcd43_device = {
 	.type			= OMAP_DISPLAY_TYPE_DPI,
@@ -506,6 +513,7 @@ static struct omap_dss_device igep0022_lcd70_device = {
 
 static struct omap_dss_device *igep2_dss_devices[] = {
 	&igep2_dvi_device,
+	&igep2_tv_device,
 	&igep0022_lcd43_device,
 	&igep0022_lcd70_device,
 };
@@ -522,6 +530,23 @@ static struct platform_device igep2_dss_device = {
 	.dev	= {
 		.platform_data = &igep2_dss_data,
 	},
+};
+
+static struct regulator_consumer_supply igep2_vdac_supply =
+	REGULATOR_SUPPLY("vdda_dac", "omapdss");
+
+/* VDAC for DSS driving S-Video (8 mA unloaded, max 65 mA) */
+static struct regulator_init_data igep2_vdac = {
+	.constraints = {
+		.min_uV			= 1800000,
+		.max_uV			= 1800000,
+		.valid_modes_mask	= REGULATOR_MODE_NORMAL
+					| REGULATOR_MODE_STANDBY,
+		.valid_ops_mask		= REGULATOR_CHANGE_MODE
+					| REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies	= 1,
+	.consumer_supplies	= &igep2_vdac_supply,
 };
 
 static struct regulator_consumer_supply igep2_vpll2_supply = {
@@ -618,6 +643,7 @@ static struct twl4030_platform_data igep2_twldata = {
 	.keypad		= &igep2_twl4030_keypad_data,
 	.madc		= &igep2_twl4030_madc_pdata,
 	.vmmc1		= &igep2_vmmc1,
+	.vdac		= &igep2_vdac,
 	.vpll2		= &igep2_vpll2,
 	.vio		= &igep2_vio,
 };
