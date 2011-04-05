@@ -89,7 +89,7 @@ static struct snd_soc_dai_link igep2_dai = {
 
 /* Audio machine driver */
 static struct snd_soc_card snd_soc_card_igep2 = {
-	.name = "igep2",
+	.name = "igep",
 	.platform = &omap_soc_platform,
 	.dai_link = &igep2_dai,
 	.num_links = 1,
@@ -107,11 +107,11 @@ static int __init igep2_soc_init(void)
 {
 	int ret;
 
-	if (!machine_is_igep0020()) {
-		pr_debug("Not IGEP v2!\n");
+	if (!machine_is_igep0020() && !machine_is_igep0030()) {
+		pr_debug("Not IGEP board!\n");
 		return -ENODEV;
 	}
-	printk(KERN_INFO "IGEP v2 SoC init\n");
+	printk(KERN_INFO "IGEP SoC init\n");
 
 	igep2_snd_device = platform_device_alloc("soc-audio", -1);
 	if (!igep2_snd_device) {
@@ -144,5 +144,5 @@ static void __exit igep2_soc_exit(void)
 module_exit(igep2_soc_exit);
 
 MODULE_AUTHOR("Enric Balletbo i Serra <eballetbo@iseebcn.com>");
-MODULE_DESCRIPTION("ALSA SoC IGEP v2");
+MODULE_DESCRIPTION("ALSA SoC IGEP");
 MODULE_LICENSE("GPL");

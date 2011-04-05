@@ -135,7 +135,7 @@ config SND_OMAP_SOC_ZOOM2
 
 config SND_OMAP_SOC_IGEP0020
 	tristate "SoC Audio support for IGEP v2"
-	depends on TWL4030_CORE && SND_OMAP_SOC && MACH_IGEP0020
+	depends on TWL4030_CORE && SND_OMAP_SOC && MACH_IGEP0020 && MACH_IGEP0030
 	select SND_OMAP_SOC_MCBSP
 	select SND_SOC_TWL4030
 	help
