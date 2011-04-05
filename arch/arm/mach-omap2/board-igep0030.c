@@ -458,7 +458,7 @@ static void __init igep3_init(void)
 	igep3_init_led();
 }
 
-MACHINE_START(IGEP0030, "IGEP OMAP3 module")
+MACHINE_START(IGEP0030, "IGEP 0030")
 	.phys_io	= 0x48000000,
 	.io_pg_offst	= ((0xfa000000) >> 18) & 0xfffc,
 	.boot_params	= 0x80000100,
