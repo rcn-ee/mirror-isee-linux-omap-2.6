@@ -63,6 +63,9 @@
 #define IGEP3_GPIO_OUTPUT3		17
 #define IGEP3_GPIO_INPUT2		18
 #define IGEP3_GPIO_INPUT3		168
+#define IGEP3_GPIO_PWR_KILL		164
+#define IGEP3_GPIO_PWR_SHDN_INT		60
+#define IGEP3_GPIO_PWR_SW_PB		15
 
 #if defined(CONFIG_SMSC911X) || defined(CONFIG_SMSC911X_MODULE)
 
@@ -534,6 +537,10 @@ static struct omap_board_mux base0010_mux[] __initdata = {
 	OMAP3_MUX(ETK_D7, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(ETK_D4, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
 	OMAP3_MUX(I2C2_SCL, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
+	/* Power IO */
+	OMAP3_MUX(UART3_RTS_SD, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(GPMC_NBE0_CLE, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
+	OMAP3_MUX(ETK_D1, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 #else
@@ -548,6 +555,8 @@ void __init base0010_init(struct twl4030_platform_data *pdata)
 {
 	/* Mux initialitzation for base0010 */
 	omap_mux_write_array(base0010_mux);
+
+	pr_info("IGEP eBoard BASE0010 Rev. B\n");
 
 	/* Add twl4030 platform data */
 	pdata->vpll2 = &base0010_vpll2;
@@ -567,9 +576,9 @@ void __init base0010_init(struct twl4030_platform_data *pdata)
 	/* AT24C01 EEPROM with I2C interface */
 	base0010_at24c01_init();
 
-	/* 4-Port USB HUB */
+	/* 4-Port USB HUB (enable) */
 	if ((gpio_request(IGEP3_GPIO_USBHUB_NRESET, "USBHUB NRESET") == 0) &&
-	    (gpio_direction_output(IGEP3_GPIO_USBHUB_NRESET, 1) == 0))
+	    (gpio_direction_output(IGEP3_GPIO_USBHUB_NRESET, 0) == 0))
 		gpio_export(IGEP3_GPIO_USBHUB_NRESET, 0);
 	else
 		pr_warning("IGEP: Could not obtain gpio for USBHUB NRESET\n");
