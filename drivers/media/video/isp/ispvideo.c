@@ -178,6 +178,7 @@ __isp_video_get_format(struct isp_video *video, struct v4l2_format *format)
 	u32 pad;
 	int ret;
 
+	printk("***** %s\n",__FUNCTION__);
 	subdev = isp_video_remote_subdev(video, &pad);
 	if (subdev == NULL)
 		return -EINVAL;
@@ -210,12 +211,22 @@ isp_video_check_format(struct isp_video *video, struct isp_video_fh *vfh)
 	if (ret < 0)
 		return ret;
 
+	printk("%d != %d \n",vfh->format.fmt.pix.pixelformat, format.fmt.pix.pixelformat );
+        printk("%d != %d \n",vfh->format.fmt.pix.height, format.fmt.pix.height );
+        printk("%d != %d \n",vfh->format.fmt.pix.width, format.fmt.pix.width );
+        printk("%d != %d \n",vfh->format.fmt.pix.bytesperline, format.fmt.pix.bytesperline);
+        printk("%d != %d \n",vfh->format.fmt.pix.pixelformat, format.fmt.pix.pixelformat );
+        printk("%d != %d \n",vfh->format.fmt.pix.sizeimage, format.fmt.pix.sizeimage );
+
 	if (vfh->format.fmt.pix.pixelformat != format.fmt.pix.pixelformat ||
 	    vfh->format.fmt.pix.height != format.fmt.pix.height ||
 	    vfh->format.fmt.pix.width != format.fmt.pix.width ||
 	    vfh->format.fmt.pix.bytesperline != format.fmt.pix.bytesperline ||
-	    vfh->format.fmt.pix.sizeimage != format.fmt.pix.sizeimage)
-		return -EINVAL;
+	    vfh->format.fmt.pix.sizeimage != format.fmt.pix.sizeimage) {
+			printk("*** EINVAL\n");
+			return -EINVAL;
+	}
+
 
 	return 0;
 }
@@ -250,6 +261,7 @@ isp_video_format_info(enum v4l2_mbus_pixelcode code)
 {
 	unsigned int i;
 
+	printk("***** %s\n",__FUNCTION__);
 	for (i = 0; i < ARRAY_SIZE(formats); ++i) {
 		if (formats[i].code == code)
 			return &formats[i];
@@ -563,6 +575,7 @@ void isp_video_resume(struct isp_video *video, int continuous)
 {
 	struct isp_buffer *buf = NULL;
 
+	printk("***** %s\n",__FUNCTION__);
 	if (continuous && video->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		isp_video_queue_discard_done(video->queue);
 
@@ -586,6 +599,7 @@ isp_video_querycap(struct file *file, void *fh, struct v4l2_capability *cap)
 {
 	struct isp_video *video = video_drvdata(file);
 
+	printk("***** %s\n",__FUNCTION__);
 	strlcpy(cap->driver, ISP_VIDEO_DRIVER_NAME, sizeof(cap->driver));
 	strlcpy(cap->card, video->video.name, sizeof(cap->card));
 	strlcpy(cap->bus_info, "media", sizeof(cap->bus_info));
@@ -605,11 +619,36 @@ isp_video_get_format(struct file *file, void *fh, struct v4l2_format *format)
 	struct isp_video_fh *vfh = to_isp_video_fh(fh);
 	struct isp_video *video = video_drvdata(file);
 
+	printk("***** %s\n",__FUNCTION__);
 	if (format->type != video->type)
 		return -EINVAL;
 
 	mutex_lock(&video->mutex);
 	*format = vfh->format;
+	mutex_unlock(&video->mutex);
+
+	return 0;
+}
+
+static int
+isp_video_enum_format(struct file *file, void *fh, struct v4l2_fmtdesc *fmtdesc)
+{
+	struct isp_video_fh *vfh = to_isp_video_fh(fh);
+	struct isp_video *video = video_drvdata(file);
+
+	printk("***** %s\n",__FUNCTION__);
+	if (fmtdesc->index)
+		return -EINVAL;
+
+	if (fmtdesc->type != video->type)
+		return -EINVAL;
+
+	fmtdesc->flags = 0;
+	fmtdesc->description[0] = 0;
+
+	mutex_lock(&video->mutex);
+	/*fmtdesc->pixelformat = V4L2_PIX_FMT_UYVY;*/
+	fmtdesc->pixelformat = V4L2_PIX_FMT_SGRBG10;
 	mutex_unlock(&video->mutex);
 
 	return 0;
@@ -622,6 +661,7 @@ isp_video_set_format(struct file *file, void *fh, struct v4l2_format *format)
 	struct isp_video *video = video_drvdata(file);
 	struct v4l2_mbus_framefmt fmt;
 
+	printk("***** %s\n",__FUNCTION__);
 	if (format->type != video->type)
 		return -EINVAL;
 
@@ -648,6 +688,7 @@ isp_video_try_format(struct file *file, void *fh, struct v4l2_format *format)
 	u32 pad;
 	int ret;
 
+	printk("***** %s\n",__FUNCTION__);
 	if (format->type != video->type)
 		return -EINVAL;
 
@@ -674,6 +715,7 @@ isp_video_cropcap(struct file *file, void *fh, struct v4l2_cropcap *cropcap)
 	struct v4l2_subdev *subdev;
 	int ret;
 
+	printk("***** %s\n",__FUNCTION__);
 	subdev = isp_video_remote_subdev(video, NULL);
 	if (subdev == NULL)
 		return -EINVAL;
@@ -694,6 +736,7 @@ isp_video_get_crop(struct file *file, void *fh, struct v4l2_crop *crop)
 	u32 pad;
 	int ret;
 
+	printk("***** %s\n",__FUNCTION__);
 	subdev = isp_video_remote_subdev(video, &pad);
 	if (subdev == NULL)
 		return -EINVAL;
@@ -726,6 +769,7 @@ isp_video_set_crop(struct file *file, void *fh, struct v4l2_crop *crop)
 	struct v4l2_subdev *subdev;
 	int ret;
 
+	printk("***** %s\n",__FUNCTION__);
 	subdev = isp_video_remote_subdev(video, NULL);
 	if (subdev == NULL)
 		return -EINVAL;
@@ -743,6 +787,7 @@ isp_video_get_param(struct file *file, void *fh, struct v4l2_streamparm *a)
 	struct isp_video_fh *vfh = to_isp_video_fh(fh);
 	struct isp_video *video = video_drvdata(file);
 
+	printk("***** %s\n",__FUNCTION__);
 	if (video->type != V4L2_BUF_TYPE_VIDEO_OUTPUT ||
 	    video->type != a->type)
 		return -EINVAL;
@@ -761,6 +806,7 @@ isp_video_set_param(struct file *file, void *fh, struct v4l2_streamparm *a)
 	struct isp_video_fh *vfh = to_isp_video_fh(fh);
 	struct isp_video *video = video_drvdata(file);
 
+	printk("***** %s\n",__FUNCTION__);
 	if (video->type != V4L2_BUF_TYPE_VIDEO_OUTPUT ||
 	    video->type != a->type)
 		return -EINVAL;
@@ -778,6 +824,7 @@ isp_video_reqbufs(struct file *file, void *fh, struct v4l2_requestbuffers *rb)
 {
 	struct isp_video_fh *vfh = to_isp_video_fh(fh);
 
+	printk("***** %s\n",__FUNCTION__);
 	return isp_video_queue_reqbufs(&vfh->queue, rb);
 }
 
@@ -786,6 +833,7 @@ isp_video_querybuf(struct file *file, void *fh, struct v4l2_buffer *b)
 {
 	struct isp_video_fh *vfh = to_isp_video_fh(fh);
 
+	printk("***** %s\n",__FUNCTION__);
 	return isp_video_queue_querybuf(&vfh->queue, b);
 }
 
@@ -794,6 +842,7 @@ isp_video_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 {
 	struct isp_video_fh *vfh = to_isp_video_fh(fh);
 
+	printk("***** %s\n",__FUNCTION__);
 	return isp_video_queue_qbuf(&vfh->queue, b);
 }
 
@@ -802,6 +851,7 @@ isp_video_dqbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 {
 	struct isp_video_fh *vfh = to_isp_video_fh(fh);
 
+	printk("***** %s\n",__FUNCTION__);
 	return isp_video_queue_dqbuf(&vfh->queue, b,
 				     file->f_flags & O_NONBLOCK);
 }
@@ -848,6 +898,7 @@ isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 	unsigned long flags;
 	int ret;
 
+	printk("***** %s\n",__FUNCTION__);
 	if (type != video->type)
 		return -EINVAL;
 
@@ -972,6 +1023,7 @@ isp_video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 	unsigned int streaming;
 	unsigned long flags;
 
+	printk("***** %s\n",__FUNCTION__);
 	if (type != video->type)
 		return -EINVAL;
 
@@ -1014,6 +1066,7 @@ done:
 static int
 isp_video_enum_input(struct file *file, void *fh, struct v4l2_input *input)
 {
+	printk("***** %s\n",__FUNCTION__);
 	if (input->index > 0)
 		return -EINVAL;
 
@@ -1039,6 +1092,7 @@ isp_video_s_input(struct file *file, void *fh, unsigned int input)
 
 static const struct v4l2_ioctl_ops isp_video_ioctl_ops = {
 	.vidioc_querycap		= isp_video_querycap,
+	.vidioc_enum_fmt_vid_cap	= isp_video_enum_format,
 	.vidioc_g_fmt_vid_cap		= isp_video_get_format,
 	.vidioc_s_fmt_vid_cap		= isp_video_set_format,
 	.vidioc_try_fmt_vid_cap		= isp_video_try_format,
@@ -1071,6 +1125,7 @@ static int isp_video_open(struct file *file)
 	struct isp_video_fh *handle;
 	int ret = 0;
 
+	printk("***** %s\n",__FUNCTION__);
 	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
 	if (handle == NULL)
 		return -ENOMEM;
@@ -1115,6 +1170,7 @@ static int isp_video_release(struct file *file)
 	struct v4l2_fh *vfh = file->private_data;
 	struct isp_video_fh *handle = to_isp_video_fh(vfh);
 
+	printk("***** %s\n",__FUNCTION__);
 	/* Disable streaming and free the buffers queue resources. */
 	isp_video_streamoff(file, vfh, video->type);
 

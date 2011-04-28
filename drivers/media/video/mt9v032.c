@@ -31,6 +31,7 @@
 #define MT9V032_CHIP_VERSION				0x00
 #define		MT9V032_CHIP_ID_REV1			0x1311
 #define		MT9V032_CHIP_ID_REV3			0x1313
+#define		MT9V034_CHIP_ID_REV1			0x1324
 #define MT9V032_ROW_START				0x01
 #define		MT9V032_ROW_START_MIN			4
 #define		MT9V032_ROW_START_DEF			10
@@ -191,7 +192,7 @@ static int mt9v032_power_on(struct mt9v032 *mt9v032)
 	int ret;
 
 	if (mt9v032->pdata->set_clock) {
-		mt9v032->pdata->set_clock(&mt9v032->subdev, 25000000);
+		mt9v032->pdata->set_clock(&mt9v032->subdev, 20000000);
 		udelay(1);
 	}
 
@@ -288,8 +289,13 @@ static int mt9v032_s_stream(struct v4l2_subdev *subdev, int enable)
 	unsigned int vratio;
 	int ret;
 
-	if (!enable)
+	printk("** %s\n",__FUNCTION__);
+	if (!enable) {
+		//mt9v032_power_off(mt9v032);
 		return mt9v032_set_chip_control(mt9v032, mode, 0);
+	}
+
+	//mt9v032_power_on(mt9v032);
 
 	/* Configure the window size and row/column bin */
 	hratio = DIV_ROUND_CLOSEST(crop->width, format->width);
@@ -330,6 +336,7 @@ static int mt9v032_enum_mbus_code(struct v4l2_subdev *subdev,
 				  struct v4l2_subdev_fh *fh,
 				  struct v4l2_subdev_mbus_code_enum *code)
 {
+	printk("** %s\n",__FUNCTION__);
 	if (code->index > 0)
 		return -EINVAL;
 
@@ -341,6 +348,7 @@ static int mt9v032_enum_frame_size(struct v4l2_subdev *subdev,
 				   struct v4l2_subdev_fh *fh,
 				   struct v4l2_subdev_frame_size_enum *fse)
 {
+	printk("** %s\n",__FUNCTION__);
 	if (fse->index >= 8 || fse->code != V4L2_MBUS_FMT_SGRBG10_1X10)
 		return -EINVAL;
 
@@ -358,6 +366,7 @@ static int mt9v032_get_format(struct v4l2_subdev *subdev,
 {
 	struct mt9v032 *mt9v032 = to_mt9v032(subdev);
 
+	printk("** %s\n",__FUNCTION__);
 	format->format = *__mt9v032_get_pad_format(mt9v032, fh, format->pad,
 						   format->which);
 	return 0;
@@ -375,6 +384,7 @@ static int mt9v032_set_format(struct v4l2_subdev *subdev,
 	unsigned int hratio;
 	unsigned int vratio;
 
+	printk("** %s\n",__FUNCTION__);
 	__crop = __mt9v032_get_pad_crop(mt9v032, fh, format->pad,
 					format->which);
 
@@ -405,6 +415,7 @@ static int mt9v032_get_crop(struct v4l2_subdev *subdev,
 {
 	struct mt9v032 *mt9v032 = to_mt9v032(subdev);
 
+	printk("** %s\n",__FUNCTION__);
 	crop->rect = *__mt9v032_get_pad_crop(mt9v032, fh, crop->pad,
 					     crop->which);
 	return 0;
@@ -419,6 +430,7 @@ static int mt9v032_set_crop(struct v4l2_subdev *subdev,
 	struct v4l2_rect *__crop;
 	struct v4l2_rect rect;
 
+	printk("** %s\n",__FUNCTION__);
 	/* Clamp the crop rectangle boundaries and align them to a multiple of 2
 	 * pixels.
 	 */
@@ -469,6 +481,7 @@ static int mt9v032_s_ctrl(struct v4l2_ctrl *ctrl)
 	struct i2c_client *client = v4l2_get_subdevdata(&mt9v032->subdev);
 	u16 data;
 
+	printk("** %s\n",__FUNCTION__);
 	switch (ctrl->id) {
 	case V4L2_CID_AUTOGAIN:
 		return mt9v032_update_aec_agc(mt9v032, MT9V032_AGC_ENABLE,
@@ -585,7 +598,8 @@ static int mt9v032_registered(struct v4l2_subdev *subdev)
 
 	/* Read and check the sensor version */
 	data = mt9v032_read(client, MT9V032_CHIP_VERSION);
-	if (data != MT9V032_CHIP_ID_REV1 && data != MT9V032_CHIP_ID_REV3) {
+	if (data != MT9V032_CHIP_ID_REV1 && data != MT9V032_CHIP_ID_REV3
+	    && data != MT9V034_CHIP_ID_REV1) {
 		dev_err(&client->dev, "MT9V032 not detected, wrong version "
 				"0x%04x\n", data);
 		return -ENODEV;
@@ -629,8 +643,30 @@ static struct v4l2_subdev_core_ops mt9v032_subdev_core_ops = {
 	.s_power	= mt9v032_set_power,
 };
 
+static int
+tvp515x_enum_fmt_cap(struct v4l2_subdev *sd, struct v4l2_fmtdesc *fmt)
+{
+
+	printk("***** %s\n",__FUNCTION__);
+	if (fmt->index)
+		return -EINVAL;
+/*
+	if (fmtdesc->type != video->type)
+		return -EINVAL;
+*/
+	fmt->flags = 0;
+	fmt->description[0] = 0;
+
+	fmt->pixelformat = V4L2_PIX_FMT_SGRBG10;
+	return 0;
+}
+
+
 static struct v4l2_subdev_video_ops mt9v032_subdev_video_ops = {
 	.s_stream	= mt9v032_s_stream,
+	.s_mbus_fmt	= mt9v032_set_format,
+	.g_mbus_fmt	= mt9v032_get_format,
+	.enum_mbus_fmt	= tvp515x_enum_fmt_cap,
 };
 
 static struct v4l2_subdev_pad_ops mt9v032_subdev_pad_ops = {
@@ -647,13 +683,13 @@ static struct v4l2_subdev_ops mt9v032_subdev_ops = {
 	.video	= &mt9v032_subdev_video_ops,
 	.pad	= &mt9v032_subdev_pad_ops,
 };
-
+/*
 static const struct v4l2_subdev_internal_ops mt9v032_subdev_internal_ops = {
 	.registered = mt9v032_registered,
 	.open = mt9v032_open,
 	.close = mt9v032_close,
 };
-
+*/
 /* -----------------------------------------------------------------------------
  * Driver initialization and probing
  */
@@ -665,6 +701,7 @@ static int mt9v032_probe(struct i2c_client *client,
 	unsigned int i;
 	int ret;
 
+	printk("** %s\n",__FUNCTION__);
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_WORD_DATA)) {
 		dev_warn(&client->adapter->dev,
 			 "I2C-Adapter doesn't support I2C_FUNC_SMBUS_WORD\n");
@@ -716,10 +753,10 @@ static int mt9v032_probe(struct i2c_client *client,
 	mt9v032->aec_agc = MT9V032_AEC_ENABLE | MT9V032_AGC_ENABLE;
 
 	v4l2_i2c_subdev_init(&mt9v032->subdev, client, &mt9v032_subdev_ops);
-	mt9v032->subdev.internal_ops = &mt9v032_subdev_internal_ops;
+	/*mt9v032->subdev.internal_ops = &mt9v032_subdev_internal_ops;*/
 	mt9v032->subdev.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 
-	mt9v032->pad.flags = MEDIA_PAD_FL_SOURCE;
+	/*mt9v032->pad.flags = MEDIA_PAD_FL_SOURCE;*/
 	ret = media_entity_init(&mt9v032->subdev.entity, 1, &mt9v032->pad, 0);
 	if (ret < 0)
 		kfree(mt9v032);
@@ -740,6 +777,7 @@ static int mt9v032_remove(struct i2c_client *client)
 
 static const struct i2c_device_id mt9v032_id[] = {
 	{ "mt9v032", 0 },
+	{ "mt9v034", 0 },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, mt9v032_id);

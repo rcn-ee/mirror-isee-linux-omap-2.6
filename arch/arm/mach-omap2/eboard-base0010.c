@@ -36,12 +36,12 @@
 #include "mux.h"
 
 /* SMSC911X Ethernet controller */
-#define IGEP3_SMSC911X0_CS       	4
+#define IGEP3_SMSC911X0_CS       	5
 #define IGEP3_SMSC911X0_IRQ		52
-#define IGEP3_SMSC911X0_NRESET		42
-#define IGEP3_SMSC911X1_CS       	6
-#define IGEP3_SMSC911X1_IRQ		41
-#define IGEP3_SMSC911X1_NRESET		43
+#define IGEP3_SMSC911X0_NRESET		64
+#define IGEP3_SMSC911X1_CS       	4
+#define IGEP3_SMSC911X1_IRQ		65
+#define IGEP3_SMSC911X1_NRESET		57
 /* SMSC2514B 4-port USB HUB */
 #define IGEP3_GPIO_USBHUB_NRESET  	23
 /* Display interface */
@@ -145,9 +145,12 @@ static void __init smsc911x_init(struct platform_device *pdev,
 	}
 
 	if ((gpio_request(nreset, "SMSC911X NRESET") == 0) &&
-	    (gpio_direction_output(nreset, 1) == 0))
-		gpio_export(nreset, 0);
-	else {
+	    (gpio_direction_output(nreset, 1) == 0)) {
+			gpio_export(nreset, 0);
+			gpio_set_value(nreset, 0);
+			udelay(10);
+			gpio_set_value(nreset, 1);
+	} else {
 		pr_err("IGEP: Could not obtain gpio NRESET for smsc911x-%d\n",
 				pdev->id);
 		return;

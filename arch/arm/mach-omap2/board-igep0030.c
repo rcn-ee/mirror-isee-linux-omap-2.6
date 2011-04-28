@@ -373,7 +373,6 @@ static int __init igep3_i2c_init(void)
 {
 	omap_register_i2c_bus(1, 2600, igep3_i2c_boardinfo,
 			ARRAY_SIZE(igep3_i2c_boardinfo));
-
 	return 0;
 }
 
@@ -441,6 +440,59 @@ static struct omap_board_mux board_mux[] __initdata = {
 /* Expansion board: BASE0010 */
 extern void __init base0010_init(struct twl4030_platform_data *pdata);
 
+#include <linux/videodev2.h>
+#include <media/mt9v032.h>
+
+#include "devices.h"
+#include "../../../drivers/media/video/isp/isp.h"
+#include "../../../drivers/media/video/isp/ispreg.h"
+
+static void mt9v032_set_clk(struct v4l2_subdev *subdev, unsigned int hz)
+{
+	struct isp_device *isp = v4l2_dev_to_isp_device(subdev->v4l2_dev);
+
+	isp->platform_cb.set_xclk(isp, hz, ISP_XCLK_A);
+
+}
+
+static struct mt9v032_platform_data mt9v032_pdata = {
+	.clk_pol	= 1,
+	.set_clock	= mt9v032_set_clk,
+};
+
+static struct i2c_board_info camera_i2c_devices[] = {
+	{
+		I2C_BOARD_INFO("mt9v032", (0xb8 >> 1)),
+		.platform_data = &mt9v032_pdata,
+	},
+};
+
+static struct isp_subdev_i2c_board_info camera_primary_subdevs[] = {
+	{
+		.board_info = &camera_i2c_devices[0],
+		.i2c_adapter_id = 3,
+	},
+	{ NULL, 0, },
+};
+
+static struct isp_v4l2_subdevs_group camera_subdevs[] = {
+	{
+		.subdevs = camera_primary_subdevs,
+		.interface = ISP_INTERFACE_PARALLEL,
+		.bus = { .parallel = {
+				.width			= 10,
+				.data_lane_shift	= 0,
+				.clk_pol		= 1,
+				.bridge			= ISPCTRL_PAR_BRIDGE_DISABLE,
+		} },
+	},
+	{ NULL, 0, },
+};
+
+static struct isp_platform_data isp_pdata = {
+        .subdevs = camera_subdevs,
+};
+
 static void __init igep3_init(void)
 {
 	/* Mux initialization */
@@ -456,6 +508,27 @@ static void __init igep3_init(void)
 	igep3_flash_init();
 	igep3_init_wifi_bt();
 	igep3_init_led();
+
+	omap_mux_init_signal("cam_fld", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_hs", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_vs", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_xclka", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_pclk", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d0", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d1", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d2", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d3", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d4", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d5", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d6", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d7", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d8", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d9", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d10", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d11", OMAP_PIN_INPUT);
+
+	if (omap3_init_camera(&isp_pdata) < 0)
+		pr_err("IGEP: Unable to register camera platform \n");
 }
 
 MACHINE_START(IGEP0030, "IGEP 0030")
