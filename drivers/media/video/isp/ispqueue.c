@@ -657,7 +657,7 @@ static int isp_video_queue_alloc(struct isp_video_queue *queue,
 		buf->vbuf.index = i;
 		buf->vbuf.length = size;
 		buf->vbuf.type = queue->type;
-		buf->vbuf.field = V4L2_FIELD_NONE;
+		buf->vbuf.field = V4L2_FIELD_ALTERNATE;
 		buf->vbuf.memory = memory;
 
 		buf->queue = queue;
@@ -766,7 +766,6 @@ int isp_video_queue_reqbufs(struct isp_video_queue *queue,
 		return -EINVAL;
 
 	nbuffers = min_t(unsigned int, nbuffers, ISP_VIDEO_MAX_BUFFERS);
-
 	mutex_lock(&queue->lock);
 
 	ret = isp_video_queue_alloc(queue, nbuffers, size, rb->memory);

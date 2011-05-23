@@ -210,6 +210,13 @@ isp_video_check_format(struct isp_video *video, struct isp_video_fh *vfh)
 	if (ret < 0)
 		return ret;
 
+	printk("%d != %d \n",vfh->format.fmt.pix.pixelformat, format.fmt.pix.pixelformat );
+	printk("%d != %d \n",vfh->format.fmt.pix.height, format.fmt.pix.height );
+	printk("%d != %d \n",vfh->format.fmt.pix.width, format.fmt.pix.width );
+	printk("%d != %d \n",vfh->format.fmt.pix.bytesperline, format.fmt.pix.bytesperline);
+	printk("%d != %d \n",vfh->format.fmt.pix.pixelformat, format.fmt.pix.pixelformat );
+	printk("%d != %d \n",vfh->format.fmt.pix.sizeimage, format.fmt.pix.sizeimage );
+
 	if (vfh->format.fmt.pix.pixelformat != format.fmt.pix.pixelformat ||
 	    vfh->format.fmt.pix.height != format.fmt.pix.height ||
 	    vfh->format.fmt.pix.width != format.fmt.pix.width ||
@@ -241,8 +248,6 @@ static struct isp_format_info formats[] = {
 	  V4L2_MBUS_FMT_SRGGB12_1X12, V4L2_PIX_FMT_SRGGB12, 12, },
 	{ V4L2_MBUS_FMT_UYVY8_1X16, V4L2_MBUS_FMT_UYVY8_1X16,
 	  V4L2_MBUS_FMT_UYVY8_1X16, V4L2_PIX_FMT_UYVY, 16, },
-	{ V4L2_MBUS_FMT_YUYV8_1X16, V4L2_MBUS_FMT_YUYV8_1X16,
-	  V4L2_MBUS_FMT_YUYV8_1X16, V4L2_PIX_FMT_YUYV, 16, },
 };
 
 const struct isp_format_info *
@@ -597,6 +602,26 @@ isp_video_querycap(struct file *file, void *fh, struct v4l2_capability *cap)
 		cap->capabilities = V4L2_CAP_VIDEO_OUTPUT | V4L2_CAP_STREAMING;
 
 	return 0;
+}
+
+static int isp_video_enum_fmt_vid_cap(struct file *file, void *fh,
+				   struct v4l2_fmtdesc *fmt)
+{
+
+	if (fmt == NULL || fmt->index)
+		return -EINVAL;
+
+	if (fmt->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		/* only capture is supported */
+		return -EINVAL;
+
+	/* only one format */
+	fmt->flags = 0;
+	strlcpy(fmt->description, "8-bit UYVY 4:2:2 Format",
+					sizeof(fmt->description));
+	fmt->pixelformat = V4L2_PIX_FMT_UYVY;
+	return 0;
+
 }
 
 static int
@@ -1059,6 +1084,7 @@ static const struct v4l2_ioctl_ops isp_video_ioctl_ops = {
 	.vidioc_enum_input		= isp_video_enum_input,
 	.vidioc_g_input			= isp_video_g_input,
 	.vidioc_s_input			= isp_video_s_input,
+	.vidioc_enum_fmt_vid_cap	= isp_video_enum_fmt_vid_cap,
 };
 
 /* -----------------------------------------------------------------------------

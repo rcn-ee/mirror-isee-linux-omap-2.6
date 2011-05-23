@@ -38,6 +38,8 @@
 #include "ispreg.h"
 #include "ispccdc.h"
 
+static int interlaced_cnt = 0;
+
 static struct v4l2_mbus_framefmt *
 __ccdc_get_format(struct isp_ccdc_device *ccdc, struct v4l2_subdev_fh *fh,
 		  unsigned int pad, enum v4l2_subdev_format_whence which);
@@ -877,32 +879,12 @@ static void ispccdc_config_outlineoffset(struct isp_ccdc_device *ccdc,
 	isp_reg_writel(isp, offset & 0xffff,
 		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_HSIZE_OFF);
 
-	isp_reg_clr(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SDOFST,
-		    ISPCCDC_SDOFST_FINV);
+	isp_reg_clr(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SDOFST, ISPCCDC_SDOFST_FOFST_1L);
 
-	isp_reg_clr(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SDOFST,
-		    ISPCCDC_SDOFST_FOFST_4L);
-
-	switch (oddeven) {
-	case EVENEVEN:
-		isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SDOFST,
-			    (numlines & 0x7) << ISPCCDC_SDOFST_LOFST0_SHIFT);
-		break;
-	case ODDEVEN:
-		isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SDOFST,
-			    (numlines & 0x7) << ISPCCDC_SDOFST_LOFST1_SHIFT);
-		break;
-	case EVENODD:
-		isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SDOFST,
-			    (numlines & 0x7) << ISPCCDC_SDOFST_LOFST2_SHIFT);
-		break;
-	case ODDODD:
-		isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SDOFST,
-			    (numlines & 0x7) << ISPCCDC_SDOFST_LOFST3_SHIFT);
-		break;
-	default:
-		break;
-	}
+	isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SDOFST, (numlines & 0x7) << ISPCCDC_SDOFST_LOFST0_SHIFT);
+	isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SDOFST, (numlines & 0x7) << ISPCCDC_SDOFST_LOFST1_SHIFT);
+	isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SDOFST, (numlines & 0x7) << ISPCCDC_SDOFST_LOFST2_SHIFT);
+	isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SDOFST, (numlines & 0x7) << ISPCCDC_SDOFST_LOFST3_SHIFT);
 }
 
 /*
@@ -959,8 +941,12 @@ static void ispccdc_config_sync_if(struct isp_ccdc_device *ccdc,
 	struct isp_device *isp = to_isp_device(ccdc);
 	u32 syn_mode = isp_reg_readl(isp, OMAP3_ISP_IOMEM_CCDC,
 				     ISPCCDC_SYN_MODE);
+	syncif->bt_r656_en = 1;
+	syncif->fldmode = 1;
 
 	syn_mode |= ISPCCDC_SYN_MODE_VDHDEN;
+	syn_mode |= ISPCCDC_SYN_MODE_INPMOD_YCBCR8;
+	syn_mode |= ISPCCDC_SYN_MODE_PACK8;
 
 	if (syncif->fldstat)
 		syn_mode |= ISPCCDC_SYN_MODE_FLDSTAT;
@@ -982,7 +968,6 @@ static void ispccdc_config_sync_if(struct isp_ccdc_device *ccdc,
 		syn_mode |= ISPCCDC_SYN_MODE_DATSIZ_12;
 		break;
 	};
-
 	if (syncif->fldmode)
 		syn_mode |= ISPCCDC_SYN_MODE_FLDMODE;
 	else
@@ -1027,9 +1012,9 @@ static void ispccdc_config_sync_if(struct isp_ccdc_device *ccdc,
 
 	isp_reg_writel(isp, syn_mode, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SYN_MODE);
 
-	if (!syncif->bt_r656_en)
-		isp_reg_clr(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_REC656IF,
-			    ISPCCDC_REC656IF_R656ON);
+	isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_REC656IF,
+		    ISPCCDC_REC656IF_R656ON | ISPCCDC_REC656IF_ECCFVH);
+
 }
 
 /* CCDC formats descriptions */
@@ -1174,38 +1159,30 @@ static void ccdc_configure(struct isp_ccdc_device *ccdc)
 	/* Generate VD0 on the last line of the image and VD1 on the
 	 * 2/3 height line.
 	 */
-	isp_reg_writel(isp, ((format->height - 2) << ISPCCDC_VDINT_0_SHIFT) |
-		       ((format->height * 2 / 3) << ISPCCDC_VDINT_1_SHIFT),
+	isp_reg_writel(isp, ((314 - 2) << ISPCCDC_VDINT_0_SHIFT) |
+		       ((314 * 2 / 3) << ISPCCDC_VDINT_1_SHIFT),
 		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VDINT);
 
 	/* CCDC_PAD_SOURCE_OF */
 	format = &ccdc->formats[CCDC_PAD_SOURCE_OF];
 
 	isp_reg_writel(isp, (0 << ISPCCDC_HORZ_INFO_SPH_SHIFT) |
-		       ((format->width - 1) << ISPCCDC_HORZ_INFO_NPH_SHIFT),
+		       ((720*2-1) << ISPCCDC_HORZ_INFO_NPH_SHIFT),
 		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_HORZ_INFO);
+
 	isp_reg_writel(isp, 0 << ISPCCDC_VERT_START_SLV0_SHIFT,
 		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VERT_START);
-	isp_reg_writel(isp, (format->height - 1)
+	isp_reg_writel(isp, (314 - 1)
 			<< ISPCCDC_VERT_LINES_NLV_SHIFT,
 		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VERT_LINES);
 
+	isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_CFG, ISPCCDC_CFG_Y8POS);
+
 	isp_video_mbus_to_pix(&ccdc->video_out, format, &pix);
-	ispccdc_config_outlineoffset(ccdc, pix.bytesperline, 0, 0);
+	ispccdc_config_outlineoffset(ccdc, pix.bytesperline , ODDEVEN, 1);
 
 	/* CCDC_PAD_SOURCE_VP */
 	format = &ccdc->formats[CCDC_PAD_SOURCE_VP];
-
-	isp_reg_writel(isp, (0 << ISPCCDC_FMT_HORZ_FMTSPH_SHIFT) |
-		       (format->width << ISPCCDC_FMT_HORZ_FMTLNH_SHIFT),
-		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_FMT_HORZ);
-	isp_reg_writel(isp, (0 << ISPCCDC_FMT_VERT_FMTSLV_SHIFT) |
-		       ((format->height + 1) << ISPCCDC_FMT_VERT_FMTLNV_SHIFT),
-		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_FMT_VERT);
-
-	isp_reg_writel(isp, (format->width << ISPCCDC_VP_OUT_HORZ_NUM_SHIFT) |
-		       (format->height << ISPCCDC_VP_OUT_VERT_NUM_SHIFT),
-		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VP_OUT);
 
 	spin_lock_irqsave(&ccdc->lsc.req_lock, flags);
 	if (ccdc->lsc.request == NULL)
@@ -1452,8 +1429,10 @@ static int ispccdc_isr_buffer(struct isp_ccdc_device *ccdc)
 	 * deal with it anyway). Disabling the CCDC when no buffer is available
 	 * would thus not be enough, we need to handle the situation explicitly.
 	 */
-	if (list_empty(&ccdc->video_out.dmaqueue))
+	if (list_empty(&ccdc->video_out.dmaqueue)) {
+		restart = 1;
 		goto done;
+	}
 
 	/* We're in continuous mode, and memory writes were disabled due to a
 	 * buffer underrun. Reenable them now that we have a buffer. The buffer
@@ -1465,23 +1444,24 @@ static int ispccdc_isr_buffer(struct isp_ccdc_device *ccdc)
 		goto done;
 	}
 
-	if (ispccdc_sbl_wait_idle(ccdc, 1000)) {
-		dev_info(isp->dev, "CCDC won't become idle!\n");
-		goto done;
-	}
-
-	buffer = isp_video_buffer_next(&ccdc->video_out, ccdc->error);
-	if (buffer != NULL) {
+	if(!interlaced_cnt) {
+		interlaced_cnt = 1;
+		restart = 1;
+	} else {
+		interlaced_cnt = 0;
+		buffer = isp_video_buffer_next(&ccdc->video_out, ccdc->error);
+	  if (buffer != NULL) {
 		ispccdc_set_outaddr(ccdc, buffer->isp_addr);
+		restart = 1;
+	  } else
 		restart = 1;
 	}
 
 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
 
 	if (ccdc->state == ISP_PIPELINE_STREAM_SINGLESHOT &&
-	    isp_pipeline_ready(pipe))
-		isp_pipeline_set_stream(pipe,
-					ISP_PIPELINE_STREAM_SINGLESHOT);
+		isp_pipeline_ready(pipe))
+		isp_pipeline_set_stream(pipe, ISP_PIPELINE_STREAM_SINGLESHOT);
 
 done:
 	ccdc->error = 0;
