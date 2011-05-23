@@ -11,7 +11,6 @@
 #include <linux/delay.h>
 #include <media/v4l2-device.h>
 #include <media/tvp5150.h>
-#include <media/v4l2-i2c-drv.h>
 #include <media/v4l2-chip-ident.h>
 #include <media/v4l2-ctrls.h>
 
@@ -29,7 +28,9 @@ MODULE_PARM_DESC(debug, "Debug level (0-2)");
 struct tvp5150 {
 	struct v4l2_subdev sd;
 	struct v4l2_ctrl_handler hdl;
+	struct media_pad pad;
 
+	struct v4l2_mbus_framefmt format;
 	v4l2_std_id norm;	/* Current set standard */
 	u32 input;
 	u32 output;
@@ -901,6 +902,85 @@ static int tvp5150_g_tuner(struct v4l2_subdev *sd, struct v4l2_tuner *vt)
 	return 0;
 }
 
+static int tvp5150_get_format(struct v4l2_subdev *subdev,
+			struct v4l2_subdev_fh *fh,
+			struct v4l2_subdev_format *format)
+{
+	struct tvp5150 *tvp5150 = to_tvp5150(subdev);
+
+	format->format = tvp5150->format;
+
+	return 0;
+}
+
+static int tvp5150_set_format(struct v4l2_subdev *subdev,
+			      struct v4l2_subdev_fh *fh,
+			      struct v4l2_subdev_format *format)
+{
+	struct tvp5150 *tvp5150 = to_tvp5150(subdev);
+
+	tvp5150->format.code = format->format.code;
+	tvp5150->format.width = format->format.width;
+	tvp5150->format.height = format->format.height;
+	tvp5150->format.field = V4L2_FIELD_ALTERNATE; /* format->format.field; */
+	tvp5150->format.colorspace = format->format.colorspace;
+
+	v4l2_info(subdev, "code=x%x width=%u height=%u colorspace=0x%x\n",
+			format->format.code, format->format.width,
+			format->format.height, format->format.colorspace);
+
+	return 0;
+}
+
+/*
+ * tvp515x_s_stream() - V4L2 decoder i/f handler for s_stream
+ * @sd: pointer to standard V4L2 sub-device structure
+ * @enable: streaming enable or disable
+ *
+ * Sets streaming to enable or disable, if possible.
+ */
+static int tvp515x_s_stream(struct v4l2_subdev *subdev, int enable)
+{
+
+	/* Initializes TVP5150 to its default values */
+	/* # set PCLK (27MHz) */
+	tvp5150_write(subdev, TVP5150_CONF_SHARED_PIN, 0x00);
+
+	/* Output format: 8-bit ITU-R BT.656 with embedded syncs */
+	if (enable)
+		tvp5150_write(subdev, TVP5150_MISC_CTL, 0x09);
+	else
+		tvp5150_write(subdev, TVP5150_MISC_CTL, 0x00);
+
+	return 0;
+}
+
+/*
+ * tvp515x_enum_fmt_cap() - V4L2 decoder interface handler for enum_fmt
+ * @sd: pointer to standard V4L2 sub-device structure
+ * @fmt: standard V4L2 VIDIOC_ENUM_FMT ioctl structure
+ *
+ * Implement the VIDIOC_ENUM_FMT ioctl to enumerate supported formats
+ */
+static int
+tvp515x_enum_fmt_cap(struct v4l2_subdev *sd, struct v4l2_fmtdesc *fmt)
+{
+
+	if (fmt == NULL || fmt->index)
+		return -EINVAL;
+
+	if (fmt->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		/* only capture is supported */
+		return -EINVAL;
+
+	/* only one format */
+	fmt->flags = 0;
+	strlcpy(fmt->description, "8-bit UYVY 4:2:2 Format",
+					sizeof(fmt->description));
+	fmt->pixelformat = V4L2_PIX_FMT_UYVY;
+	return 0;
+}
+
 /* ----------------------------------------------------------------------- */
 
 static const struct v4l2_ctrl_ops tvp5150_ctrl_ops = {
@@ -931,6 +1011,8 @@ static const struct v4l2_subdev_tuner_ops tvp5150_tuner_ops = {
 
 static const struct v4l2_subdev_video_ops tvp5150_video_ops = {
 	.s_routing = tvp5150_s_routing,
+	.s_stream = tvp515x_s_stream,
+	.enum_fmt = tvp515x_enum_fmt_cap,
 };
 
 static const struct v4l2_subdev_vbi_ops tvp5150_vbi_ops = {
@@ -940,11 +1022,34 @@ static const struct v4l2_subdev_vbi_ops tvp5150_vbi_ops = {
 	.s_raw_fmt = tvp5150_s_raw_fmt,
 };
 
+static int tvp515x_enum_mbus_code(struct v4l2_subdev *subdev,
+                                 struct v4l2_subdev_fh *fh,
+                                 struct v4l2_subdev_mbus_code_enum *code)
+{
+       return 0;
+}
+
+static int tvp515x_enum_frame_size(struct v4l2_subdev *subdev,
+                                  struct v4l2_subdev_fh *fh,
+                                  struct v4l2_subdev_frame_size_enum *fse)
+{
+       return 0;
+}
+
+
+static struct v4l2_subdev_pad_ops tvp5150_pad_ops = {
+	.enum_mbus_code = tvp515x_enum_mbus_code,
+	.enum_frame_size = tvp515x_enum_frame_size,
+	.get_fmt = tvp5150_get_format,
+	.set_fmt = tvp5150_set_format,
+};
+
 static const struct v4l2_subdev_ops tvp5150_ops = {
 	.core = &tvp5150_core_ops,
 	.tuner = &tvp5150_tuner_ops,
 	.video = &tvp5150_video_ops,
 	.vbi = &tvp5150_vbi_ops,
+	.pad = &tvp5150_pad_ops,
 };
 
 
@@ -958,6 +1063,7 @@ static int tvp5150_probe(struct i2c_client *c,
 	struct tvp5150 *core;
 	struct v4l2_subdev *sd;
 	u8 msb_id, lsb_id, msb_rom, lsb_rom;
+	int ret;
 
 	/* Check if the adapter supports the needed features */
 	if (!i2c_check_functionality(c->adapter,
@@ -993,6 +1099,7 @@ static int tvp5150_probe(struct i2c_client *c,
 		}
 	}
 
+	core->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	core->norm = V4L2_STD_ALL;	/* Default is autodetect */
 	core->input = TVP5150_COMPOSITE1;
 	core->enable = 1;
@@ -1018,6 +1125,11 @@ static int tvp5150_probe(struct i2c_client *c,
 
 	if (debug > 1)
 		tvp5150_log_status(sd);
+
+	core->pad.flags = MEDIA_PAD_FLAG_OUTPUT;
+	ret = media_entity_init(&core->sd.entity, 1, &core->pad, 0);
+	if (ret < 0)
+		kfree(core);
 	return 0;
 }
 
@@ -1044,9 +1156,25 @@ static const struct i2c_device_id tvp5150_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, tvp5150_id);
 
-static struct v4l2_i2c_driver_data v4l2_i2c_data = {
-	.name = "tvp5150",
-	.probe = tvp5150_probe,
-	.remove = tvp5150_remove,
-	.id_table = tvp5150_id,
+static struct i2c_driver tvp5150_driver = {
+	.driver = {
+		.owner	= THIS_MODULE,
+		.name	= "tvp5150",
+	},
+	.probe		= tvp5150_probe,
+	.remove		= tvp5150_remove,
+	.id_table	= tvp5150_id,
 };
+
+static __init int init_tvp5150(void)
+{
+	return i2c_add_driver(&tvp5150_driver);
+}
+
+static __exit void exit_tvp5150(void)
+{
+	i2c_del_driver(&tvp5150_driver);
+}
+
+module_init(init_tvp5150);
+module_exit(exit_tvp5150);
