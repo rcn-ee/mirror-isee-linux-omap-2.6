@@ -338,11 +338,21 @@ static void __init igep3_init_irq(void)
 	omap_gpio_init();
 }
 
+static struct twl4030_codec_audio_data igep3_audio_data = {
+	.audio_mclk = 26000000,
+};
+
+static struct twl4030_codec_data igep3_codec_data = {
+	.audio_mclk = 26000000,
+	.audio = &igep3_audio_data,
+};
+
 static struct twl4030_platform_data igep3_twldata = {
 	.irq_base	= TWL4030_IRQ_BASE,
 	.irq_end	= TWL4030_IRQ_END,
 
 	/* platform_data for children goes here */
+	.codec		= &igep3_codec_data,
 	.usb		= &igep3_usb_data,
 	.gpio		= &igep3_gpio_data,
 	.madc		= &igep3_madc_data,
@@ -417,15 +427,26 @@ static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux board_mux[] __initdata = {
 	OMAP3_MUX(I2C2_SDA, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
+	/* McBSP 2 */
+	OMAP3_MUX(MCBSP2_FSX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP2_CLKX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP2_DR, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP2_DX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 #else
 #define board_mux	NULL
 #endif
 
+/* Expansion board: BASE0010 */
+extern void __init base0010_init(struct twl4030_platform_data *pdata);
+
 static void __init igep3_init(void)
 {
+	/* Mux initialization */
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
+	/* Expansion board: BASE0010 */
+	base0010_init(&igep3_twldata);
 
 	omap_serial_init();
 	usb_musb_init(&musb_board_data);
