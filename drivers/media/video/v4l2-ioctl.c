@@ -31,6 +31,24 @@
 #include <media/v4l2-event.h>
 #include <media/v4l2-chip-ident.h>
 
+#ifndef __manel
+#define dbgarg(cmd, fmt, arg...) \
+		do {							\
+			printk(KERN_DEBUG "%s: ",  vfd->name);		\
+			v4l_printk_ioctl(cmd);				\
+			printk(" " fmt,  ## arg);			\
+		} while (0)
+
+#define dbgarg2(fmt, arg...) \
+		do {							\
+			printk(KERN_DEBUG "%s: " fmt, vfd->name, ## arg);\
+		} while (0)
+
+#define dbgarg3(fmt, arg...) \
+		do {							\
+			printk(KERN_CONT "%s: " fmt, vfd->name, ## arg);\
+		} while (0)
+#else
 #define dbgarg(cmd, fmt, arg...) \
 		do {							\
 		    if (vfd->debug & V4L2_DEBUG_IOCTL_ARG) {		\
@@ -51,6 +69,7 @@
 		    if (vfd->debug & V4L2_DEBUG_IOCTL_ARG)		\
 			printk(KERN_CONT "%s: " fmt, vfd->name, ## arg);\
 		} while (0)
+#endif
 
 /* Zero out the end of the struct pointed to by p.  Everthing after, but
  * not including, the specified field is cleared. */

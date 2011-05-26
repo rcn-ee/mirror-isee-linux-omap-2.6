@@ -1189,7 +1189,7 @@ static int omapfb_setcmap(struct fb_cmap *cmap, struct fb_info *info)
 	u16 *red, *green, *blue, *transp;
 	u16 trans = 0xffff;
 
-	DBG("setcmap\n");
+	/* DBG("setcmap\n"); */
 
 	red     = cmap->red;
 	green   = cmap->green;

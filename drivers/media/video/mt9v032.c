@@ -63,7 +63,8 @@
 #define MT9V032_SHUTTER_WIDTH_CONTROL			0x0a
 #define MT9V032_TOTAL_SHUTTER_WIDTH			0x0b
 #define		MT9V032_TOTAL_SHUTTER_WIDTH_MIN		1
-#define		MT9V032_TOTAL_SHUTTER_WIDTH_DEF		480
+#define		MT9V032_TOTAL_SHUTTER_WIDTH_DEF		240
+// #define		MT9V032_TOTAL_SHUTTER_WIDTH_DEF		480
 #define		MT9V032_TOTAL_SHUTTER_WIDTH_MAX		32767
 #define MT9V032_RESET					0x0c
 #define MT9V032_READ_MODE				0x0d
@@ -405,6 +406,7 @@ static int mt9v032_set_format(struct v4l2_subdev *subdev,
 	__format->height = __crop->height / vratio;
 
 	format->format = *__format;
+	printk("code=x%x width=%u height=%u colorspace=0x%x\n", format->format.code, format->format.width, format->format.height, format->format.colorspace);
 
 	return 0;
 }
@@ -481,7 +483,7 @@ static int mt9v032_s_ctrl(struct v4l2_ctrl *ctrl)
 	struct i2c_client *client = v4l2_get_subdevdata(&mt9v032->subdev);
 	u16 data;
 
-	printk("** %s\n",__FUNCTION__);
+	printk("** %s CMD=%d val=%d\n",__FUNCTION__, ctrl->id,  ctrl->val);
 	switch (ctrl->id) {
 	case V4L2_CID_AUTOGAIN:
 		return mt9v032_update_aec_agc(mt9v032, MT9V032_AGC_ENABLE,

@@ -73,21 +73,22 @@ isp_video_far_end(struct isp_video *video)
 
 	mutex_lock(&mdev->graph_mutex);
 	media_entity_graph_walk_start(&graph, entity);
-
+	printk("(1) ***** %s\n",__FUNCTION__);
 	while ((entity = media_entity_graph_walk_next(&graph))) {
-		if (entity == &video->video.entity)
+	  printk("(2) ***** %s - media %s\n",__FUNCTION__, entity->name);
+	  if (entity == &video->video.entity)
 			continue;
-
+printk("(3) ***** %s\n",__FUNCTION__);
 		if (media_entity_type(entity) != MEDIA_ENTITY_TYPE_DEVNODE)
-			continue;
-
+			continue; 
+printk("(4) ***** %s\n",__FUNCTION__);
 		far_end = to_isp_video(media_entity_to_video_device(entity));
 		if (far_end->type != video->type)
 			break;
-
+printk("(5) ***** %s\n",__FUNCTION__);
 		far_end = NULL;
 	}
-
+printk("(6) ***** %s\n",__FUNCTION__);
 	mutex_unlock(&mdev->graph_mutex);
 	return far_end;
 }
@@ -289,10 +290,12 @@ void isp_video_mbus_to_pix(const struct isp_video *video,
 		return;
 
 	pix->pixelformat = formats[i].pixelformat;
-	pix->bytesperline = pix->width * ALIGN(formats[i].bpp, 8) / 8;
+/*	pix->bytesperline = pix->width * ALIGN(formats[i].bpp, 8) / 8;
 
 	if (video->alignment)
-		pix->bytesperline = ALIGN(pix->bytesperline, video->alignment);
+		pix->bytesperline = ALIGN(pix->bytesperline, video->alignment); */
+
+	pix->bytesperline = pix->width * 2;
 
 	pix->sizeimage = pix->bytesperline * pix->height;
 	pix->colorspace = mbus->colorspace;
@@ -306,8 +309,8 @@ void isp_video_pix_to_mbus(const struct v4l2_pix_format *pix,
 
 	memset(mbus, 0, sizeof(*mbus));
 	mbus->width = pix->width;
-	mbus->height = pix->height;
-
+	mbus->height = pix->height;	
+	
 	for (i = 0; i < ARRAY_SIZE(formats); ++i) {
 		if (formats[i].pixelformat == pix->pixelformat)
 			break;
@@ -647,8 +650,8 @@ isp_video_enum_format(struct file *file, void *fh, struct v4l2_fmtdesc *fmtdesc)
 	fmtdesc->description[0] = 0;
 
 	mutex_lock(&video->mutex);
-	/*fmtdesc->pixelformat = V4L2_PIX_FMT_UYVY;*/
-	fmtdesc->pixelformat = V4L2_PIX_FMT_SGRBG10;
+	fmtdesc->pixelformat = V4L2_PIX_FMT_YUYV;	
+	/* fmtdesc->pixelformat = V4L2_PIX_FMT_SGRBG10;*/
 	mutex_unlock(&video->mutex);
 
 	return 0;
@@ -688,23 +691,24 @@ isp_video_try_format(struct file *file, void *fh, struct v4l2_format *format)
 	u32 pad;
 	int ret;
 
-	printk("***** %s\n",__FUNCTION__);
+	printk("(1)***** %s\n",__FUNCTION__);
 	if (format->type != video->type)
 		return -EINVAL;
-
+	printk("(2)***** %s\n",__FUNCTION__);
 	subdev = isp_video_remote_subdev(video, &pad);
 	if (subdev == NULL)
 		return -EINVAL;
-
-	isp_video_pix_to_mbus(&format->fmt.pix, &fmt.format);
-
+	printk("(3)***** %s\n",__FUNCTION__);
+	isp_video_pix_to_mbus(&format->fmt.pix, &fmt.format);	
+	
 	fmt.pad = pad;
 	fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	ret = v4l2_subdev_call(subdev, pad, get_fmt, NULL, &fmt);
 	if (ret)
 		return ret == -ENOIOCTLCMD ? -EINVAL : ret;
-
+	printk("(4)***** %s\n",__FUNCTION__);
 	isp_video_mbus_to_pix(video, &fmt.format, &format->fmt.pix);
+	printk("(5)***** %s\n",__FUNCTION__);
 	return 0;
 }
 

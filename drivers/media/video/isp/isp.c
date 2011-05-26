@@ -293,7 +293,7 @@ void isp_configure_bridge(struct isp_device *isp, enum ccdc_input_entity input,
 		ispctrl_val |= ISPCTRL_PAR_SER_CLK_SEL_PARALLEL;
 		ispctrl_val |= pdata->data_lane_shift << ISPCTRL_SHIFT_SHIFT;
 		ispctrl_val |= pdata->clk_pol << ISPCTRL_PAR_CLK_POL_SHIFT;
-		ispctrl_val |= pdata->bridge << ISPCTRL_PAR_BRIDGE_SHIFT;
+		ispctrl_val |= pdata->bridge << ISPCTRL_PAR_BRIDGE_SHIFT; 
 		break;
 
 	case CCDC_INPUT_CSI2A:

@@ -410,7 +410,6 @@ static void
 isppreview_enable_cfa(struct isp_prev_device *prev, u8 enable)
 {
 	struct isp_device *isp = to_isp_device(prev);
-
 	if (enable)
 		isp_reg_set(isp, OMAP3_ISP_IOMEM_PREV, ISPPRV_PCR,
 			    ISPPRV_PCR_CFAEN);
@@ -583,7 +582,7 @@ isppreview_config_rgb_to_ycbcr(struct isp_prev_device *prev,
 	struct isp_device *isp = to_isp_device(prev);
 	const struct omap3isp_prev_csc *csc = prev_csc;
 	u32 val;
-
+	
 	val = (csc->matrix[0][0] & 0x3ff) << ISPPRV_CSC0_RY_SHIFT;
 	val |= (csc->matrix[0][1] & 0x3ff) << ISPPRV_CSC0_GY_SHIFT;
 	val |= (csc->matrix[0][2] & 0x3ff) << ISPPRV_CSC0_BY_SHIFT;
@@ -856,7 +855,7 @@ static int isppreview_config(struct isp_prev_device *prev,
 	int i, bit, rval = 0;
 
 	params = &prev->params;
-
+	printk("(1) ***** %s\n",__FUNCTION__);
 	if (prev->state != ISP_PIPELINE_STREAM_STOPPED) {
 		unsigned long flags;
 
@@ -868,31 +867,35 @@ static int isppreview_config(struct isp_prev_device *prev,
 	for (i = 0; i < ARRAY_SIZE(update_attrs); i++) {
 		attr = &update_attrs[i];
 		bit = 0;
-
+		printk("(2) ***** %s\n",__FUNCTION__);
 		if (!(cfg->update & attr->cfg_bit))
 			continue;
-
+		printk("(3) ***** %s\n",__FUNCTION__);
 		bit = cfg->flag & attr->cfg_bit;
 		if (bit) {
+			printk("(4) ***** %s\n",__FUNCTION__);
 			void *to = NULL, __user *from = NULL;
 			unsigned long sz = 0;
 
 			sz = __isppreview_get_ptrs(params, &to, cfg, &from,
 						   bit);
 			if (to && from && sz) {
+				printk("(5) ***** %s\n",__FUNCTION__);
 				if (copy_from_user(to, from, sz)) {
 					rval = -EFAULT;
 					break;
 				}
 			}
 			params->features |= attr->feature_bit;
+			printk("(6) ***** %s\n",__FUNCTION__);
 		} else {
+			printk("(7) ***** %s\n",__FUNCTION__);
 			params->features &= ~attr->feature_bit;
 		}
-
+		printk("(8) ***** %s\n",__FUNCTION__);
 		prev->update |= attr->feature_bit;
 	}
-
+	printk("(9) ***** %s\n",__FUNCTION__);
 	prev->shadow_update = 0;
 	return rval;
 }
@@ -942,10 +945,26 @@ isppreview_config_ycpos(struct isp_prev_device *prev,
 {
 	struct isp_device *isp = to_isp_device(prev);
 	enum preview_ycpos_mode mode;
-
+/*
 	switch (pixelcode) {
 	case V4L2_MBUS_FMT_YUYV8_1X16:
 		mode = YCPOS_CrYCbY;
+		break;
+	case V4L2_MBUS_FMT_UYVY8_1X16:
+		mode = YCPOS_YCrYCb;
+		break;
+	default:
+		return;
+	}
+	YCPOS_YCrYCb = 0,
+	YCPOS_YCbYCr = 1,
+	YCPOS_CbYCrY = 2,
+	YCPOS_CrYCbY = 3	
+	
+*/	
+	switch (pixelcode) {
+	case V4L2_MBUS_FMT_YUYV8_1X16:
+		mode = YCPOS_CbYCrY;
 		break;
 	case V4L2_MBUS_FMT_UYVY8_1X16:
 		mode = YCPOS_YCrYCb;
@@ -1496,7 +1515,7 @@ static int preview_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct isp_prev_device *prev =
 		container_of(ctrl->handler, struct isp_prev_device, ctrls);
-
+	printk("***** %s = %d\n",__FUNCTION__, ctrl->id);
 	switch (ctrl->id) {
 	case V4L2_CID_BRIGHTNESS:
 		isppreview_update_brightness(prev, ctrl->val);
@@ -1523,9 +1542,10 @@ static const struct v4l2_ctrl_ops preview_ctrl_ops = {
 static long preview_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct isp_prev_device *prev = v4l2_get_subdevdata(sd);
-
+	printk("(1) ***** %s\n",__FUNCTION__);
 	switch (cmd) {
 	case VIDIOC_OMAP3ISP_PRV_CFG:
+		printk("(2) ***** %s\n",__FUNCTION__);
 		return isppreview_config(prev, arg);
 
 	default:
@@ -1615,8 +1635,8 @@ static const unsigned int prev_input_fmts[] = {
 };
 
 static const unsigned int prev_output_fmts[] = {
-	V4L2_MBUS_FMT_UYVY8_1X16,
-	V4L2_MBUS_FMT_YUYV8_1X16,
+	V4L2_MBUS_FMT_UYVY8_1X16,		
+	V4L2_MBUS_FMT_YUYV8_1X16,		
 };
 
 /*
@@ -1636,6 +1656,7 @@ static void preview_try_format(struct isp_prev_device *prev,
 	enum v4l2_mbus_pixelcode pixelcode;
 	unsigned int i;
 
+	printk("***** %s\n",__FUNCTION__);
 	max_out_width = preview_max_out_width(prev);
 
 	switch (pad) {
@@ -1720,7 +1741,7 @@ static void preview_try_format(struct isp_prev_device *prev,
 		break;
 	}
 
-	fmt->field = V4L2_FIELD_NONE;
+	fmt->field = V4L2_FIELD_NONE;	
 }
 
 /*
@@ -1796,11 +1817,11 @@ static int preview_get_format(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
 {
 	struct isp_prev_device *prev = v4l2_get_subdevdata(sd);
 	struct v4l2_mbus_framefmt *format;
-
+	printk("(1)***** %s\n",__FUNCTION__);
 	format = __preview_get_format(prev, fh, fmt->pad, fmt->which);
 	if (format == NULL)
 		return -EINVAL;
-
+	printk("(2)***** %s : format->width=%u, format->height=%u, format->code=%u, format->field=%u, format->colorspace=%u\n",__FUNCTION__, format->width, format->height, format->code, format->field, format->colorspace );
 	fmt->format = *format;
 	return 0;
 }
@@ -1817,7 +1838,7 @@ static int preview_set_format(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
 {
 	struct isp_prev_device *prev = v4l2_get_subdevdata(sd);
 	struct v4l2_mbus_framefmt *format;
-
+	printk("***** %s\n",__FUNCTION__);
 	format = __preview_get_format(prev, fh, fmt->pad, fmt->which);
 	if (format == NULL)
 		return -EINVAL;
