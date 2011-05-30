@@ -572,7 +572,7 @@ void __init base0010_init(struct twl4030_platform_data *pdata)
 
 	/* 4-Port USB HUB */
 	if ((gpio_request(IGEP3_GPIO_USBHUB_NRESET, "USBHUB NRESET") == 0) &&
-	    (gpio_direction_output(IGEP3_GPIO_USBHUB_NRESET, 1) == 0))
+	    (gpio_direction_output(IGEP3_GPIO_USBHUB_NRESET, 0) == 0))
 		gpio_export(IGEP3_GPIO_USBHUB_NRESET, 0);
 	else
 		pr_warning("IGEP: Could not obtain gpio for USBHUB NRESET\n");
