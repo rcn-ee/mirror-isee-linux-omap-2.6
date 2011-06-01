@@ -445,6 +445,9 @@ static void __init igep3_init(void)
 {
 	/* Mux initialization */
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
+	/* Ensure msecure is mux'd to be able to set the RTC. */
+	omap_mux_init_signal("sys_drm_msecure", OMAP_PIN_OFF_OUTPUT_HIGH);
+
 	/* Expansion board: BASE0010 */
 	base0010_init(&igep3_twldata);
 

@@ -752,6 +752,8 @@ extern void __init igep0022_init(void);
 static void __init igep2_init(void)
 {
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
+	/* Ensure msecure is mux'd to be able to set the RTC. */
+	omap_mux_init_signal("sys_drm_msecure", OMAP_PIN_OFF_OUTPUT_HIGH);
 
 	/* Get IGEP2 hardware revision */
 	igep2_get_revision();
