@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Integration Software and Electronic Engineering.
+ * Copyright (C) 2010-2011 - ISEE 2007 SL
  *
  * Modified from mach-omap2/board-generic.c
  *
