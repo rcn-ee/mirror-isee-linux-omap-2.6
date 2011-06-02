@@ -46,7 +46,7 @@
 #define IGEP3_GPIO_USBHUB_NRESET  	23
 /* Display interface */
 #define IGEP3_GPIO_DVI_PUP		12
-#define IGEP3_GPIO_LCD_PUP		186
+#define IGEP3_GPIO_LCD_EN		186
 #define IGEP3_GPIO_LCD_BKL		144
 /* TSC2046 Touchscreen controller */
 #define IGEP3_GPIO_TSC2046_IRQ		10
@@ -180,19 +180,6 @@ static void disable_dvi(struct omap_dss_device *dssdev)
 	gpio_direction_output(IGEP3_GPIO_DVI_PUP, 0);
 }
 
-static int enable_lcd(struct omap_dss_device *dssdev)
-{
-	gpio_direction_output(IGEP3_GPIO_LCD_PUP, 0);
-
-	return 0;
-}
-
-static void disable_lcd(struct omap_dss_device *dssdev)
-{
-	gpio_direction_output(IGEP3_GPIO_LCD_PUP, 1);
-}
-
-
 static struct omap_dss_device base0010_dvi_device = {
 	.type			= OMAP_DISPLAY_TYPE_DPI,
 	.name			= "dvi",
@@ -208,8 +195,6 @@ static struct omap_dss_device base0010_lcd70_device = {
 	.name			= "lcd-70",
 	.driver_name		= "70wvw1tz3",
 	.phy.dpi.data_lines	= 24,
-	.platform_enable	= enable_lcd,
-	.platform_disable	= disable_lcd,
 };
 
 static struct omap_dss_device *base0010_dss_devices[] = {
@@ -259,12 +244,6 @@ static void __init base0010_display_init(void)
 		gpio_export(IGEP3_GPIO_DVI_PUP, 0);
 	else
 		pr_err("IGEP: Could not obtain gpio DVI PUP\n");
-
-	if ((gpio_request(IGEP3_GPIO_LCD_PUP, "LCD PUP") == 0) &&
-	    (gpio_direction_output(IGEP3_GPIO_LCD_PUP, 1) == 0))
-		gpio_export(IGEP3_GPIO_LCD_PUP, 0);
-	else
-		pr_err("IGEP: Could not obtain gpio LCD PUP\n");
 
 	if ((gpio_request(IGEP3_GPIO_LCD_BKL, "LCD BKL") == 0) &&
 	    (gpio_direction_output(IGEP3_GPIO_LCD_BKL, 1) == 0))
@@ -551,6 +530,13 @@ void __init base0010_init(struct twl4030_platform_data *pdata)
 
 	/* Add twl4030 platform data */
 	pdata->vpll2 = &base0010_vpll2;
+
+	/* Enable regulator that powers LCD, LCD backlight and Touchscreen */
+	if ((gpio_request(IGEP3_GPIO_LCD_EN, "LCD EN") == 0) &&
+	    (gpio_direction_output(IGEP3_GPIO_LCD_EN, 0) == 0))
+		gpio_export(IGEP3_GPIO_LCD_EN, 0);
+	else
+		pr_err("IGEP: Could not obtain gpio LCD EN\n");
 
 	/* Register I2C3 bus */
 	omap_register_i2c_bus(3, 100, NULL, 0);
