@@ -6,6 +6,14 @@
 #define TWL_COMMON_PDATA_MADC		(1 << 2)
 #define TWL_COMMON_PDATA_AUDIO		(1 << 3)
 
+/* Common LDO regulators for TWL4030/TWL6030 */
+#define TWL_COMMON_REGULATOR_VDAC	(1 << 0)
+#define TWL_COMMON_REGULATOR_VAUX1	(1 << 1)
+#define TWL_COMMON_REGULATOR_VAUX2	(1 << 2)
+#define TWL_COMMON_REGULATOR_VAUX3	(1 << 3)
+#define TWL_COMMON_REGULATOR_VPLL1	(1 << 4)
+#define TWL_COMMON_REGULATOR_VPLL2	(1 << 5)
+
 struct twl4030_platform_data;
 
 void omap_pmic_init(int bus, u32 clkrate, const char *pmic_type, int pmic_irq,
