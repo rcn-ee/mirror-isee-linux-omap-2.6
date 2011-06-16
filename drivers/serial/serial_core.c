@@ -1308,10 +1308,11 @@ static int rs485_set_settings(struct tty_struct *tty,
 	 * Alter requested settings to match our capabilities.
 	 * The user can query this by reading the setting back.
 	 */
+	if(rs->settings.delay_before_send)
 	rs->settings.delay_before_send =
 		jiffies_to_usecs(usecs_to_jiffies(
 					rs->settings.delay_before_send));
-
+	if(rs->settings.delay_after_send)
 	rs->settings.delay_after_send =
 		jiffies_to_usecs(usecs_to_jiffies(
 					rs->settings.delay_after_send));
@@ -1320,9 +1321,14 @@ static int rs485_set_settings(struct tty_struct *tty,
 	 * Pre-calculate values based on settings, to make interrupt code
 	 * more efficient.
 	 */
-	rs->pre_jiffies = usecs_to_jiffies(rs->settings.delay_before_send);
-	rs->post_jiffies = usecs_to_jiffies(rs->settings.delay_after_send);
-
+	if(rs->settings.delay_before_send)
+		rs->pre_jiffies = usecs_to_jiffies(rs->settings.delay_before_send);
+	else 
+		rs->pre_jiffies = 0;
+	if(rs->settings.delay_after_send)
+		rs->post_jiffies = usecs_to_jiffies(rs->settings.delay_after_send);
+	else 
+		rs->post_jiffies = 0;
 	rs->mctrl_mask = 0;
 	rs->mctrl_xmit = 0;
 	if (rs->settings.flags & SER_RS485_MODE_RTS) {
