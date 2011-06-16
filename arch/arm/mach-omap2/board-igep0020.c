@@ -299,7 +299,6 @@ static struct twl4030_platform_data twl4030_pdata = {
 	/* platform_data for children goes here */
 	.gpio		= &igep2_twl4030_gpio_pdata,
 	.keypad		= &igep2_twl4030_keypad_data,
-	.vmmc1		= &twl4030_vmmc1,
 };
 
 static struct i2c_board_info __initdata igep2_i2c3_boardinfo[] = {
@@ -397,6 +396,10 @@ static void __init igep0020_init(void)
 	omap3_pmic_get_config(&twl4030_pdata, TWL_COMMON_PDATA_USB |
 			TWL_COMMON_PDATA_AUDIO | TWL_COMMON_PDATA_MADC,
 			TWL_COMMON_REGULATOR_VDAC | TWL_COMMON_REGULATOR_VPLL2);
+
+	igep00x0_pmic_get_config(&twl4030_pdata, 0,
+			TWL_IGEP00X0_REGULATOR_VMMC1);
+
 	omap_pmic_init(1, 2600, "twl4030", INT_34XX_SYS_NIRQ, &twl4030_pdata);
 
 	/*

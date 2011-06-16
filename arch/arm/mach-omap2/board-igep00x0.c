@@ -82,7 +82,7 @@ static struct regulator_consumer_supply vmmc1_supply =
 	REGULATOR_SUPPLY("vmmc", "mmci-omap-hs.0");
 
 /* VMMC1 for OMAP VDD_MMC1 (i/o) and MMC1 card */
-struct regulator_init_data twl4030_vmmc1 = {
+struct regulator_init_data igep00x0_vmmc1_idata = {
 	.constraints = {
 		.min_uV			= 1850000,
 		.max_uV			= 3150000,
@@ -95,6 +95,21 @@ struct regulator_init_data twl4030_vmmc1 = {
 	.num_consumer_supplies  = 1,
 	.consumer_supplies      = &vmmc1_supply,
 };
+
+void __init igep00x0_pmic_get_config(struct twl4030_platform_data *pmic_data,
+				  u32 pdata_flags, u32 regulators_flags)
+{
+	if (!pmic_data->irq_base)
+		pmic_data->irq_base = TWL4030_IRQ_BASE;
+	if (!pmic_data->irq_end)
+		pmic_data->irq_end = TWL4030_IRQ_END;
+
+	/* Common platform data configurations */
+
+	/* Common regulator configurations */
+	if (regulators_flags & TWL_IGEP00X0_REGULATOR_VMMC1 && !pmic_data->vmmc1)
+		pmic_data->vmmc1 = &igep00x0_vmmc1_idata;
+}
 
 #if defined(CONFIG_MTD_ONENAND_OMAP2) || \
 	defined(CONFIG_MTD_ONENAND_OMAP2_MODULE)

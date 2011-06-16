@@ -43,25 +43,6 @@
 #define GPIO_BT_NRESET		137
 #define GPIO_USBH_NRESET	183
 
-static struct regulator_consumer_supply vmmc2_supply = {
-	.supply		= "vmmc",
-};
-
-/* VMMC2 for OMAP VDD_MMC2 (i/o) and MMC2 WIFI */
-static struct regulator_init_data vmmc2_data = {
-	.constraints = {
-		.min_uV			= 1850000,
-		.max_uV			= 3150000,
-		.valid_modes_mask	= REGULATOR_MODE_NORMAL
-					| REGULATOR_MODE_STANDBY,
-		.valid_ops_mask		= REGULATOR_CHANGE_VOLTAGE
-					| REGULATOR_CHANGE_MODE
-					| REGULATOR_CHANGE_STATUS,
-	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &vmmc2_supply,
-};
-
 static struct omap2_hsmmc_info mmc[] = {
 	[0] = {
 		.mmc		= 1,
@@ -154,8 +135,6 @@ static struct twl4030_gpio_platform_data twl4030_gpio_pdata = {
 static struct twl4030_platform_data twl4030_pdata = {
 	/* platform_data for children goes here */
 	.gpio		= &twl4030_gpio_pdata,
-	.vmmc1		= &twl4030_vmmc1,
-	.vmmc2		= &vmmc2_data,
 };
 
 static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
@@ -212,6 +191,10 @@ static void __init igep0030_init(void)
 	/* Add twl4030 common data */
 	omap3_pmic_get_config(&twl4030_pdata, TWL_COMMON_PDATA_USB |
 			TWL_COMMON_PDATA_AUDIO | TWL_COMMON_PDATA_MADC, 0);
+
+	igep00x0_pmic_get_config(&twl4030_pdata, 0,
+			TWL_IGEP00X0_REGULATOR_VMMC1);
+
 	omap_pmic_init(1, 2600, "twl4030", INT_34XX_SYS_NIRQ, &twl4030_pdata);
 
 	/* Common initialitzations */

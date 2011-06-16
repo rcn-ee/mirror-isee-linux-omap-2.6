@@ -11,6 +11,10 @@
 
 #include <plat/display.h>
 
+#define TWL_IGEP00X0_REGULATOR_VMMC1	(1 << 0)
+
+struct twl4030_platform_data;
+
 extern struct omap_dss_device igep00x0_dvi_device;
 extern struct omap_dss_device igep00x0_tv_device;
 /* Powertip 4.3 inch (480 x RGB x 272) TFT with Touch-Panel */
@@ -20,7 +24,8 @@ extern struct omap_dss_device igep00x0_lcd70_device;
 
 extern struct omap_musb_board_data igep00x0_musb_board_data;
 
-extern struct regulator_init_data twl4030_vmmc1;
+void igep00x0_pmic_get_config(struct twl4030_platform_data *pmic_data,
+			   u32 pdata_flags, u32 regulators_flags);
 
 void igep00x0_flash_init(void);
 
