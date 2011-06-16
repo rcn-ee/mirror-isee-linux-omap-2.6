@@ -17,15 +17,13 @@
 #include <linux/gpio.h>
 #include <linux/input.h>
 #include <linux/interrupt.h>
+#include <linux/smsc911x.h>
 
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
 #include <linux/spi/spi.h>
-#include <linux/spi/ads7846.h>
 #include <linux/i2c/twl.h>
-#include <linux/i2c/at24.h>
 #include <linux/mfd/twl4030-codec.h>
-#include <linux/can/platform/mcp251x.h>
 
 #include <plat/board.h>
 #include <plat/common.h>
@@ -33,6 +31,7 @@
 #include <plat/gpmc.h>
 #include <plat/mcspi.h>
 
+#include "board-igep00x0.h"
 #include "mux.h"
 
 /* SMSC911X Ethernet controller */
@@ -65,8 +64,6 @@
 #define IGEP3_GPIO_INPUT3		168
 
 #if defined(CONFIG_SMSC911X) || defined(CONFIG_SMSC911X_MODULE)
-
-#include <linux/smsc911x.h>
 
 static struct smsc911x_platform_config smsc911x_config = {
 	.irq_polarity	= SMSC911X_IRQ_POLARITY_ACTIVE_LOW,
@@ -119,48 +116,14 @@ static struct platform_device smsc911x1_device = {
 	},
 };
 
-static void __init smsc911x_init(struct platform_device *pdev,
-					int cs, int irq_gpio, int nreset)
-{
-	unsigned long cs_mem_base;
-
-	/* Set smsc911x chip */
-	if (gpmc_cs_request(cs, SZ_16M, &cs_mem_base) < 0) {
-		pr_err("IGEP: Failed request for GPMC mem for smsc911x-%d\n",
-				pdev->id);
-		gpmc_cs_free(cs);
-		return;
-	}
-
-	pdev->resource[0].start = cs_mem_base + 0x0;
-	pdev->resource[0].end   = cs_mem_base + 0xff;
-
-	if (gpio_request(irq_gpio, "SMSC911X IRQ")
-	    || gpio_direction_input(irq_gpio)) {
-		pr_err("IGEP: Could not obtain gpio MCP251X_IRQ\n");
-		return;
-	}
-
-	if ((gpio_request(nreset, "SMSC911X NRESET") == 0) &&
-	    (gpio_direction_output(nreset, 1) == 0))
-		gpio_export(nreset, 0);
-	else {
-		pr_err("IGEP: Could not obtain gpio NRESET for smsc911x-%d\n",
-				pdev->id);
-		return;
-	}
-
-	platform_device_register(pdev);
-}
-
 static inline void __init base0010_smsc911x_init(void)
 {
 	/* Set up first smsc911x chip */
-	smsc911x_init(&smsc911x0_device, IGEP3_SMSC911X0_CS,
+	igep00x0_smsc911x_init(&smsc911x0_device, IGEP3_SMSC911X0_CS,
 			IGEP3_SMSC911X0_IRQ, IGEP3_SMSC911X0_NRESET);
 
 	/* Set up second smsc911x chip */
-	smsc911x_init(&smsc911x1_device, IGEP3_SMSC911X1_CS,
+	igep00x0_smsc911x_init(&smsc911x1_device, IGEP3_SMSC911X1_CS,
 			IGEP3_SMSC911X1_IRQ, IGEP3_SMSC911X1_NRESET);
 
 }
@@ -168,44 +131,27 @@ static inline void __init base0010_smsc911x_init(void)
 static inline void __init base0010_smsc911x_init(void) { }
 #endif
 
-static int enable_dvi(struct omap_dss_device *dssdev)
+static int base0010_enable_dvi(struct omap_dss_device *dssdev)
 {
 	gpio_direction_output(IGEP3_GPIO_DVI_PUP, 1);
 
 	return 0;
 }
 
-static void disable_dvi(struct omap_dss_device *dssdev)
+static void base0010_disable_dvi(struct omap_dss_device *dssdev)
 {
 	gpio_direction_output(IGEP3_GPIO_DVI_PUP, 0);
 }
 
-static struct omap_dss_device base0010_dvi_device = {
-	.type			= OMAP_DISPLAY_TYPE_DPI,
-	.name			= "dvi",
-	.driver_name		= "generic_panel",
-	.phy.dpi.data_lines	= 24,
-	.platform_enable	= enable_dvi,
-	.platform_disable	= disable_dvi,
-};
-
-/* Seiko 7.0 inch WVGA (800 x RGB x 480) TFT with Touch-Panel */
-static struct omap_dss_device base0010_lcd70_device = {
-	.type			= OMAP_DISPLAY_TYPE_DPI,
-	.name			= "lcd-70",
-	.driver_name		= "70wvw1tz3",
-	.phy.dpi.data_lines	= 24,
-};
-
 static struct omap_dss_device *base0010_dss_devices[] = {
-	&base0010_dvi_device,
-	&base0010_lcd70_device,
+	&igep00x0_dvi_device,
+	&igep00x0_lcd70_device,
 };
 
 static struct omap_dss_board_info base0010_dss_data = {
 	.num_devices	= ARRAY_SIZE(base0010_dss_devices),
 	.devices	= base0010_dss_devices,
-	.default_device	= &base0010_dvi_device,
+	.default_device	= &igep00x0_dvi_device,
 };
 
 static struct platform_device base0010_dss_device = {
@@ -216,27 +162,7 @@ static struct platform_device base0010_dss_device = {
 	},
 };
 
-static struct regulator_consumer_supply base0010_vpll2_supply = {
-	.supply	= "vdds_dsi",
-	.dev	= &base0010_dss_device.dev,
-};
-
-static struct regulator_init_data base0010_vpll2 = {
-	.constraints = {
-		.name			= "VDVI",
-		.min_uV			= 1800000,
-		.max_uV			= 1800000,
-		.apply_uV		= true,
-		.valid_modes_mask	= REGULATOR_MODE_NORMAL
-					| REGULATOR_MODE_STANDBY,
-		.valid_ops_mask		= REGULATOR_CHANGE_MODE
-					| REGULATOR_CHANGE_STATUS,
-	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &base0010_vpll2_supply,
-};
-
-static void __init base0010_display_init(void)
+static inline void base0010_display_init(void)
 {
 
 	if ((gpio_request(IGEP3_GPIO_DVI_PUP, "DVI PUP") == 0) &&
@@ -250,172 +176,12 @@ static void __init base0010_display_init(void)
 		gpio_export(IGEP3_GPIO_LCD_BKL, 0);
 	else
 		pr_err("IGEP: Could not obtain gpio LCD BKL\n");
+
+	igep00x0_dvi_device.platform_enable = base0010_enable_dvi;
+	igep00x0_dvi_device.platform_disable = base0010_disable_dvi;
+
+	platform_device_register(&base0010_dss_device);
 }
-
-#if defined(CONFIG_TOUCHSCREEN_ADS7846) || \
-	defined(CONFIG_TOUCHSCREEN_ADS7846_MODULE)
-
-static struct omap2_mcspi_device_config tsc2046_mcspi_config = {
-	.turbo_mode	= 0,
-	.single_channel	= 1,	/* 0: slave, 1: master */
-};
-
-static int ads7846_get_pendown_state(void)
-{
-	return !gpio_get_value(IGEP3_GPIO_TSC2046_IRQ);
-}
-
-static struct ads7846_platform_data tsc2046_pdata = {
-	.x_max			= 0x0fff,
-	.y_max			= 0x0fff,
-	.x_plate_ohms		= 180,
-	.pressure_max		= 255,
-	.debounce_max		= 10,
-	.debounce_tol		= 3,
-	.debounce_rep		= 1,
-	.get_pendown_state	= ads7846_get_pendown_state,
-	.keep_vref_on		= 1,
-	.settle_delay_usecs	= 150,
-	.wakeup			= true,
-};
-
-static struct spi_board_info tsc2046_spi_board_info[] = {
-	{
-		/*
-		 * TSC2046 operates at a max freqency of 2MHz, so
-		 * operate slightly below at 1.5MHz
-		 */
-		.modalias		= "ads7846",
-		.bus_num		= 1,
-		.chip_select		= 1,
-		.max_speed_hz		= 1500000,
-		.controller_data	= &tsc2046_mcspi_config,
-		.irq			= OMAP_GPIO_IRQ(IGEP3_GPIO_TSC2046_IRQ),
-		.platform_data		= &tsc2046_pdata,
-	},
-};
-
-static void __init base0010_tsc2046_init(void)
-{
-	omap_mux_init_gpio(IGEP3_GPIO_TSC2046_IRQ, OMAP_PIN_INPUT);
-	omap_mux_init_signal("mcspi1_cs1", 0);
-
-	if ((gpio_request(IGEP3_GPIO_TSC2046_IRQ, "TSC2046 IRQ") == 0)
-		&& (gpio_direction_input(IGEP3_GPIO_TSC2046_IRQ) == 0))
-		gpio_export(IGEP3_GPIO_TSC2046_IRQ, 0);
-	else {
-		pr_err("IGEP: Could not obtain gpio TSC2046 IRQ\n");
-		return;
-	}
-
-	spi_register_board_info(tsc2046_spi_board_info,
-				ARRAY_SIZE(tsc2046_spi_board_info));
-}
-
-#else
-static inline void base0010_tsc2046_init(void) {}
-#endif
-
-static inline void __init base0010_modem_init(void)
-{
-	omap_mux_init_signal("uart2_rx.uart2_rx", OMAP_PIN_INPUT);
-	omap_mux_init_signal("uart2_tx.uart2_tx", OMAP_PIN_OUTPUT);
-
-	/* Modem I/O */
-	omap_mux_init_gpio(IGEP3_GPIO_MODEM_ON_NOFF, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(IGEP3_GPIO_MODEM_NRESET, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(IGEP3_GPIO_MODEM_PWRMON, OMAP_PIN_INPUT);
-
-	if ((gpio_request(IGEP3_GPIO_MODEM_ON_NOFF, "MODEM ON NOFF") == 0)
-	    && (gpio_direction_output(IGEP3_GPIO_MODEM_ON_NOFF, 1) == 0)) {
-		gpio_export(IGEP3_GPIO_MODEM_ON_NOFF, 0);
-		gpio_set_value(IGEP3_GPIO_MODEM_ON_NOFF, 0);
-	} else
-		pr_warning("IGEP: Could not obtain gpio MODEM ON NOFF\n");
-
-	if ((gpio_request(IGEP3_GPIO_MODEM_NRESET, "MODEM NRESET") == 0) &&
-	    (gpio_direction_output(IGEP3_GPIO_MODEM_NRESET, 1) == 0)) {
-		gpio_export(IGEP3_GPIO_MODEM_NRESET, 0);
-		gpio_set_value(IGEP3_GPIO_MODEM_NRESET, 0);
-	} else
-		pr_warning("IGEP: Could not obtain gpio MODEM NRESET\n");
-
-	if ((gpio_request(IGEP3_GPIO_MODEM_PWRMON, "MODEM PWRMON") == 0) &&
-	    (gpio_direction_input(IGEP3_GPIO_MODEM_PWRMON) == 0))
-		gpio_export(IGEP3_GPIO_MODEM_PWRMON, 0);
-	else
-		pr_warning("IGEP: Could not obtain gpio MODEM PWRMON\n");
-}
-
-#if defined(CONFIG_EEPROM_AT24) || \
-	defined(CONFIG_EEPROM_AT24_MODULE)
-
-static struct at24_platform_data at24c01_pdata __initdata = {
-	.byte_len	= SZ_1K / 8,
-	.page_size	= 8,
-};
-
-static struct i2c_board_info at24c01_i2c_board_info[] __initdata = {
-	{
-		I2C_BOARD_INFO("24c01", (0xa0 >> 1)),
-		.platform_data = &at24c01_pdata,
-	},
-};
-
-static inline void base0010_at24c01_init(void)
-{
-	i2c_register_board_info(3, at24c01_i2c_board_info,
-				ARRAY_SIZE(at24c01_i2c_board_info));
-}
-
-#else
-static inline void base0010_at24c01_init(void) {}
-#endif
-
-#if defined(CONFIG_CAN_MCP251X) || \
-	defined(CONFIG_CAN_MCP251X_MODULE)
-
-static struct mcp251x_platform_data mcp251x_pdata = {
-	.oscillator_frequency	= 20*1000*1000,
-	.model			= CAN_MCP251X_MCP2515,
-	.irq_flags		= IRQF_TRIGGER_RISING,
-};
-
-static struct spi_board_info mcp251x_spi_board_info[] = {
-	{
-		.modalias	= "mcp2515",
-		.bus_num	= 1,
-		.chip_select	= 0,
-		.max_speed_hz	= 10*1000*1000,
-		.irq		= OMAP_GPIO_IRQ(IGEP3_GPIO_MCP251X_IRQ),
-		.mode		= SPI_MODE_0,
-		.platform_data	= &mcp251x_pdata,
-	},
-};
-
-static inline void base0010_mcp251x_init(void)
-{
-	if ((gpio_request(IGEP3_GPIO_MCP251X_NRESET, "MCP251X NRESET") == 0)
-		&& (gpio_direction_output(IGEP3_GPIO_MCP251X_NRESET, 0) == 0))
-		gpio_export(IGEP3_GPIO_MCP251X_NRESET, 0);
-	else {
-		pr_err("IGEP: Could not obtain gpio MCP251X NRESET\n");
-		return;
-	}
-
-	if (gpio_request(IGEP3_GPIO_MCP251X_IRQ, "MCP251X IRQ")
-	    || gpio_direction_input(IGEP3_GPIO_MCP251X_IRQ)) {
-		pr_err("IGEP: Could not obtain gpio MCP251X IRQ\n");
-		return;
-	}
-
-	spi_register_board_info(mcp251x_spi_board_info,
-				ARRAY_SIZE(mcp251x_spi_board_info));
-}
-
-#else
-static inline void base0010_mcp251x_init(void) {}
-#endif
 
 static inline void base0010_gpio_init(void)
 {
@@ -519,17 +285,13 @@ static struct omap_board_mux base0010_mux[] __initdata = {
 #define base0010_mux	NULL
 #endif
 
-static struct platform_device *base0010_devices[] __initdata = {
-	&base0010_dss_device,
-};
-
 void __init base0010_init(struct twl4030_platform_data *pdata)
 {
 	/* Mux initialitzation for base0010 */
 	omap_mux_write_array(base0010_mux);
 
 	/* Add twl4030 platform data */
-	pdata->vpll2 = &base0010_vpll2;
+	pdata->vpll2 = &twl4030_vpll2;
 
 	/* Enable regulator that powers LCD, LCD backlight and Touchscreen */
 	if ((gpio_request(IGEP3_GPIO_LCD_EN, "LCD EN") == 0) &&
@@ -541,11 +303,7 @@ void __init base0010_init(struct twl4030_platform_data *pdata)
 	/* Register I2C3 bus */
 	omap_register_i2c_bus(3, 100, NULL, 0);
 
-	/* Touchscreen interface using ADS7846/TSC2046 */
-	base0010_tsc2046_init();
-
 	/* Add platform devices */
-	platform_add_devices(base0010_devices, ARRAY_SIZE(base0010_devices));
 
 	/* Display initialitzation */
 	base0010_display_init();
@@ -554,20 +312,32 @@ void __init base0010_init(struct twl4030_platform_data *pdata)
 	base0010_smsc911x_init();
 
 	/* AT24C01 EEPROM with I2C interface */
-	base0010_at24c01_init();
+	igep00x0_at24c01_init(3);
 
 	/* 4-Port USB HUB */
 	if ((gpio_request(IGEP3_GPIO_USBHUB_NRESET, "USBHUB NRESET") == 0) &&
 	    (gpio_direction_output(IGEP3_GPIO_USBHUB_NRESET, 0) == 0))
 		gpio_export(IGEP3_GPIO_USBHUB_NRESET, 0);
 	else
-		pr_warning("IGEP: Could not obtain gpio for USBHUB NRESET\n");
+		pr_warning("IGEP: Could not obtain gpio USBHUB NRESET\n");
 
-	/* GPIO's for GE865 modem interface */
-	base0010_modem_init();
+	/*
+	 * NOTE: Bluetooth UART and PCM voice interface (PCM VSP) is
+	 * INCOMPATIBLE with modem (disabled by default)
+	 *
+	igep00x0_modem_init(IGEP2_GPIO_MODEM_ON_NOFF, IGEP2_GPIO_MODEM_NRESET,
+				IGEP2_GPIO_MODEM_PWRMON);
+	*/
+
+	/* Touchscreen interface using ADS7846/TSC2046 SPI1.0 */
+	omap_mux_init_gpio(IGEP3_GPIO_TSC2046_IRQ, OMAP_PIN_INPUT);
+	omap_mux_init_signal("mcspi1_cs1", 0);
+	igep00x0_tsc2046_init(1, 0, IGEP3_GPIO_TSC2046_IRQ, 0);
 
 	/* CAN driver for Microchip 251x CAN Controller with SPI Interface */
-	base0010_mcp251x_init();
+	omap_mux_init_gpio(IGEP3_GPIO_MCP251X_IRQ, OMAP_PIN_INPUT_PULLUP);
+	omap_mux_init_signal("mcspi1_cs0", 0);
+	igep00x0_mcp251x_init(1, 0, IGEP3_GPIO_MCP251X_IRQ);
 
 	/* General Purpose IO */
 	base0010_gpio_init();
