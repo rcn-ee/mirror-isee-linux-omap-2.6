@@ -183,3 +183,5 @@ obj-y					+= $(nand-m) $(nand-y)
 
 smc91x-$(CONFIG_SMC91X)			:= gpmc-smc91x.o
 obj-y					+= $(smc91x-m) $(smc91x-y)
+
+obj-y					+= twl-common.o
