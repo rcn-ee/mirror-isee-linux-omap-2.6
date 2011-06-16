@@ -33,6 +33,7 @@
 
 #include "board-igep00x0.h"
 #include "mux.h"
+#include "twl-common.h"
 
 /* SMSC911X Ethernet controller */
 #define IGEP3_SMSC911X0_CS       	4
@@ -291,7 +292,7 @@ void __init base0010_init(struct twl4030_platform_data *pdata)
 	omap_mux_write_array(base0010_mux);
 
 	/* Add twl4030 platform data */
-	pdata->vpll2 = &twl4030_vpll2;
+	omap3_pmic_get_config(pdata, 0, TWL_COMMON_REGULATOR_VPLL2);
 
 	/* Enable regulator that powers LCD, LCD backlight and Touchscreen */
 	if ((gpio_request(IGEP3_GPIO_LCD_EN, "LCD EN") == 0) &&

@@ -78,23 +78,6 @@ struct omap_musb_board_data igep00x0_musb_board_data = {
 	.power		= 100,
 };
 
-struct twl4030_usb_data igep00x0_twl4030_usb_pdata = {
-	.usb_mode	= T2_USB_MODE_ULPI,
-};
-
-struct twl4030_madc_platform_data igep00x0_twl4030_madc_pdata = {
-        .irq_line       = 1,
-};
-
-static struct twl4030_codec_audio_data twl4030_audio_data = {
-	.audio_mclk = 26000000,
-};
-
-struct twl4030_codec_data igep00x0_twl4030_codec_data = {
-	.audio_mclk = 26000000,
-	.audio = &twl4030_audio_data,
-};
-
 static struct regulator_consumer_supply vmmc1_supply =
 	REGULATOR_SUPPLY("vmmc", "mmci-omap-hs.0");
 
@@ -112,41 +95,6 @@ struct regulator_init_data twl4030_vmmc1 = {
 	.num_consumer_supplies  = 1,
 	.consumer_supplies      = &vmmc1_supply,
 };
-
-static struct regulator_consumer_supply vpll2_supply =
-	REGULATOR_SUPPLY("vdss_dsi", "omapdss");
-
-struct regulator_init_data twl4030_vpll2 = {
-	.constraints = {
-		.min_uV			= 1800000,
-		.max_uV			= 1800000,
-		.apply_uV		= true,
-		.valid_modes_mask	= REGULATOR_MODE_NORMAL
-					| REGULATOR_MODE_STANDBY,
-		.valid_ops_mask		= REGULATOR_CHANGE_MODE
-					| REGULATOR_CHANGE_STATUS,
-	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &vpll2_supply,
-};
-
-static struct regulator_consumer_supply vdac_supply =
-	REGULATOR_SUPPLY("vdda_dac", "omapdss");
-
-/* VDAC for DSS driving S-Video (8 mA unloaded, max 65 mA) */
-struct regulator_init_data twl4030_vdac = {
-	.constraints = {
-		.min_uV			= 1800000,
-		.max_uV			= 1800000,
-		.valid_modes_mask	= REGULATOR_MODE_NORMAL
-					| REGULATOR_MODE_STANDBY,
-		.valid_ops_mask		= REGULATOR_CHANGE_MODE
-					| REGULATOR_CHANGE_STATUS,
-	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &vdac_supply,
-};
-
 
 #if defined(CONFIG_MTD_ONENAND_OMAP2) || \
 	defined(CONFIG_MTD_ONENAND_OMAP2_MODULE)

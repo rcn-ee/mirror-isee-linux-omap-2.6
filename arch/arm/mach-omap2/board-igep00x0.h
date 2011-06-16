@@ -21,15 +21,6 @@ extern struct omap_dss_device igep00x0_lcd70_device;
 extern struct omap_musb_board_data igep00x0_musb_board_data;
 
 extern struct regulator_init_data twl4030_vmmc1;
-extern struct regulator_init_data twl4030_vpll2;
-extern struct regulator_init_data twl4030_vdac;
-
-extern struct twl4030_usb_data igep00x0_twl4030_usb_pdata;
-
-extern struct twl4030_madc_platform_data igep00x0_twl4030_madc_pdata;
-
-extern struct twl4030_codec_data igep00x0_twl4030_codec_data;
-
 
 void igep00x0_flash_init(void);
 

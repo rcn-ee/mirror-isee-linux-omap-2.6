@@ -33,6 +33,7 @@
 #include "board-igep00x0.h"
 #include "mux.h"
 #include "hsmmc.h"
+#include "twl-common.h"
 
 #define GPIO_LED_D440_GREEN	54
 #define GPIO_LED_D440_RED	53
@@ -151,23 +152,10 @@ static struct twl4030_gpio_platform_data twl4030_gpio_pdata = {
 };
 
 static struct twl4030_platform_data twl4030_pdata = {
-	.irq_base	= TWL4030_IRQ_BASE,
-	.irq_end	= TWL4030_IRQ_END,
-
 	/* platform_data for children goes here */
-	.codec		= &igep00x0_twl4030_codec_data,
-	.usb		= &igep00x0_twl4030_usb_pdata,
 	.gpio		= &twl4030_gpio_pdata,
-	.madc		= &igep00x0_twl4030_madc_pdata,
 	.vmmc1		= &twl4030_vmmc1,
 	.vmmc2		= &vmmc2_data,
-};
-
-static struct i2c_board_info __initdata twl4030_boardinfo = {
-	I2C_BOARD_INFO("twl4030", 0x48),
-	.flags		= I2C_CLIENT_WAKE,
-	.irq		= INT_34XX_SYS_NIRQ,
-	.platform_data	= &twl4030_pdata,
 };
 
 static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
@@ -218,10 +206,13 @@ static void __init igep0030_init(void)
 	platform_device_register(&gpio_led_device);
 
 	/* Expansion board initialitzations */
-	/* - BASE0010 */
+	/* - BASE0010 (adds twl4030_pdata) */
 	base0010_init(&twl4030_pdata);
-	/* - Register I2C TWL device (after expansion initialitzation) */
-	omap_register_i2c_bus(1, 2600, &twl4030_boardinfo, 1);
+
+	/* Add twl4030 common data */
+	omap3_pmic_get_config(&twl4030_pdata, TWL_COMMON_PDATA_USB |
+			TWL_COMMON_PDATA_AUDIO | TWL_COMMON_PDATA_MADC, 0);
+	omap_pmic_init(1, 2600, "twl4030", INT_34XX_SYS_NIRQ, &twl4030_pdata);
 
 	/* Common initialitzations */
 	/* - Register flash devices */

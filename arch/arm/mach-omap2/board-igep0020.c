@@ -35,6 +35,7 @@
 #include <plat/usb.h>
 #include <plat/display.h>
 
+#include "twl-common.h"
 #include "mux.h"
 #include "hsmmc.h"
 #include "board-igep00x0.h"
@@ -294,28 +295,11 @@ static struct twl4030_keypad_data igep2_twl4030_keypad_data = {
 	.rep		= 1,
 };
 
-static struct twl4030_platform_data igep2_twldata = {
-	.irq_base	= TWL4030_IRQ_BASE,
-	.irq_end	= TWL4030_IRQ_END,
-
+static struct twl4030_platform_data twl4030_pdata = {
 	/* platform_data for children goes here */
-	.usb		= &igep00x0_twl4030_usb_pdata,
-	.codec		= &igep00x0_twl4030_codec_data,
 	.gpio		= &igep2_twl4030_gpio_pdata,
 	.keypad		= &igep2_twl4030_keypad_data,
-	.madc		= &igep00x0_twl4030_madc_pdata,
 	.vmmc1		= &twl4030_vmmc1,
-	.vdac		= &twl4030_vdac,
-	.vpll2		= &twl4030_vpll2,
-};
-
-static struct i2c_board_info __initdata igep2_i2c1_boardinfo[] = {
-	{
-		I2C_BOARD_INFO("twl4030", 0x48),
-		.flags		= I2C_CLIENT_WAKE,
-		.irq		= INT_34XX_SYS_NIRQ,
-		.platform_data	= &igep2_twldata,
-	},
 };
 
 static struct i2c_board_info __initdata igep2_i2c3_boardinfo[] = {
@@ -323,20 +307,6 @@ static struct i2c_board_info __initdata igep2_i2c3_boardinfo[] = {
 		I2C_BOARD_INFO("eeprom", 0x50),
 	},
 };
-
-static int __init igep0020_i2c_init(void)
-{
-	omap_register_i2c_bus(1, 2600, igep2_i2c1_boardinfo,
-			ARRAY_SIZE(igep2_i2c1_boardinfo));
-	/*
-	 * Bus 3 is attached to the DVI port where devices like the pico DLP
-	 * projector don't work reliably with 400kHz
-	 */
-	omap_register_i2c_bus(3, 100, igep2_i2c3_boardinfo,
-			 ARRAY_SIZE(igep2_i2c3_boardinfo));
-
-	return 0;
-}
 
 static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
 	.port_mode[0] = EHCI_HCD_OMAP_MODE_PHY,
@@ -423,8 +393,18 @@ static void __init igep0020_init(void)
 	/* Get IGEP0020 Hardware Revision */
 	igep0020_get_revision();
 
-	/* Register I2C busses and drivers */
-	igep0020_i2c_init();
+	/* Add twl4030 common data */
+	omap3_pmic_get_config(&twl4030_pdata, TWL_COMMON_PDATA_USB |
+			TWL_COMMON_PDATA_AUDIO | TWL_COMMON_PDATA_MADC,
+			TWL_COMMON_REGULATOR_VDAC | TWL_COMMON_REGULATOR_VPLL2);
+	omap_pmic_init(1, 2600, "twl4030", INT_34XX_SYS_NIRQ, &twl4030_pdata);
+
+	/*
+	 * Bus 3 is attached to the DVI port where devices like the pico DLP
+	 * projector don't work reliably with 400kHz
+	 */
+	omap_register_i2c_bus(3, 100, igep2_i2c3_boardinfo,
+			 ARRAY_SIZE(igep2_i2c3_boardinfo));
 
 	/* Display initialitzation */
 	igep0020_display_init();
