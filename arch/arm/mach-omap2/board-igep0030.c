@@ -35,13 +35,39 @@
 #include "hsmmc.h"
 #include "twl-common.h"
 
-#define GPIO_LED_D440_GREEN	54
-#define GPIO_LED_D440_RED	53
 #define GPIO_LED_D210_RED	16
 #define GPIO_WIFI_NPD		138
 #define GPIO_WIFI_NRESET	139
 #define GPIO_BT_NRESET		137
-#define GPIO_USBH_NRESET	183
+
+#define IGEP3_RD_GPIO_LED_D440_GREEN	54
+#define IGEP3_RD_GPIO_LED_D440_RED	53
+#define IGEP3_RD_GPIO_USBH_NRESET	183
+#define IGEP3_RE_GPIO_USBH_NRESET	54
+
+/*
+ * IGEP3 Hardware Revision
+ *
+ * Revision D is only assembled with OMAP35x
+ * Revision E is only assembled with DM37xx
+ *
+ */
+
+#define IGEP3_BOARD_HWREV_D	0xD
+#define IGEP3_BOARD_HWREV_E	0xE
+
+static u8 hwrev;
+
+static void __init igep0030_get_revision(void)
+{
+	if (cpu_is_omap3630()) {
+		pr_info("IGEP: Hardware Rev. E\n");
+		hwrev = IGEP3_BOARD_HWREV_E;
+	} else {
+		pr_info("IGEP: Hardware Rev. D\n");
+		hwrev = IGEP3_BOARD_HWREV_D;
+	}
+}
 
 static struct omap2_hsmmc_info mmc[] = {
 	[0] = {
@@ -64,13 +90,13 @@ static struct omap2_hsmmc_info mmc[] = {
 static struct gpio_led gpio_led_data[] = {
 	[0] = {
 		.name = "d440:red",
-		.gpio = GPIO_LED_D440_RED,
+		.gpio = -EINVAL, /* gets replaced */
 		.default_trigger = "default-off",
 		.active_low = true,
 	},
 	[1] = {
 		.name = "d440:green",
-		.gpio = GPIO_LED_D440_GREEN,
+		.gpio = -EINVAL, /* gets replaced */
 		.default_trigger = "default-off",
 		.active_low = true,
 	},
@@ -114,12 +140,22 @@ static int twl4030_gpio_setup(struct device *dev,
 	gpio_request(gpio + 1, "EHCI NOC");
 	gpio_direction_input(gpio + 1);
 
-	/* TWL4030_GPIO_MAX + 0 == ledA, GPIO_USBH_CPEN (out, active low) */
-	gpio_request(gpio + TWL4030_GPIO_MAX, "USB CPEN");
-	gpio_direction_output(gpio + TWL4030_GPIO_MAX, 0);
+	if (hwrev == IGEP3_BOARD_HWREV_D) {
+		gpio_led_data[0].gpio = IGEP3_RD_GPIO_LED_D440_RED;
+		gpio_led_data[1].gpio = IGEP3_RD_GPIO_LED_D440_GREEN;
+	} else {
+		/* Hardware Rev. E */
+		/* TWL4030_GPIO_MAX + 0 == ledA (out, active low LED) */
+		gpio_led_data[0].gpio = gpio + TWL4030_GPIO_MAX + 0;
+		/* gpio + 13 == ledsync (out, active low LED) */
+		gpio_led_data[1].gpio = gpio + 13;
+	}
 
 	/* TWL4030_GPIO_MAX + 1 == ledB (out, active low LED) */
 	gpio_led_data[3].gpio = gpio + TWL4030_GPIO_MAX + 1;
+
+	/* Register led devices */
+	platform_device_register(&gpio_led_device);
 
 	return 0;
 };
@@ -137,14 +173,14 @@ static struct twl4030_platform_data twl4030_pdata = {
 	.gpio		= &twl4030_gpio_pdata,
 };
 
-static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
+static struct ehci_hcd_omap_platform_data ehci_pdata __initdata = {
 	.port_mode[0] = EHCI_HCD_OMAP_MODE_UNKNOWN,
 	.port_mode[1] = EHCI_HCD_OMAP_MODE_PHY,
 	.port_mode[2] = EHCI_HCD_OMAP_MODE_UNKNOWN,
 
 	.phy_reset = true,
 	.reset_gpio_port[0] = -EINVAL,
-	.reset_gpio_port[1] = GPIO_USBH_NRESET,
+	.reset_gpio_port[1] = -EINVAL, /* gets replaced */
 	.reset_gpio_port[2] = -EINVAL,
 };
 
@@ -176,13 +212,10 @@ static void __init igep0030_init(void)
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
 	/* - Ensure msecure is mux'd to be able to set the RTC. */
 	omap_mux_init_signal("sys_drm_msecure", OMAP_PIN_OFF_OUTPUT_HIGH);
+	/* - Get IGEP0030 Hardware Revision */
+	igep0030_get_revision();
 	/* - Register serial devices */
 	omap_serial_init();
-	/* - USB OTG & USB HOST */
-	usb_musb_init(&igep00x0_musb_board_data);
-	usb_ehci_init(&ehci_pdata);
-	/*    - Register led devices */
-	platform_device_register(&gpio_led_device);
 
 	/* Expansion board initialitzations */
 	/* - BASE0010 (adds twl4030_pdata) */
@@ -196,6 +229,16 @@ static void __init igep0030_init(void)
 			TWL_IGEP00X0_REGULATOR_VMMC1);
 
 	omap_pmic_init(1, 2600, "twl4030", INT_34XX_SYS_NIRQ, &twl4030_pdata);
+
+	/* - USB OTG & USB HOST */
+	if (hwrev == IGEP3_BOARD_HWREV_D)
+		ehci_pdata.reset_gpio_port[1] = IGEP3_RD_GPIO_USBH_NRESET;
+	else
+		/* Hardware Rev. E */
+		ehci_pdata.reset_gpio_port[1] = IGEP3_RE_GPIO_USBH_NRESET;
+
+	usb_ehci_init(&ehci_pdata);
+	usb_musb_init(&igep00x0_musb_board_data);
 
 	/* Common initialitzations */
 	/* - Register flash devices */
