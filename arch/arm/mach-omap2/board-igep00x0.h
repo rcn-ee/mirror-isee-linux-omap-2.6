@@ -16,12 +16,15 @@
 #define IGEP00X0_BUDDY_IGEP0022		0x01
 #define IGEP00X0_BUDDY_BASE0010		0x02
 
+#define IGEP00X0_BUDDY_OPT_MODEM	(1 << 0)
+
 #define TWL_IGEP00X0_REGULATOR_VMMC1	(1 << 0)
 
 struct twl4030_platform_data;
 
 struct buddy_platform_data {
 	unsigned model;
+	unsigned options;
 };
 
 extern struct omap_dss_device igep00x0_dvi_device;
@@ -47,7 +50,8 @@ void igep00x0_tsc2046_init(int busnum, int cs, int irq, int debounce);
 
 void igep00x0_mcp251x_init(int busnum, int cs, int irq);
 
-void igep00x0_wifi_bt_init(int npd, int wifi_nreset, int bt_nreset);
+void igep00x0_wifi_bt_init(int npd, int wifi_nreset, int bt_nreset,
+			int bt_enable);
 
 void igep00x0_at24c01_init(int busnum);
 

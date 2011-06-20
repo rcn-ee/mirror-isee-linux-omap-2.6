@@ -384,6 +384,8 @@ extern void __init igep0022_init(void);
 
 static void __init igep0020_init(void)
 {
+	int opt;
+
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
 	/* Ensure msecure is mux'd to be able to set the RTC. */
 	omap_mux_init_signal("sys_drm_msecure", OMAP_PIN_OFF_OUTPUT_HIGH);
@@ -437,13 +439,22 @@ static void __init igep0020_init(void)
 	/* - Ethernet with SMSC9221 LAN Controller */
 	igep00x0_smsc911x_init(&smsc911x_device, SMSC911X_CS,
 			SMSC911X_IRQ, SMSC911X_NRESET);
-	/* - WLAN-BT combo module from MuRata with SDIO interface. */
+
+	/*
+	 * WLAN-BT combo module from MuRata with SDIO interface.
+	 *
+	 * NOTE: If we have an expansion board with modem enabled we need to
+	 * disable the bluetooth interface as is INCOMPATIBLE
+	 */
+	opt = igep00x0_buddy_pdata.options & IGEP00X0_BUDDY_OPT_MODEM;
 	if (hwrev == IGEP2_BOARD_HWREV_B)
 		igep00x0_wifi_bt_init(IGEP2_RB_GPIO_WIFI_NPD,
-			IGEP2_RB_GPIO_WIFI_NRESET, IGEP2_RB_GPIO_BT_NRESET);
+			IGEP2_RB_GPIO_WIFI_NRESET, IGEP2_RB_GPIO_BT_NRESET,
+			!opt);
 	else if (hwrev == IGEP2_BOARD_HWREV_C)
 		igep00x0_wifi_bt_init(IGEP2_RC_GPIO_WIFI_NPD,
-			IGEP2_RC_GPIO_WIFI_NRESET, IGEP2_RC_GPIO_BT_NRESET);
+			IGEP2_RC_GPIO_WIFI_NRESET, IGEP2_RC_GPIO_BT_NRESET,
+			!opt);
 }
 
 MACHINE_START(IGEP0020, "IGEP0020 board")

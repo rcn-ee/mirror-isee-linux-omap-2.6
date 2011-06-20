@@ -94,12 +94,12 @@ void __init igep0022_init(void)
 
 	/*
 	 * NOTE: Bluetooth UART and PCM voice interface (PCM VSP) is
-	 * INCOMPATIBLE with modem (disabled by default)
-	 *
-	igep00x0_modem_init(IGEP2_GPIO_MODEM_ON_NOFF, IGEP2_GPIO_MODEM_NRESET,
-				IGEP2_GPIO_MODEM_PWRMON);
-	*/
-
+	 * INCOMPATIBLE with modem (disabled by default, enable with
+	 * buddy.modem=yes in kernel command line
+	 */
+	if (igep00x0_buddy_pdata.options & IGEP00X0_BUDDY_OPT_MODEM)
+		igep00x0_modem_init(IGEP2_GPIO_MODEM_ON_NOFF,
+			IGEP2_GPIO_MODEM_NRESET, IGEP2_GPIO_MODEM_PWRMON);
 
 	/* Touchscreen interface using ADS7846/TSC2046 SPI1.1 */
 	omap_mux_init_gpio(IGEP2_GPIO_TSC2046_IRQ, OMAP_PIN_INPUT);

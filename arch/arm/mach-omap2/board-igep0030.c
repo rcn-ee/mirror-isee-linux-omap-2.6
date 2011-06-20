@@ -207,6 +207,8 @@ extern void __init base0010_init(struct twl4030_platform_data *pdata);
 
 static void __init igep0030_init(void)
 {
+	int opt;
+
 	/* Board initialitzations */
 	/* - Mux initialization */
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
@@ -244,9 +246,16 @@ static void __init igep0030_init(void)
 	/* Common initialitzations */
 	/* - Register flash devices */
 	igep00x0_flash_init();
-	/*  - WLAN-BT combo module from MuRata with SDIO interface. */
+
+	/*
+	 * WLAN-BT combo module from MuRata with SDIO interface.
+	 *
+	 * NOTE: If we have an expansion board with modem enabled we need to
+	 * disable the bluetooth interface as is INCOMPATIBLE
+	 */
+	opt = igep00x0_buddy_pdata.options & IGEP00X0_BUDDY_OPT_MODEM;
 	igep00x0_wifi_bt_init(GPIO_WIFI_NPD, GPIO_WIFI_NRESET,
-			 GPIO_BT_NRESET);
+			 GPIO_BT_NRESET, !opt);
 }
 
 MACHINE_START(IGEP0030, "IGEP0030 COM")

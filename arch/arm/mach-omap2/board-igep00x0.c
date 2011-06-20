@@ -114,6 +114,7 @@ void __init igep00x0_pmic_get_config(struct twl4030_platform_data *pmic_data,
 /* Expansion boards */
 struct buddy_platform_data igep00x0_buddy_pdata = {
 	.model = IGEP00X0_BUDDY_NONE,
+	.options = 0,
 };
 
 static int __init buddy_early_param(char *str)
@@ -137,7 +138,28 @@ static int __init buddy_early_param(char *str)
 	return 0;
 }
 
+static int __init buddy_modem_early_param(char *str)
+{
+	char opt[IGEP00X0_BUDDY_MAX_STRLEN];
+
+	if (!str)
+		return -EINVAL;
+
+	strncpy(opt, str, IGEP00X0_BUDDY_MAX_STRLEN);
+
+	if (!strcmp(opt, "yes")) {
+		igep00x0_buddy_pdata.options  |= IGEP00X0_BUDDY_OPT_MODEM;
+		pr_info("IGEP: buddy options: modem=yes \n");
+	} else {
+		pr_info("IGEP: buddy options: Invalid option\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 early_param("buddy", buddy_early_param);
+early_param("buddy.modem", buddy_modem_early_param);
 
 #if defined(CONFIG_MTD_ONENAND_OMAP2) || \
 	defined(CONFIG_MTD_ONENAND_OMAP2_MODULE)
@@ -372,7 +394,8 @@ void __init igep00x0_mcp251x_init(int bus_num, int cs, int irq) {}
 
 #if defined(CONFIG_LIBERTAS_SDIO) || \
 	defined(CONFIG_LIBERTAS_SDIO_MODULE)
-void __init igep00x0_wifi_bt_init(int npd, int wifi_nreset, int bt_nreset)
+void __init igep00x0_wifi_bt_init(int npd, int wifi_nreset, int bt_nreset,
+		int bt_enable)
 {
 	omap_mux_init_gpio(npd, OMAP_PIN_OUTPUT);
 	omap_mux_init_gpio(wifi_nreset, OMAP_PIN_OUTPUT);
@@ -395,7 +418,7 @@ void __init igep00x0_wifi_bt_init(int npd, int wifi_nreset, int bt_nreset)
 		pr_warning("IGEP: Could not obtain gpio WIFI NRESET\n");
 
 	if ((gpio_request(bt_nreset, "BT NRESET") == 0) &&
-	    (gpio_direction_output(bt_nreset, 1) == 0))
+	    (gpio_direction_output(bt_nreset, bt_enable) == 0))
 		gpio_export(bt_nreset, 0);
 	else
 		pr_warning("IGEP: Could not obtain gpio BT NRESET\n");
