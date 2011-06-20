@@ -379,7 +379,6 @@ static inline void igep0020_display_init(void)
 	platform_device_register(&igep0020_dss_device);
 }
 
-
 /* Expansion board: IGEP0022 */
 extern void __init igep0022_init(void);
 
@@ -429,7 +428,8 @@ static void __init igep0020_init(void)
 
 	/* Expansion board initialitzations */
 	/* - IGEP0022 */
-	igep0022_init();
+	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_IGEP0022)
+		igep0022_init();
 
 	/* Common initialitzations */
 	/* - Register flash devices */

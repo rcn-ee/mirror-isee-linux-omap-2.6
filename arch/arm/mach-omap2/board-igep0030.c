@@ -218,8 +218,9 @@ static void __init igep0030_init(void)
 	omap_serial_init();
 
 	/* Expansion board initialitzations */
-	/* - BASE0010 (adds twl4030_pdata) */
-	base0010_init(&twl4030_pdata);
+	/* - BASE0010 (adds twl4030_pdata)  */
+	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_BASE0010)
+		base0010_init(&twl4030_pdata);
 
 	/* Add twl4030 common data */
 	omap3_pmic_get_config(&twl4030_pdata, TWL_COMMON_PDATA_USB |

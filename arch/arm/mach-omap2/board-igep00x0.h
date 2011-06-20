@@ -11,9 +11,18 @@
 
 #include <plat/display.h>
 
+#define IGEP00X0_BUDDY_MAX_STRLEN	16
+#define IGEP00X0_BUDDY_NONE		0x01
+#define IGEP00X0_BUDDY_IGEP0022		0x01
+#define IGEP00X0_BUDDY_BASE0010		0x02
+
 #define TWL_IGEP00X0_REGULATOR_VMMC1	(1 << 0)
 
 struct twl4030_platform_data;
+
+struct buddy_platform_data {
+	unsigned model;
+};
 
 extern struct omap_dss_device igep00x0_dvi_device;
 extern struct omap_dss_device igep00x0_tv_device;
@@ -23,6 +32,8 @@ extern struct omap_dss_device igep00x0_lcd43_device;
 extern struct omap_dss_device igep00x0_lcd70_device;
 
 extern struct omap_musb_board_data igep00x0_musb_board_data;
+
+extern struct buddy_platform_data igep00x0_buddy_pdata;
 
 void igep00x0_pmic_get_config(struct twl4030_platform_data *pmic_data,
 			   u32 pdata_flags, u32 regulators_flags);

@@ -111,6 +111,34 @@ void __init igep00x0_pmic_get_config(struct twl4030_platform_data *pmic_data,
 		pmic_data->vmmc1 = &igep00x0_vmmc1_idata;
 }
 
+/* Expansion boards */
+struct buddy_platform_data igep00x0_buddy_pdata = {
+	.model = IGEP00X0_BUDDY_NONE,
+};
+
+static int __init buddy_early_param(char *str)
+{
+	char name[IGEP00X0_BUDDY_MAX_STRLEN];
+
+	if (!str)
+		return -EINVAL;
+
+	strncpy(name, str, IGEP00X0_BUDDY_MAX_STRLEN);
+
+	if (!strcmp(name, "igep0022"))
+		igep00x0_buddy_pdata.model = IGEP00X0_BUDDY_IGEP0022;
+	else if (!strcmp(name, "base0010"))
+		igep00x0_buddy_pdata.model = IGEP00X0_BUDDY_BASE0010;
+	else
+		return -EINVAL;
+
+	pr_info("IGEP: buddy %s\n", name);
+
+	return 0;
+}
+
+early_param("buddy", buddy_early_param);
+
 #if defined(CONFIG_MTD_ONENAND_OMAP2) || \
 	defined(CONFIG_MTD_ONENAND_OMAP2_MODULE)
 
