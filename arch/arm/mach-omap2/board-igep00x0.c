@@ -303,9 +303,11 @@ void __init igep00x0_smsc911x_init(struct platform_device *pdev,
 	}
 
 	if ((gpio_request(nreset, "SMSC911X NRESET") == 0) &&
-	    (gpio_direction_output(nreset, 1) == 0))
+	    (gpio_direction_output(nreset, 0) == 0)) {
 		gpio_export(nreset, 0);
-	else {
+		mdelay(30);
+		gpio_set_value(nreset, 1);
+	} else {
 		pr_err("IGEP: Could not obtain gpio NRESET for smsc911x-%d\n",
 				pdev->id);
 		return;
