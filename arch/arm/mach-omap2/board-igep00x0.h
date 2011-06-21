@@ -16,6 +16,9 @@
 #define IGEP00X0_BUDDY_IGEP0022		0x01
 #define IGEP00X0_BUDDY_BASE0010		0x02
 
+#define IGEP00X0_BUDDY_HWREV_A		(1 << 0)
+#define IGEP00X0_BUDDY_HWREV_B		(1 << 1)
+
 #define IGEP00X0_BUDDY_OPT_MODEM	(1 << 0)
 
 #define TWL_IGEP00X0_REGULATOR_VMMC1	(1 << 0)
@@ -25,6 +28,7 @@ struct twl4030_platform_data;
 struct buddy_platform_data {
 	unsigned model;
 	unsigned options;
+	unsigned revision;
 };
 
 extern struct omap_dss_device igep00x0_dvi_device;

@@ -115,6 +115,7 @@ void __init igep00x0_pmic_get_config(struct twl4030_platform_data *pmic_data,
 struct buddy_platform_data igep00x0_buddy_pdata = {
 	.model = IGEP00X0_BUDDY_NONE,
 	.options = 0,
+	.revision = IGEP00X0_BUDDY_HWREV_A,
 };
 
 static int __init buddy_early_param(char *str)
@@ -158,8 +159,32 @@ static int __init buddy_modem_early_param(char *str)
 	return 0;
 }
 
+static int __init buddy_revision_early_param(char *str)
+{
+	char rev[IGEP00X0_BUDDY_MAX_STRLEN];
+
+	if (!str)
+		return -EINVAL;
+
+	strncpy(rev, str, IGEP00X0_BUDDY_MAX_STRLEN);
+
+	if (!strcmp(rev, "A")) {
+		igep00x0_buddy_pdata.revision = IGEP00X0_BUDDY_HWREV_A;
+		pr_info("IGEP: buddy: Hardware rev. A\n");
+	} else if (!strcmp(rev, "B")) {
+		igep00x0_buddy_pdata.revision = IGEP00X0_BUDDY_HWREV_B;
+		pr_info("IGEP: buddy: Hardware rev. B\n");
+	} else {
+		pr_info("IGEP: buddy: Unknown revision\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 early_param("buddy", buddy_early_param);
 early_param("buddy.modem", buddy_modem_early_param);
+early_param("buddy.revision", buddy_revision_early_param);
 
 #if defined(CONFIG_MTD_ONENAND_OMAP2) || \
 	defined(CONFIG_MTD_ONENAND_OMAP2_MODULE)
