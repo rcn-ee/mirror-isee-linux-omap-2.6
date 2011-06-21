@@ -15,6 +15,7 @@
 #include <linux/io.h>
 #include <linux/leds.h>
 #include <linux/gpio.h>
+#include <linux/gpio_keys.h>
 #include <linux/input.h>
 #include <linux/interrupt.h>
 #include <linux/smsc911x.h>
@@ -71,6 +72,8 @@
 #define IGEP3_GPIO_OUTPUT3		17
 #define IGEP3_GPIO_INPUT2		18
 #define IGEP3_GPIO_INPUT3		168
+/* User buttons */
+#define IGEP3_GPIO_SW202		62
 
 #if defined(CONFIG_SMSC911X) || defined(CONFIG_SMSC911X_MODULE)
 
@@ -267,6 +270,28 @@ static inline void base0010_gpio_init(void)
 		pr_err("IGEP: Could not obtain gpio INPUT3\n");
 }
 
+static struct gpio_keys_button base0010_gpio_keys[] = {
+	{
+		.code	= BTN_EXTRA,
+		.gpio	= IGEP3_GPIO_SW202,
+		.desc	= "sw202",
+		.wakeup	= 1,
+	},
+};
+
+static struct gpio_keys_platform_data base0010_gpio_keys_pdata = {
+	.buttons	= base0010_gpio_keys,
+	.nbuttons	= ARRAY_SIZE(base0010_gpio_keys),
+};
+
+static struct platform_device base0010_gpio_keys_device = {
+	.name	= "gpio-keys",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &base0010_gpio_keys_pdata,
+	},
+};
+
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux base0010_mux[] __initdata = {
 	/* Display Sub System */
@@ -327,6 +352,8 @@ static struct omap_board_mux base0010_mux[] __initdata = {
 	OMAP3_MUX(ETK_D7, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(ETK_D4, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
 	OMAP3_MUX(I2C2_SCL, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
+	/* User buttons */
+	OMAP3_MUX(GPMC_NWP, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 #else
@@ -387,6 +414,7 @@ void __init base0010_init(struct twl4030_platform_data *pdata)
 	omap_register_i2c_bus(3, 100, NULL, 0);
 
 	/* Add platform devices */
+	platform_device_register(&base0010_gpio_keys_device);
 
 	/* Display initialitzation */
 	base0010_display_init();
