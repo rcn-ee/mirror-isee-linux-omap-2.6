@@ -36,12 +36,20 @@
 #include "twl-common.h"
 
 /* SMSC911X Ethernet controller */
-#define IGEP3_SMSC911X0_CS       	4
-#define IGEP3_SMSC911X0_IRQ		52
-#define IGEP3_SMSC911X0_NRESET		42
-#define IGEP3_SMSC911X1_CS       	6
-#define IGEP3_SMSC911X1_IRQ		41
-#define IGEP3_SMSC911X1_NRESET		43
+#define IGEP3_RA_SMSC911X0_CS       	5
+#define IGEP3_RA_SMSC911X0_IRQ		52
+#define IGEP3_RA_SMSC911X0_NRESET	64
+#define IGEP3_RA_SMSC911X1_CS       	4
+#define IGEP3_RA_SMSC911X1_IRQ		65
+#define IGEP3_RA_SMSC911X1_NRESET	57
+
+#define IGEP3_RB_SMSC911X0_CS       	4
+#define IGEP3_RB_SMSC911X0_IRQ		52
+#define IGEP3_RB_SMSC911X0_NRESET	42
+#define IGEP3_RB_SMSC911X1_CS       	6
+#define IGEP3_RB_SMSC911X1_IRQ		41
+#define IGEP3_RB_SMSC911X1_NRESET	43
+
 /* SMSC2514B 4-port USB HUB */
 #define IGEP3_GPIO_USBHUB_NRESET  	23
 /* Display interface */
@@ -79,8 +87,8 @@ static struct resource smsc911x0_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	{
-		.start	= OMAP_GPIO_IRQ(IGEP3_SMSC911X0_IRQ),
-		.end	= OMAP_GPIO_IRQ(IGEP3_SMSC911X0_IRQ),
+		.start	= -EINVAL,
+		.end	= -EINVAL,
 		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_LOWLEVEL,
 	},
 };
@@ -91,8 +99,8 @@ static struct resource smsc911x1_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	{
-		.start	= OMAP_GPIO_IRQ(IGEP3_SMSC911X1_IRQ),
-		.end	= OMAP_GPIO_IRQ(IGEP3_SMSC911X1_IRQ),
+		.start	= -EINVAL,
+		.end	= -EINVAL,
 		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_LOWLEVEL,
 	},
 };
@@ -119,14 +127,60 @@ static struct platform_device smsc911x1_device = {
 
 static inline void __init base0010_smsc911x_init(void)
 {
-	/* Set up first smsc911x chip */
-	igep00x0_smsc911x_init(&smsc911x0_device, IGEP3_SMSC911X0_CS,
-			IGEP3_SMSC911X0_IRQ, IGEP3_SMSC911X0_NRESET);
+	/* SMSC911X Ethernet controller */
+	if (igep00x0_buddy_pdata.revision & IGEP00X0_BUDDY_HWREV_A) {
+		/* Configure MUX for hardware rev. A */
+		omap_mux_init_signal("gpmc_ncs4", 0);
+		omap_mux_init_gpio(IGEP3_RA_SMSC911X0_IRQ, OMAP_PIN_INPUT);
+		omap_mux_init_gpio(IGEP3_RA_SMSC911X0_NRESET, OMAP_PIN_OUTPUT);
 
-	/* Set up second smsc911x chip */
-	igep00x0_smsc911x_init(&smsc911x1_device, IGEP3_SMSC911X1_CS,
-			IGEP3_SMSC911X1_IRQ, IGEP3_SMSC911X1_NRESET);
+		omap_mux_init_signal("gpmc_ncs5", 0);
+		omap_mux_init_gpio(IGEP3_RA_SMSC911X1_IRQ, OMAP_PIN_INPUT);
+		omap_mux_init_gpio(IGEP3_RA_SMSC911X1_NRESET, OMAP_PIN_OUTPUT);
 
+		smsc911x0_resources[1].start =
+					OMAP_GPIO_IRQ(IGEP3_RA_SMSC911X0_IRQ);
+		smsc911x0_resources[1].end =
+					OMAP_GPIO_IRQ(IGEP3_RA_SMSC911X0_IRQ);
+		smsc911x1_resources[1].start =
+					OMAP_GPIO_IRQ(IGEP3_RA_SMSC911X1_IRQ);
+		smsc911x1_resources[1].end =
+					OMAP_GPIO_IRQ(IGEP3_RA_SMSC911X1_IRQ);
+
+		/* Set up first smsc911x chip */
+		igep00x0_smsc911x_init(&smsc911x0_device, IGEP3_RA_SMSC911X0_CS,
+			IGEP3_RA_SMSC911X0_IRQ, IGEP3_RA_SMSC911X0_NRESET);
+
+		/* Set up second smsc911x chip */
+		igep00x0_smsc911x_init(&smsc911x1_device, IGEP3_RA_SMSC911X1_CS,
+			IGEP3_RA_SMSC911X1_IRQ,	IGEP3_RA_SMSC911X1_NRESET);
+	} else {
+		/* Configure MUX for hardware rev. B */
+		omap_mux_init_signal("gpmc_ncs5", 0);
+		omap_mux_init_gpio(IGEP3_RB_SMSC911X0_IRQ, OMAP_PIN_INPUT);
+		omap_mux_init_gpio(IGEP3_RB_SMSC911X0_NRESET, OMAP_PIN_OUTPUT);
+
+		omap_mux_init_signal("gpmc_ncs6", 0);
+		omap_mux_init_gpio(IGEP3_RB_SMSC911X1_IRQ, OMAP_PIN_INPUT);
+		omap_mux_init_gpio(IGEP3_RB_SMSC911X1_NRESET, OMAP_PIN_OUTPUT);
+
+		smsc911x0_resources[1].start =
+					OMAP_GPIO_IRQ(IGEP3_RB_SMSC911X0_IRQ);
+		smsc911x0_resources[1].end =
+					OMAP_GPIO_IRQ(IGEP3_RB_SMSC911X0_IRQ);
+		smsc911x1_resources[1].start =
+					OMAP_GPIO_IRQ(IGEP3_RB_SMSC911X1_IRQ);
+		smsc911x1_resources[1].end =
+					OMAP_GPIO_IRQ(IGEP3_RB_SMSC911X1_IRQ);
+
+		/* Set up first smsc911x chip */
+		igep00x0_smsc911x_init(&smsc911x0_device, IGEP3_RB_SMSC911X0_CS,
+			IGEP3_RB_SMSC911X0_IRQ, IGEP3_RB_SMSC911X0_NRESET);
+
+		/* Set up second smsc911x chip */
+		igep00x0_smsc911x_init(&smsc911x1_device, IGEP3_RB_SMSC911X1_CS,
+			IGEP3_RB_SMSC911X1_IRQ,	IGEP3_RB_SMSC911X1_NRESET);
+	}
 }
 #else
 static inline void __init base0010_smsc911x_init(void) { }
@@ -215,13 +269,6 @@ static inline void base0010_gpio_init(void)
 
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux base0010_mux[] __initdata = {
-	/* SMSC911X Ethernet controller */
-	OMAP3_MUX(GPMC_NCS4, OMAP_MUX_MODE0),
-	OMAP3_MUX(GPMC_NCS1, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
-	OMAP3_MUX(GPMC_A9, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
-	OMAP3_MUX(GPMC_NCS6, OMAP_MUX_MODE0),
-	OMAP3_MUX(GPMC_A8, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
-	OMAP3_MUX(GPMC_A10, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
 	/* Display Sub System */
 	OMAP3_MUX(DSS_PCLK, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(DSS_HSYNC, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
@@ -286,32 +333,8 @@ static struct omap_board_mux base0010_mux[] __initdata = {
 #define base0010_mux	NULL
 #endif
 
-void __init base0010_init(struct twl4030_platform_data *pdata)
+void __init base0010_revb_init(void)
 {
-	/* Mux initialitzation for base0010 */
-	omap_mux_write_array(base0010_mux);
-
-	/* Add twl4030 platform data */
-	omap3_pmic_get_config(pdata, 0, TWL_COMMON_REGULATOR_VPLL2);
-
-	/* Enable regulator that powers LCD, LCD backlight and Touchscreen */
-	if ((gpio_request(IGEP3_GPIO_LCD_EN, "LCD EN") == 0) &&
-	    (gpio_direction_output(IGEP3_GPIO_LCD_EN, 0) == 0))
-		gpio_export(IGEP3_GPIO_LCD_EN, 0);
-	else
-		pr_err("IGEP: Could not obtain gpio LCD EN\n");
-
-	/* Register I2C3 bus */
-	omap_register_i2c_bus(3, 100, NULL, 0);
-
-	/* Add platform devices */
-
-	/* Display initialitzation */
-	base0010_display_init();
-
-	/* Ethernet with SMSC9221 LAN Controller */
-	base0010_smsc911x_init();
-
 	/* AT24C01 EEPROM with I2C interface */
 	igep00x0_at24c01_init(3);
 
@@ -343,4 +366,34 @@ void __init base0010_init(struct twl4030_platform_data *pdata)
 
 	/* General Purpose IO */
 	base0010_gpio_init();
+}
+
+void __init base0010_init(struct twl4030_platform_data *pdata)
+{
+	/* Mux initialitzation for base0010 */
+	omap_mux_write_array(base0010_mux);
+
+	/* Add twl4030 platform data */
+	omap3_pmic_get_config(pdata, 0, TWL_COMMON_REGULATOR_VPLL2);
+
+	/* Enable regulator that powers LCD, LCD backlight and Touchscreen */
+	if ((gpio_request(IGEP3_GPIO_LCD_EN, "LCD EN") == 0) &&
+	    (gpio_direction_output(IGEP3_GPIO_LCD_EN, 0) == 0))
+		gpio_export(IGEP3_GPIO_LCD_EN, 0);
+	else
+		pr_err("IGEP: Could not obtain gpio LCD EN\n");
+
+	/* Register I2C3 bus */
+	omap_register_i2c_bus(3, 100, NULL, 0);
+
+	/* Add platform devices */
+
+	/* Display initialitzation */
+	base0010_display_init();
+
+	/* Ethernet with SMSC9221 LAN Controller */
+	base0010_smsc911x_init();
+
+	if (igep00x0_buddy_pdata.revision & IGEP00X0_BUDDY_HWREV_B)
+		base0010_revb_init();
 }
