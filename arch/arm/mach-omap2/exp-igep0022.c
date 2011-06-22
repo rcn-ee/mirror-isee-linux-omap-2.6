@@ -35,6 +35,7 @@
 #define IGEP2_GPIO_MODEM_NRESET		140
 #define IGEP2_GPIO_MODEM_PWRMON		156
 #define IGEP2_GPIO_MCP251X_IRQ		157
+#define IGEP2_GPIO_MCP251X_NRESET	136
 #define IGEP2_GPIO_TVP5151_PDN		126
 #define IGEP2_GPIO_TVP5151_RESET	167
 
@@ -107,8 +108,10 @@ void __init igep0022_init(void)
 	igep00x0_tsc2046_init(1, 1, IGEP2_GPIO_TSC2046_IRQ, 0);
 
 	/* CAN driver for Microchip 251x CAN Controller with SPI Interface */
+	omap_mux_init_gpio(IGEP2_GPIO_MCP251X_NRESET, OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_gpio(IGEP2_GPIO_MCP251X_IRQ, OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_signal("mcspi1_cs0", 0);
-	igep00x0_mcp251x_init(1, 0, IGEP2_GPIO_MCP251X_IRQ);
+	igep00x0_mcp251x_init(1, 0, IGEP2_GPIO_MCP251X_IRQ,
+				IGEP2_GPIO_MCP251X_NRESET);
 
 }

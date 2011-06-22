@@ -387,9 +387,11 @@ void __init base0010_revb_init(void)
 	igep00x0_tsc2046_init(1, 0, IGEP3_GPIO_TSC2046_IRQ, 0);
 
 	/* CAN driver for Microchip 251x CAN Controller with SPI Interface */
+	omap_mux_init_gpio(IGEP3_GPIO_MCP251X_NRESET, OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_gpio(IGEP3_GPIO_MCP251X_IRQ, OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_signal("mcspi1_cs0", 0);
-	igep00x0_mcp251x_init(1, 0, IGEP3_GPIO_MCP251X_IRQ);
+	igep00x0_mcp251x_init(1, 0, IGEP3_GPIO_MCP251X_IRQ,
+				IGEP3_GPIO_MCP251X_NRESET);
 
 	/* General Purpose IO */
 	base0010_gpio_init();

@@ -52,7 +52,7 @@ void igep00x0_smsc911x_init(struct platform_device *pdev,
 
 void igep00x0_tsc2046_init(int busnum, int cs, int irq, int debounce);
 
-void igep00x0_mcp251x_init(int busnum, int cs, int irq);
+void igep00x0_mcp251x_init(int busnum, int cs, int irq, int nreset);
 
 void igep00x0_wifi_bt_init(int npd, int wifi_nreset, int bt_nreset,
 			int bt_enable);

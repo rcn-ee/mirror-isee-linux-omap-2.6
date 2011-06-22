@@ -395,13 +395,13 @@ static struct spi_board_info mcp251x_spi_board_info  __initdata = {
 	.modalias	= "mcp2515",
 	.bus_num	= -EINVAL,
 	.chip_select	= -EINVAL,
-	.max_speed_hz	= 10*1000*1000,
+	.max_speed_hz	= 1*1000*1000,
 	.irq		= -EINVAL,
 	.mode		= SPI_MODE_0,
 	.platform_data	= &mcp251x_pdata,
 };
 
-void __init igep00x0_mcp251x_init(int bus_num, int cs, int irq)
+void __init igep00x0_mcp251x_init(int bus_num, int cs, int irq, int nreset)
 {
 	struct spi_board_info *spi = &mcp251x_spi_board_info;
 
@@ -411,6 +411,14 @@ void __init igep00x0_mcp251x_init(int bus_num, int cs, int irq)
 	else {
 		pr_err("IGEP: Could not obtain gpio MCP251X IRQ\n");
 		return;
+	}
+
+	if (nreset) {
+		if ((gpio_request(irq, "MCP251X NRESET") == 0)
+			&& (gpio_direction_output(nreset,1) == 0))
+			gpio_export(nreset, 0);
+		else
+			pr_err("IGEP: Could not obtain gpio MCP251X NRESET\n");
 	}
 
 	spi->bus_num = bus_num;
