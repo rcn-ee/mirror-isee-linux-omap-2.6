@@ -22,6 +22,7 @@
 #define IGEP00X0_BUDDY_OPT_MODEM	(1 << 0)
 
 #define TWL_IGEP00X0_REGULATOR_VMMC1	(1 << 0)
+#define TWL_IGEP00X0_REGULATOR_VIO	(1 << 1)
 
 struct twl4030_platform_data;
 

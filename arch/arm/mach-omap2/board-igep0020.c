@@ -399,7 +399,8 @@ static void __init igep0020_init(void)
 			TWL_COMMON_REGULATOR_VDAC | TWL_COMMON_REGULATOR_VPLL2);
 
 	igep00x0_pmic_get_config(&twl4030_pdata, 0,
-			TWL_IGEP00X0_REGULATOR_VMMC1);
+			TWL_IGEP00X0_REGULATOR_VMMC1 |
+			TWL_IGEP00X0_REGULATOR_VIO);
 
 	omap_pmic_init(1, 2600, "twl4030", INT_34XX_SYS_NIRQ, &twl4030_pdata);
 

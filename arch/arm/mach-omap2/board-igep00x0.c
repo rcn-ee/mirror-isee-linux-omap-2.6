@@ -86,6 +86,9 @@ struct omap_musb_board_data igep00x0_musb_board_data = {
 static struct regulator_consumer_supply vmmc1_supply =
 	REGULATOR_SUPPLY("vmmc", "mmci-omap-hs.0");
 
+static struct regulator_consumer_supply vio_supply =
+	REGULATOR_SUPPLY("hsusb0", "ehci-omap.0");
+
 /* VMMC1 for OMAP VDD_MMC1 (i/o) and MMC1 card */
 struct regulator_init_data igep00x0_vmmc1_idata = {
 	.constraints = {
@@ -101,6 +104,20 @@ struct regulator_init_data igep00x0_vmmc1_idata = {
 	.consumer_supplies      = &vmmc1_supply,
 };
 
+struct regulator_init_data igep00x0_vio_idata = {
+	.constraints = {
+		.min_uV			= 1800000,
+		.max_uV			= 1850000,
+		.valid_modes_mask	= REGULATOR_MODE_NORMAL
+					| REGULATOR_MODE_STANDBY,
+		.valid_ops_mask		= REGULATOR_CHANGE_VOLTAGE
+					| REGULATOR_CHANGE_MODE
+					| REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies  = 1,
+	.consumer_supplies      = &vio_supply,
+};
+
 void __init igep00x0_pmic_get_config(struct twl4030_platform_data *pmic_data,
 				  u32 pdata_flags, u32 regulators_flags)
 {
@@ -114,6 +131,9 @@ void __init igep00x0_pmic_get_config(struct twl4030_platform_data *pmic_data,
 	/* Common regulator configurations */
 	if (regulators_flags & TWL_IGEP00X0_REGULATOR_VMMC1 && !pmic_data->vmmc1)
 		pmic_data->vmmc1 = &igep00x0_vmmc1_idata;
+
+	if (regulators_flags &  TWL_IGEP00X0_REGULATOR_VIO && !pmic_data->vio)
+		pmic_data->vio = &igep00x0_vio_idata;
 }
 
 /* Expansion boards */
