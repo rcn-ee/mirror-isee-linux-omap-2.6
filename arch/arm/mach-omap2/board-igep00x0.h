@@ -61,6 +61,8 @@ void igep00x0_at24c01_init(int busnum);
 
 void igep00x0_modem_init(int on, int nreset, int pwrmon);
 
+void igep00x0_camera_init(void);
+
 void igep00x0_init_irq(void);
 
 #endif /* __ARCH_ARM_MACH_OMAP2_BOARD_IGEP00X0_H */

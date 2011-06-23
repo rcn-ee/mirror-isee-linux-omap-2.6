@@ -61,16 +61,20 @@ static inline void igep0022_i2c2_init(void)
 	omap_mux_init_gpio(IGEP2_GPIO_TVP5151_RESET, OMAP_PIN_OUTPUT);
 
 	if ((gpio_request(IGEP2_GPIO_TVP5151_PDN, "TVP5151 PDN") == 0) &&
-		(gpio_direction_output(IGEP2_GPIO_TVP5151_PDN, 1) == 0)) {
+		(gpio_direction_output(IGEP2_GPIO_TVP5151_PDN, 0) == 0))
 		gpio_export(IGEP2_GPIO_TVP5151_PDN, 0);
-		gpio_set_value(IGEP2_GPIO_TVP5151_PDN, 1);
-	} else
+	else
 		pr_warning("IGEP: Could not obtain gpio TVP5151 PDN\n");
 
 	if ((gpio_request(IGEP2_GPIO_TVP5151_RESET, "TVP5151 RESET") == 0)
-		&& (gpio_direction_output(IGEP2_GPIO_TVP5151_RESET, 1) == 0)) {
+		&& (gpio_direction_output(IGEP2_GPIO_TVP5151_RESET, 0) == 0)) {
 		gpio_export(IGEP2_GPIO_TVP5151_RESET, 0);
-		gpio_set_value(IGEP2_GPIO_TVP5151_RESET, 1);
+		/* Initialize TVP5151 power up sequence */
+		udelay(10);
+		gpio_set_value(IGEP2_GPIO_TVP5151_PDN, 1);
+		udelay(10);
+                gpio_set_value(IGEP2_GPIO_TVP5151_RESET, 1);
+		udelay(200);
 	} else
 		pr_warning("IGEP: Could not obtain gpio TVP5151 RESET\n");
 
@@ -114,4 +118,6 @@ void __init igep0022_init(void)
 	igep00x0_mcp251x_init(1, 0, IGEP2_GPIO_MCP251X_IRQ,
 				IGEP2_GPIO_MCP251X_NRESET);
 
+	/* Register OMAP3 camera devices (tvp5151) */
+	igep00x0_camera_init();
 }
