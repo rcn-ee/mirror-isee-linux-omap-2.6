@@ -43,6 +43,8 @@ extern struct omap_musb_board_data igep00x0_musb_board_data;
 
 extern struct buddy_platform_data igep00x0_buddy_pdata;
 
+extern struct platform_device igep00x0_vdd33_device;
+
 void igep00x0_pmic_get_config(struct twl4030_platform_data *pmic_data,
 			   u32 pdata_flags, u32 regulators_flags);
 

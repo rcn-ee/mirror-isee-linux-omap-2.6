@@ -244,6 +244,8 @@ static void __init igep0030_init(void)
 	usb_ehci_init(&ehci_pdata);
 	usb_musb_init(&igep00x0_musb_board_data);
 
+	platform_device_register(&igep00x0_vdd33_device);
+
 	/* Common initialitzations */
 	/* - Register flash devices */
 	igep00x0_flash_init();

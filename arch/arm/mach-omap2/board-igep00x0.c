@@ -22,6 +22,7 @@
 #include <linux/i2c/at24.h>
 #include <linux/i2c/twl.h>
 
+#include <linux/regulator/fixed.h>
 #include <linux/regulator/machine.h>
 
 #include <linux/spi/spi.h>
@@ -89,6 +90,10 @@ static struct regulator_consumer_supply vmmc1_supply =
 static struct regulator_consumer_supply vio_supply =
 	REGULATOR_SUPPLY("hsusb0", "ehci-omap.0");
 
+static struct regulator_consumer_supply vdd33_supplies[] = {
+	REGULATOR_SUPPLY("vmmc", "mmci-omap-hs.1"),
+};
+
 /* VMMC1 for OMAP VDD_MMC1 (i/o) and MMC1 card */
 struct regulator_init_data igep00x0_vmmc1_idata = {
 	.constraints = {
@@ -116,6 +121,31 @@ struct regulator_init_data igep00x0_vio_idata = {
 	},
 	.num_consumer_supplies  = 1,
 	.consumer_supplies      = &vio_supply,
+};
+
+static struct regulator_init_data vdd33_data = {
+	.constraints		= {
+		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
+		.always_on		= 1,
+	},
+	.num_consumer_supplies	= ARRAY_SIZE(vdd33_supplies),
+	.consumer_supplies	= vdd33_supplies,
+};
+
+static struct fixed_voltage_config vdd33_voltage_config = {
+	.supply_name		= "VDD 3V3",
+	.microvolts		= 3300000,
+	.gpio			= -EINVAL,
+	.enabled_at_boot	= 1,
+	.init_data		= &vdd33_data,
+};
+
+struct platform_device igep00x0_vdd33_device = {
+	.name		= "reg-fixed-voltage",
+	.id		= 0,
+	.dev = {
+		.platform_data	= &vdd33_voltage_config,
+	},
 };
 
 void __init igep00x0_pmic_get_config(struct twl4030_platform_data *pmic_data,

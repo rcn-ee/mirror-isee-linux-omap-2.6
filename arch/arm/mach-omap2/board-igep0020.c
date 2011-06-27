@@ -423,6 +423,8 @@ static void __init igep0020_init(void)
 
 	omap_serial_init();
 
+	platform_device_register(&igep00x0_vdd33_device);
+
 	/* USB OTG & USB HOST */
 	usb_musb_init(&igep00x0_musb_board_data);
 	usb_ehci_init(&ehci_pdata);
