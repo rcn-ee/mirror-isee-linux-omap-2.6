@@ -353,10 +353,6 @@ static struct omap_board_mux board_mux[] __initdata = {
 	OMAP3_MUX(DSS_DATA23, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(HDQ_SIO, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
 	/* Serial ports */
-	OMAP3_MUX(UART1_TX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
-	OMAP3_MUX(UART1_RX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
-	OMAP3_MUX(UART1_CTS, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
-	OMAP3_MUX(UART1_RTS, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(UART2_TX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(UART2_RX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
@@ -459,6 +455,37 @@ static void __init igep0020_init(void)
 			IGEP2_RC_GPIO_WIFI_NRESET, IGEP2_RC_GPIO_BT_NRESET,
 			!opt);
 }
+
+static int __init ei485_early_param(char *str)
+{
+	char opt[16];
+
+	if (!str)
+		return -EINVAL;
+
+	strncpy(opt, str, 16);
+
+	omap_mux_init_signal("uart1_tx", OMAP_PIN_OUTPUT);
+	omap_mux_init_signal("uart1_rx", OMAP_PIN_INPUT);
+
+	if (!strcmp(opt, "no")) {
+		/*
+		 * To use UART1 as RS232 port instead of RS485 we need configure
+		 * UART1_RTS and UART1_CTS pins in safe mode. To set the RS485
+		 * comment next to lines.
+		 */
+		omap_mux_init_signal("uart1_rts.safe_mode", 0);
+		omap_mux_init_signal("uart1_cts.safe_mode", 0);
+		pr_info("IGEP: board options: ei485=no \n");
+	} else {
+		omap_mux_init_signal("uart1_rts", 0);
+		omap_mux_init_signal("uart1_cts", 0);
+	}
+
+	return 0;
+}
+
+early_param("board.ei485", ei485_early_param);
 
 MACHINE_START(IGEP0020, "IGEP0020 board")
 	.phys_io	= 0x48000000,
