@@ -266,19 +266,9 @@ static struct mtd_partition igep00x0_onenand_partitions[] = {
 		.size           = 2 * (64*(2*2048))
 	},
 	{
-		.name           = "U-Boot",
+		.name           = "Boot",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = 6 * (64*(2*2048)),
-	},
-	{
-		.name           = "Environment",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = 2 * (64*(2*2048)),
-	},
-	{
-		.name           = "Kernel",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = 12 * (64*(2*2048)),
+		.size           = 48 * (64*(2*2048)),
 	},
 	{
 		.name           = "File System",
