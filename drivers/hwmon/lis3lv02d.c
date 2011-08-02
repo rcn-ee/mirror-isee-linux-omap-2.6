@@ -65,6 +65,9 @@
 /* Sensitivity values for -2G +2G scale */
 #define LIS3_SENSITIVITY_12B		((LIS3_ACCURACY * 1000) / 1024)
 #define LIS3_SENSITIVITY_8B		(18 * LIS3_ACCURACY)
+#define LIS3_SENSITIVITY_2G		1	/* mG/LSB */
+#define LIS3_SENSITIVITY_4G		2	/* mG/LSB */
+#define LIS3_SENSITIVITY_8G		4	/* mG/LSB */
 
 #define LIS3_DEFAULT_FUZZ		3
 #define LIS3_DEFAULT_FLAT		3
@@ -127,8 +130,12 @@ static void lis3lv02d_get_xyz(struct lis3lv02d *lis3, int *x, int *y, int *z)
 	position[1] = lis3->read_data(lis3, OUTY);
 	position[2] = lis3->read_data(lis3, OUTZ);
 
-	for (i = 0; i < 3; i++)
-		position[i] = (position[i] * lis3->scale) / LIS3_ACCURACY;
+	if (lis3->whoami == WAI_DLH)
+		for (i = 0; i < 3; i++)
+			position[i] = position[i] / 16;
+	else
+		for (i = 0; i < 3; i++)
+			position[i] = (position[i] * lis3->scale) / LIS3_ACCURACY;
 
 	*x = lis3lv02d_get_axis(lis3->ac.x, position);
 	*y = lis3lv02d_get_axis(lis3->ac.y, position);
@@ -136,6 +143,7 @@ static void lis3lv02d_get_xyz(struct lis3lv02d *lis3, int *x, int *y, int *z)
 }
 
 /* conversion btw sampling rate and the register values */
+static int lis331dlh_rates[4] = {50, 100, 400, 1000};
 static int lis3_12_rates[4] = {40, 160, 640, 2560};
 static int lis3_8_rates[2] = {100, 400};
 static int lis3_3dc_rates[16] = {0, 1, 10, 25, 50, 100, 200, 400, 1600, 5000};
@@ -482,12 +490,21 @@ int lis3lv02d_joystick_enable(void)
 	input_dev->dev.parent = &lis3_dev.pdev->dev;
 
 	set_bit(EV_ABS, input_dev->evbit);
-	max_val = (lis3_dev.mdps_max_val * lis3_dev.scale) / LIS3_ACCURACY;
-	fuzz = (LIS3_DEFAULT_FUZZ * lis3_dev.scale) / LIS3_ACCURACY;
-	flat = (LIS3_DEFAULT_FLAT * lis3_dev.scale) / LIS3_ACCURACY;
-	input_set_abs_params(input_dev, ABS_X, -max_val, max_val, fuzz, flat);
-	input_set_abs_params(input_dev, ABS_Y, -max_val, max_val, fuzz, flat);
-	input_set_abs_params(input_dev, ABS_Z, -max_val, max_val, fuzz, flat);
+	if (lis3_dev.whoami ==  WAI_DLH) {
+		max_val = 8000;
+		fuzz = 0;
+		flat = 0;
+		input_set_abs_params(input_dev, ABS_X, -max_val, max_val, fuzz, flat);
+		input_set_abs_params(input_dev, ABS_Y, -max_val, max_val, fuzz, flat);
+		input_set_abs_params(input_dev, ABS_Z, -max_val, max_val, fuzz, flat);
+	} else {
+		max_val = (lis3_dev.mdps_max_val * lis3_dev.scale) / LIS3_ACCURACY;
+		fuzz = (LIS3_DEFAULT_FUZZ * lis3_dev.scale) / LIS3_ACCURACY;
+		flat = (LIS3_DEFAULT_FLAT * lis3_dev.scale) / LIS3_ACCURACY;
+		input_set_abs_params(input_dev, ABS_X, -max_val, max_val, fuzz, flat);
+		input_set_abs_params(input_dev, ABS_Y, -max_val, max_val, fuzz, flat);
+		input_set_abs_params(input_dev, ABS_Z, -max_val, max_val, fuzz, flat);
+	}
 
 	lis3_dev.mapped_btns[0] = lis3lv02d_get_axis(abs(lis3_dev.ac.x), btns);
 	lis3_dev.mapped_btns[1] = lis3lv02d_get_axis(abs(lis3_dev.ac.y), btns);
@@ -692,6 +709,15 @@ int lis3lv02d_init_device(struct lis3lv02d *dev)
 		dev->odrs = lis3_3dc_rates;
 		dev->odr_mask = CTRL1_ODR0|CTRL1_ODR1|CTRL1_ODR2|CTRL1_ODR3;
 		dev->scale = LIS3_SENSITIVITY_8B;
+		break;
+	case WAI_DLH:
+		printk(KERN_INFO "lis331dlh" ": 16 bits sensor found\n");
+		dev->read_data = lis3lv02d_read_12;
+		dev->mdps_max_val = 2048;
+		dev->pwron_delay = LIS3_PWRON_DELAY_WAI_8B;
+		dev->odrs = lis331dlh_rates;
+		dev->odr_mask = CTRL1_DF0 | CTRL1_DF1;
+		dev->scale = 1 * 1024;
 		break;
 	default:
 		printk(KERN_ERR DRIVER_NAME
