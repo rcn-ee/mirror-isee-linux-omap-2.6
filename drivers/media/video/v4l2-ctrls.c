@@ -389,6 +389,16 @@ const char *v4l2_ctrl_get_name(u32 id)
 	case V4L2_CID_TUNE_POWER_LEVEL:		return "Tune Power Level";
 	case V4L2_CID_TUNE_ANTENNA_CAPACITOR:	return "Tune Antenna Capacitor";
 
+	/* Image source controls */
+	case V4L2_CID_IMAGE_SOURCE_CLASS:       return "Image Source Controls";
+	case V4L2_CID_VBLANK:                   return "Vertical Blanking";
+	case V4L2_CID_HBLANK:                   return "Horizontal Blanking";
+
+/* Image processing controls */
+	case V4L2_CID_IMAGE_PROC_CLASS:         return "Image Processing Controls";
+	case V4L2_CID_LINK_FREQ:                return "Link Frequency";
+	case V4L2_CID_PIXEL_RATE:               return "Pixel Rate";
+
 	default:
 		return NULL;
 	}
@@ -458,10 +468,15 @@ void v4l2_ctrl_fill(u32 id, const char **name, enum v4l2_ctrl_type *type,
 	case V4L2_CID_RDS_TX_RADIO_TEXT:
 		*type = V4L2_CTRL_TYPE_STRING;
 		break;
+	case V4L2_CID_LINK_FREQ:
+		*type = V4L2_CTRL_TYPE_INTEGER_MENU;
+		break;
 	case V4L2_CID_USER_CLASS:
 	case V4L2_CID_CAMERA_CLASS:
 	case V4L2_CID_MPEG_CLASS:
 	case V4L2_CID_FM_TX_CLASS:
+	case V4L2_CID_IMAGE_SOURCE_CLASS:
+	case V4L2_CID_IMAGE_PROC_CLASS:
 		*type = V4L2_CTRL_TYPE_CTRL_CLASS;
 		/* You can neither read not write these */
 		*flags |= V4L2_CTRL_FLAG_READ_ONLY | V4L2_CTRL_FLAG_WRITE_ONLY;
@@ -719,10 +734,13 @@ static int validate_new(struct v4l2_ctrl *ctrl)
 		return 0;
 
 	case V4L2_CTRL_TYPE_MENU:
+	case V4L2_CTRL_TYPE_INTEGER_MENU:
 		if (val < ctrl->minimum || val > ctrl->maximum)
 			return -ERANGE;
-		if (ctrl->qmenu[val][0] == '\0' ||
-		    (ctrl->menu_skip_mask & (1 << val)))
+		if (ctrl->menu_skip_mask & (1 << val))
+			return -EINVAL;
+		if (ctrl->type == V4L2_CTRL_TYPE_MENU &&
+		    ctrl->qmenu[val][0] == '\0')
 			return -EINVAL;
 		return 0;
 
@@ -952,7 +970,8 @@ static struct v4l2_ctrl *v4l2_ctrl_new(struct v4l2_ctrl_handler *hdl,
 			const struct v4l2_ctrl_ops *ops,
 			u32 id, const char *name, enum v4l2_ctrl_type type,
 			s32 min, s32 max, u32 step, s32 def,
-			u32 flags, const char **qmenu, void *priv)
+			u32 flags, const char * const *qmenu,
+			const s64 *qmenu_int, void *priv)
 {
 	struct v4l2_ctrl *ctrl;
 	unsigned sz_extra = 0;
@@ -965,6 +984,7 @@ static struct v4l2_ctrl *v4l2_ctrl_new(struct v4l2_ctrl_handler *hdl,
 	    def < min || def > max || max < min ||
 	    (type == V4L2_CTRL_TYPE_INTEGER && step == 0) ||
 	    (type == V4L2_CTRL_TYPE_MENU && qmenu == NULL) ||
+	    (type == V4L2_CTRL_TYPE_INTEGER_MENU && qmenu_int == NULL) ||
 	    (type == V4L2_CTRL_TYPE_STRING && max == 0)) {
 		handler_set_err(hdl, -ERANGE);
 		return NULL;
@@ -994,6 +1014,10 @@ static struct v4l2_ctrl *v4l2_ctrl_new(struct v4l2_ctrl_handler *hdl,
 	ctrl->maximum = max;
 	ctrl->step = step;
 	ctrl->qmenu = qmenu;
+	if (type == V4L2_CTRL_TYPE_MENU)
+		ctrl->qmenu = qmenu;
+	else if (type == V4L2_CTRL_TYPE_INTEGER_MENU)
+		ctrl->qmenu_int = qmenu_int;
 	ctrl->priv = priv;
 	ctrl->cur.val = ctrl->val = ctrl->default_value = def;
 
@@ -1020,6 +1044,7 @@ struct v4l2_ctrl *v4l2_ctrl_new_custom(struct v4l2_ctrl_handler *hdl,
 	struct v4l2_ctrl *ctrl;
 	const char *name = cfg->name;
 	const char **qmenu = cfg->qmenu;
+	const s64 *qmenu_int = cfg->qmenu_int;
 	enum v4l2_ctrl_type type = cfg->type;
 	u32 flags = cfg->flags;
 	s32 min = cfg->min;
@@ -1031,18 +1056,24 @@ struct v4l2_ctrl *v4l2_ctrl_new_custom(struct v4l2_ctrl_handler *hdl,
 		v4l2_ctrl_fill(cfg->id, &name, &type, &min, &max, &step,
 								&def, &flags);
 
-	is_menu = (cfg->type == V4L2_CTRL_TYPE_MENU);
+	is_menu = (cfg->type == V4L2_CTRL_TYPE_MENU ||
+		   cfg->type == V4L2_CTRL_TYPE_INTEGER_MENU);
 	if (is_menu)
 		WARN_ON(step);
 	else
 		WARN_ON(cfg->menu_skip_mask);
-	if (is_menu && qmenu == NULL)
+	if (cfg->type == V4L2_CTRL_TYPE_MENU && qmenu == NULL)
 		qmenu = v4l2_ctrl_get_menu(cfg->id);
+	else if (cfg->type == V4L2_CTRL_TYPE_INTEGER_MENU &&
+		 qmenu_int == NULL) {
+		handler_set_err(hdl, -EINVAL);
+		return NULL;
+	}
 
 	ctrl = v4l2_ctrl_new(hdl, cfg->ops, cfg->id, name,
 			type, min, max,
 			is_menu ? cfg->menu_skip_mask : step,
-			def, flags, qmenu, priv);
+			def, flags, qmenu, qmenu_int, priv);
 	if (ctrl) {
 		ctrl->is_private = cfg->is_private;
 		ctrl->is_volatile = cfg->is_volatile;
@@ -1061,12 +1092,13 @@ struct v4l2_ctrl *v4l2_ctrl_new_std(struct v4l2_ctrl_handler *hdl,
 	u32 flags;
 
 	v4l2_ctrl_fill(id, &name, &type, &min, &max, &step, &def, &flags);
-	if (type == V4L2_CTRL_TYPE_MENU) {
+	if (type == V4L2_CTRL_TYPE_MENU
+	    || type == V4L2_CTRL_TYPE_INTEGER_MENU) {
 		handler_set_err(hdl, -EINVAL);
 		return NULL;
 	}
 	return v4l2_ctrl_new(hdl, ops, id, name, type,
-				    min, max, step, def, flags, NULL, NULL);
+				    min, max, step, def, flags, NULL, NULL, NULL);
 }
 EXPORT_SYMBOL(v4l2_ctrl_new_std);
 
@@ -1083,14 +1115,40 @@ struct v4l2_ctrl *v4l2_ctrl_new_std_menu(struct v4l2_ctrl_handler *hdl,
 	u32 flags;
 
 	v4l2_ctrl_fill(id, &name, &type, &min, &max, &step, &def, &flags);
-	if (type != V4L2_CTRL_TYPE_MENU) {
+	if (type != V4L2_CTRL_TYPE_MENU
+	    && type != V4L2_CTRL_TYPE_INTEGER_MENU) {
 		handler_set_err(hdl, -EINVAL);
 		return NULL;
 	}
 	return v4l2_ctrl_new(hdl, ops, id, name, type,
-				    0, max, mask, def, flags, qmenu, NULL);
+				    0, max, mask, def, flags, qmenu, NULL, NULL);
 }
 EXPORT_SYMBOL(v4l2_ctrl_new_std_menu);
+
+
+/* Helper function for standard integer menu controls */
+struct v4l2_ctrl *v4l2_ctrl_new_int_menu(struct v4l2_ctrl_handler *hdl,
+                     const struct v4l2_ctrl_ops *ops,
+                     u32 id, s32 max, s32 def, const s64 *qmenu_int)
+{
+     const char *name;
+     enum v4l2_ctrl_type type;
+     s32 min;
+     s32 step;
+     u32 flags;
+
+     printk("v4l2-ctrls:%s: at_start\n", __func__);
+     v4l2_ctrl_fill(id, &name, &type, &min, &max, &step, &def, &flags);
+     printk("v4l2-ctrls:%s: %s(%u)\n", __func__, name, type);
+     if (type != V4L2_CTRL_TYPE_INTEGER_MENU) {
+             handler_set_err(hdl, -EINVAL);
+             return NULL;
+     }
+     printk("v4l2-ctrls:%s: before v4l2_ctrl_new(qmenu_int=%lld)\n", __func__, qmenu_int);
+     return v4l2_ctrl_new(hdl, ops, id, name, type,
+                          0, max, 0, def, flags, NULL, qmenu_int, NULL);
+}
+EXPORT_SYMBOL(v4l2_ctrl_new_int_menu);
 
 /* Add a control from another handler to this handler */
 struct v4l2_ctrl *v4l2_ctrl_add_ctrl(struct v4l2_ctrl_handler *hdl,
@@ -1209,6 +1267,9 @@ static void log_ctrl(const struct v4l2_ctrl *ctrl,
 		break;
 	case V4L2_CTRL_TYPE_MENU:
 		printk(KERN_CONT "%s", ctrl->qmenu[ctrl->cur.val]);
+		break;
+	case V4L2_CTRL_TYPE_INTEGER_MENU:
+		printk(KERN_CONT "%lld", ctrl->qmenu_int[ctrl->cur.val]);
 		break;
 	case V4L2_CTRL_TYPE_INTEGER64:
 		printk(KERN_CONT "%lld", ctrl->cur.val64);
@@ -1338,7 +1399,8 @@ int v4l2_queryctrl(struct v4l2_ctrl_handler *hdl, struct v4l2_queryctrl *qc)
 	qc->minimum = ctrl->minimum;
 	qc->maximum = ctrl->maximum;
 	qc->default_value = ctrl->default_value;
-	if (ctrl->type == V4L2_CTRL_TYPE_MENU)
+	if (ctrl->type == V4L2_CTRL_TYPE_MENU
+	    || ctrl->type == V4L2_CTRL_TYPE_INTEGER_MENU)
 		qc->step = 1;
 	else
 		qc->step = ctrl->step;
@@ -1366,16 +1428,22 @@ int v4l2_querymenu(struct v4l2_ctrl_handler *hdl, struct v4l2_querymenu *qm)
 
 	qm->reserved = 0;
 	/* Sanity checks */
-	if (ctrl->qmenu == NULL ||
+	if ((ctrl->type == V4L2_CTRL_TYPE_MENU && ctrl->qmenu == NULL) ||
+	    (ctrl->type == V4L2_CTRL_TYPE_INTEGER_MENU
+	     && ctrl->qmenu_int == NULL) ||
 	    i < ctrl->minimum || i > ctrl->maximum)
 		return -EINVAL;
 	/* Use mask to see if this menu item should be skipped */
 	if (ctrl->menu_skip_mask & (1 << i))
 		return -EINVAL;
 	/* Empty menu items should also be skipped */
-	if (ctrl->qmenu[i] == NULL || ctrl->qmenu[i][0] == '\0')
-		return -EINVAL;
-	strlcpy(qm->name, ctrl->qmenu[i], sizeof(qm->name));
+	if (ctrl->type == V4L2_CTRL_TYPE_MENU) {
+		if (ctrl->qmenu[i] == NULL || ctrl->qmenu[i][0] == '\0')
+			return -EINVAL;
+		strlcpy(qm->name, ctrl->qmenu[i], sizeof(qm->name));
+	} else if (ctrl->type == V4L2_CTRL_TYPE_INTEGER_MENU) {
+		qm->value = ctrl->qmenu_int[i];
+	}
 	return 0;
 }
 EXPORT_SYMBOL(v4l2_querymenu);
