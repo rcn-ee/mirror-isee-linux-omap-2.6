@@ -147,6 +147,10 @@ enum lis3lv02d_ctrl4_3dc {
 	CTRL4_FS1	= 0x20,
 };
 
+enum lis331dlh_ctrl4 {
+	DLH_CTRL4_BDU	= 0x80,
+};
+
 enum lis302d_ctrl2 {
 	HP_FF_WU2	= 0x08,
 	HP_FF_WU1	= 0x04,

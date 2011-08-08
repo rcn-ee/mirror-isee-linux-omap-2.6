@@ -255,12 +255,16 @@ void lis3lv02d_poweron(struct lis3lv02d *lis3)
 
 	/*
 	 * Common configuration
-	 * BDU: (12 bits sensors only) LSB and MSB values are not updated until
+	 * BDU: (12/16 bits sensors only) LSB and MSB values are not updated until
 	 *      both have been read. So the value read will always be correct.
 	 */
 	if (lis3->whoami ==  WAI_12B) {
 		lis3->read(lis3, CTRL_REG2, &reg);
 		reg |= CTRL2_BDU;
+		lis3->write(lis3, CTRL_REG2, reg);
+	} else if (lis3->whoami ==  WAI_DLH) {
+		lis3->read(lis3, CTRL_REG2, &reg);
+		reg |= DLH_CTRL4_BDU;
 		lis3->write(lis3, CTRL_REG2, reg);
 	}
 }
@@ -681,6 +685,8 @@ int lis3lv02d_init_device(struct lis3lv02d *dev)
 	irq_handler_t thread_fn;
 
 	dev->whoami = lis3lv02d_read_8(dev, WHO_AM_I);
+
+	printk("lis3lv02d: driver version 0.1\n");
 
 	switch (dev->whoami) {
 	case WAI_12B:
