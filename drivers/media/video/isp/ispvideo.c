@@ -955,6 +955,14 @@ error:
 		omap_pm_set_min_bus_tput(video->isp->dev,
 					 OCP_INITIATOR_AGENT, 0);
 		media_entity_pipeline_stop(&video->video.entity);
+		/* The DMA queue must be emptied here, otherwise CCDC interrupts
+		 * that will get triggered the next time the CCDC is powered up
+		 * will try to access buffers that might have been freed but
+		 * still present in the DMA queue. This can easily get triggered
+		 * if the above omap3isp_pipeline_set_stream() call fails on a
+		 * system with a free-running sensor.
+		 */
+		INIT_LIST_HEAD(&video->dmaqueue);
 		video->queue = NULL;
 	}
 
