@@ -288,16 +288,16 @@
 #define MUSB_CONFIGDATA		MUSB_FIFOSIZE	/* Re-used for EP0 */
 
 /* Offsets to endpoint registers in indexed model (using INDEX register) */
-#define MUSB_INDEXED_OFFSET(_epnum, _offset)	\
+#define MUSB_INDEXED_OFFSET(_musb, _epnum, _offset)	\
 	(0x10 + (_offset))
 
 /* Offsets to endpoint registers in flat models */
-#define MUSB_FLAT_OFFSET(_epnum, _offset)	\
+#define MUSB_FLAT_OFFSET(_musb, _epnum, _offset)	\
 	(0x100 + (0x10*(_epnum)) + (_offset))
 
 #ifdef CONFIG_USB_TUSB6010
 /* TUSB6010 EP0 configuration register is special */
-#define MUSB_TUSB_OFFSET(_epnum, _offset)	\
+#define MUSB_TUSB_OFFSET(_musb, _epnum, _offset)	\
 	(0x10 + _offset)
 #include "tusb6010.h"		/* Needed "only" for TUSB_EP0_CONF */
 #endif

@@ -130,14 +130,14 @@ static int service_tx_status_request(
 			break;
 		}
 
-		musb_ep_select(mbase, epnum);
+		musb_ep_select(musb, mbase, epnum);
 		if (is_in)
 			tmp = musb_readw(regs, MUSB_TXCSR)
 						& MUSB_TXCSR_P_SENDSTALL;
 		else
 			tmp = musb_readw(regs, MUSB_RXCSR)
 						& MUSB_RXCSR_P_SENDSTALL;
-		musb_ep_select(mbase, 0);
+		musb_ep_select(musb, mbase, 0);
 
 		result[0] = tmp ? 1 : 0;
 		} break;
@@ -285,7 +285,7 @@ __acquires(musb->lock)
 				if (musb_ep->wedged)
 					break;
 
-				musb_ep_select(mbase, epnum);
+				musb_ep_select(musb, mbase, epnum);
 				if (is_in) {
 					csr  = musb_readw(regs, MUSB_TXCSR);
 					csr |= MUSB_TXCSR_CLRDATATOG |
@@ -312,7 +312,7 @@ __acquires(musb->lock)
 				}
 
 				/* select ep0 again */
-				musb_ep_select(mbase, 0);
+				musb_ep_select(musb, mbase, 0);
 				} break;
 			default:
 				/* class, vendor, etc ... delegate */
@@ -444,7 +444,7 @@ stall:
 				if (!musb_ep->desc)
 					break;
 
-				musb_ep_select(mbase, epnum);
+				musb_ep_select(musb, mbase, epnum);
 				if (is_in) {
 					csr = musb_readw(regs, MUSB_TXCSR);
 					if (csr & MUSB_TXCSR_FIFONOTEMPTY)
@@ -463,7 +463,7 @@ stall:
 				}
 
 				/* select ep0 again */
-				musb_ep_select(mbase, 0);
+				musb_ep_select(musb, mbase, 0);
 				handled = 1;
 				} break;
 
@@ -528,7 +528,7 @@ static void ep0_rxstate(struct musb *musb)
 			return;
 		musb->ackpend = 0;
 	}
-	musb_ep_select(musb->mregs, 0);
+	musb_ep_select(musb, musb->mregs, 0);
 	musb_writew(regs, MUSB_CSR0, csr);
 }
 
@@ -582,7 +582,7 @@ static void ep0_txstate(struct musb *musb)
 	}
 
 	/* send it out, triggering a "txpktrdy cleared" irq */
-	musb_ep_select(musb->mregs, 0);
+	musb_ep_select(musb, musb->mregs, 0);
 	musb_writew(regs, MUSB_CSR0, csr);
 }
 
@@ -667,7 +667,7 @@ irqreturn_t musb_g_ep0_irq(struct musb *musb)
 	void __iomem	*regs = musb->endpoints[0].regs;
 	irqreturn_t	retval = IRQ_NONE;
 
-	musb_ep_select(mbase, 0);	/* select ep0 */
+	musb_ep_select(musb, mbase, 0);	/* select ep0 */
 	csr = musb_readw(regs, MUSB_CSR0);
 	len = musb_readb(regs, MUSB_COUNT0);
 
@@ -869,7 +869,7 @@ setup:
 
 			handled = forward_to_driver(musb, &setup);
 			if (handled < 0) {
-				musb_ep_select(mbase, 0);
+				musb_ep_select(musb, mbase, 0);
 stall:
 				DBG(3, "stall (%d)\n", handled);
 				musb->ackpend |= MUSB_CSR0_P_SENDSTALL;
@@ -964,7 +964,7 @@ musb_g_ep0_queue(struct usb_ep *e, struct usb_request *r, gfp_t gfp_flags)
 			ep->name, ep->is_in ? "IN/TX" : "OUT/RX",
 			req->request.length);
 
-	musb_ep_select(musb->mregs, 0);
+	musb_ep_select(musb, musb->mregs, 0);
 
 	/* sequence #1, IN ... start writing the data */
 	if (musb->ep0_state == MUSB_EP0_STAGE_TX)
@@ -1027,7 +1027,7 @@ static int musb_g_ep0_halt(struct usb_ep *e, int value)
 		goto cleanup;
 	}
 
-	musb_ep_select(base, 0);
+	musb_ep_select(musb, base, 0);
 	csr = musb->ackpend;
 
 	switch (musb->ep0_state) {

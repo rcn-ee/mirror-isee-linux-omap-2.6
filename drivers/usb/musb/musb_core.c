@@ -339,7 +339,7 @@ void musb_load_testpacket(struct musb *musb)
 {
 	void __iomem	*regs = musb->endpoints[0].regs;
 
-	musb_ep_select(musb->mregs, 0);
+	musb_ep_select(musb, musb->mregs, 0);
 	musb_write_fifo(musb->control_ep,
 			sizeof(musb_test_packet), musb_test_packet);
 	musb_writew(regs, MUSB_CSR0, MUSB_CSR0_TXPKTRDY);
@@ -1367,7 +1367,7 @@ static int __init ep_config_from_hw(struct musb *musb)
 	/* FIXME pick up ep0 maxpacket size */
 
 	for (epnum = 1; epnum < musb->config->num_eps; epnum++) {
-		musb_ep_select(mbase, epnum);
+		musb_ep_select(musb, mbase, epnum);
 		hw_ep = musb->endpoints + epnum;
 
 		ret = musb_read_fifosize(musb, hw_ep, epnum);
@@ -1501,7 +1501,7 @@ static int __init musb_core_init(u16 musb_type, struct musb *musb)
 			hw_ep->conf = mbase + 0x400 + (((i - 1) & 0xf) << 2);
 #endif
 
-		hw_ep->regs = MUSB_EP_OFFSET(i, 0) + mbase;
+		hw_ep->regs = MUSB_EP_OFFSET(musb, i, 0) + mbase;
 #ifdef CONFIG_USB_MUSB_HDRC_HCD
 		hw_ep->target_regs = musb_read_target_reg_base(i, mbase);
 		hw_ep->rx_reinit = 1;
@@ -1920,7 +1920,7 @@ static void musb_free(struct musb *musb)
 		struct dma_controller	*c = musb->dma_controller;
 
 		(void) c->stop(c);
-		dma_controller_destroy(c);
+		inventra_dma_controller_destroy(c);
 	}
 
 #ifdef CONFIG_USB_MUSB_HDRC_HCD
@@ -1939,7 +1939,7 @@ static void musb_free(struct musb *musb)
  *	not yet corrected for platform-specific offsets
  */
 static int __init
-musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
+musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl,  phys_addr_t ctrl_phys_addr)
 {
 	int			status;
 	struct musb		*musb;
@@ -1987,6 +1987,7 @@ bad_config:
 	}
 
 	spin_lock_init(&musb->lock);
+	musb->ctrl_phys_base = ctrl_phys_addr;
 	musb->board_mode = plat->mode;
 	musb->board_set_power = plat->set_power;
 	musb->set_clock = plat->set_clock;
@@ -2037,8 +2038,7 @@ bad_config:
 #ifndef CONFIG_MUSB_PIO_ONLY
 	if (use_dma && dev->dma_mask) {
 		struct dma_controller	*c;
-
-		c = dma_controller_create(musb, musb->mregs);
+		c = inventra_dma_controller_create(musb, musb->mregs);		    
 		musb->dma_controller = c;
 		if (c)
 			(void) c->start(c);
@@ -2220,7 +2220,7 @@ static int __init musb_probe(struct platform_device *pdev)
 	/* clobbered by use_dma=n */
 	orig_dma_mask = dev->dma_mask;
 #endif
-	status = musb_init_controller(dev, irq, base);
+	status = musb_init_controller(dev, irq, base, iomem->start);
 	if (status < 0)
 		iounmap(base);
 

@@ -223,18 +223,18 @@ enum musb_g_ep0_state {
 
 /* TUSB mapping: "flat" plus ep0 special cases */
 #if	defined(CONFIG_USB_TUSB6010)
-#define musb_ep_select(_mbase, _epnum) \
+#define musb_ep_select(_musb, _mbase, _epnum) \
 	musb_writeb((_mbase), MUSB_INDEX, (_epnum))
 #define	MUSB_EP_OFFSET			MUSB_TUSB_OFFSET
 
 /* "flat" mapping: each endpoint has its own i/o address */
 #elif	defined(MUSB_FLAT_REG)
-#define musb_ep_select(_mbase, _epnum)	(((void)(_mbase)), ((void)(_epnum)))
+#define musb_ep_select(_musb, _mbase, _epnum)	(((void)(_musb)), ((void)(_mbase)), ((void)(_epnum)))
 #define	MUSB_EP_OFFSET			MUSB_FLAT_OFFSET
 
 /* "indexed" mapping: INDEX register controls register bank select */
 #else
-#define musb_ep_select(_mbase, _epnum) \
+#define musb_ep_select(_musb, _mbase, _epnum) \
 	musb_writeb((_mbase), MUSB_INDEX, (_epnum))
 #define	MUSB_EP_OFFSET			MUSB_INDEXED_OFFSET
 #endif
@@ -368,6 +368,7 @@ struct musb {
 
 	struct device		*controller;
 	void __iomem		*ctrl_base;
+	phys_addr_t             ctrl_phys_base;
 	void __iomem		*mregs;
 
 #ifdef CONFIG_USB_TUSB6010
@@ -545,7 +546,7 @@ static inline int musb_read_fifosize(struct musb *musb,
 	u8 reg = 0;
 
 	/* read from core using indexed model */
-	reg = musb_readb(mbase, MUSB_EP_OFFSET(epnum, MUSB_FIFOSIZE));
+	reg = musb_readb(mbase, MUSB_EP_OFFSET(musb, epnum, MUSB_FIFOSIZE));
 	/* 0's returned when no more endpoints */
 	if (!reg)
 		return -ENODEV;
