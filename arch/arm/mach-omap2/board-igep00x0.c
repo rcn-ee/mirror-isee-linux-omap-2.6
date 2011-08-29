@@ -45,8 +45,11 @@
 #include "mux.h"
 #include "sdram-numonyx-m65kxxxxam.h"
 
+#if defined(CONFIG_VIDEO_OMAP3) || \
+	defined(CONFIG_VIDEO_OMAP3_MODULE)
 #include "../../../drivers/media/video/isp/isp.h"
 #include "../../../drivers/media/video/isp/ispreg.h"
+#endif
 
 struct omap_dss_device igep00x0_dvi_device = {
 	.type			= OMAP_DISPLAY_TYPE_DPI,
@@ -587,6 +590,9 @@ void __init igep00x0_modem_init(int on, int nreset, int pwrmon)
 		pr_warning("IGEP: Could not obtain gpio MODEM PWRMON\n");
 }
 
+#if defined(CONFIG_VIDEO_OMAP3) || \
+	defined(CONFIG_VIDEO_OMAP3_MODULE)
+
 static struct i2c_board_info igep00x0_camera_i2c_devices[] = {
 	{
 		I2C_BOARD_INFO("tvp5150", (0xb8 >> 1)),
@@ -642,6 +648,9 @@ void __init igep00x0_camera_init(void)
 	if (omap3_init_camera(&isp_pdata) < 0)
 		pr_warning("IGEP: Unable to register camera platform \n");
 }
+#else
+void __init igep00x0_camera_init(void) {}
+#endif
 
 void __init igep00x0_init_irq(void)
 {
