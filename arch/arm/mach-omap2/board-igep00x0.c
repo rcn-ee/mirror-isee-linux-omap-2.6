@@ -647,9 +647,6 @@ void __init igep00x0_init_irq(void)
 {
 	omap2_init_common_hw(m65kxxxxam_sdrc_params, m65kxxxxam_sdrc_params);
 	omap_init_irq();
-#ifdef CONFIG_OMAP_32K_TIMER
-	omap2_gp_clockevent_set_gptimer(12);
-#endif
 	omap_gpio_init();
 }
 
