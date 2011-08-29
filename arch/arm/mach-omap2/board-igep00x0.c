@@ -477,7 +477,7 @@ void __init igep00x0_mcp251x_init(int bus_num, int cs, int irq, int nreset)
 }
 
 #else
-void __init igep00x0_mcp251x_init(int bus_num, int cs, int irq) {}
+void __init igep00x0_mcp251x_init(int bus_num, int cs, int irq, int nreset) {}
 #endif
 
 #if defined(CONFIG_LIBERTAS_SDIO) || \
