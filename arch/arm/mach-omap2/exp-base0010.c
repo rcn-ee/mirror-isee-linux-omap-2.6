@@ -381,10 +381,10 @@ void __init base0010_revb_init(void)
 		igep00x0_modem_init(IGEP3_GPIO_MODEM_ON_NOFF,
 			IGEP3_GPIO_MODEM_NRESET, IGEP3_GPIO_MODEM_PWRMON);
 
-	/* Touchscreen interface using ADS7846/TSC2046 SPI1.0 */
+	/* Touchscreen interface using ADS7846/TSC2046 SPI1.1 */
 	omap_mux_init_gpio(IGEP3_GPIO_TSC2046_IRQ, OMAP_PIN_INPUT);
 	omap_mux_init_signal("mcspi1_cs1", 0);
-	igep00x0_tsc2046_init(1, 0, IGEP3_GPIO_TSC2046_IRQ, 0);
+	igep00x0_tsc2046_init(1, 1, IGEP3_GPIO_TSC2046_IRQ, 0);
 
 	/* CAN driver for Microchip 251x CAN Controller with SPI Interface */
 	omap_mux_init_gpio(IGEP3_GPIO_MCP251X_NRESET, OMAP_PIN_INPUT_PULLUP);

@@ -81,8 +81,23 @@ static inline void igep0022_i2c2_init(void)
 	omap_register_i2c_bus(2, 400, NULL, 0);
 }
 
+#ifdef CONFIG_OMAP_MUX
+static struct omap_board_mux igep0022_mux[] __initdata = {
+	/* McSPI 1 */
+	OMAP3_MUX(MCSPI1_CLK, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCSPI1_SIMO, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCSPI1_SOMI, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	{ .reg_offset = OMAP_MUX_TERMINATOR },
+};
+#else
+#define igep0022_mux	NULL
+#endif
+
 void __init igep0022_init(void)
 {
+	/* Mux initialitzation for igep0022 */
+	omap_mux_write_array(igep0022_mux);
+
 	/* Register I2C2 bus */
 	igep0022_i2c2_init();
 
