@@ -56,6 +56,17 @@
 #define IGEP2_RC_GPIO_WIFI_NRESET	139
 #define IGEP2_RC_GPIO_BT_NRESET		137
 
+#define IGEP0020_BOARD_OPT_RS232	(1 << 0)
+
+/* Board configuration options */
+struct board_platform_data {
+	unsigned options;
+};
+
+struct board_platform_data igep0020_board_pdata = {
+	.options = 0,
+};
+
 /*
  * IGEP2 Hardware Revision Table
  *
@@ -358,6 +369,10 @@ static struct omap_board_mux board_mux[] __initdata = {
 	OMAP3_MUX(MCBSP2_DR, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 	OMAP3_MUX(MCBSP2_DX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	/* Serial ports */
+	OMAP3_MUX(UART1_TX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(UART1_RX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),
+	OMAP3_MUX(UART1_RTS, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(UART1_CTS, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),
 	OMAP3_MUX(UART2_TX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(UART2_RX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
@@ -365,6 +380,15 @@ static struct omap_board_mux board_mux[] __initdata = {
 #else
 #define board_mux	NULL
 #endif
+
+/* Use UART1 as RS232 (not RS485) */
+static struct omap_board_mux uart1_as_rs232_mux[] = {
+	OMAP3_MUX(UART1_TX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(UART1_RX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),
+	OMAP3_MUX(UART1_RTS, OMAP_MUX_MODE7 | OMAP_PIN_INPUT),
+	OMAP3_MUX(UART1_CTS, OMAP_MUX_MODE7 | OMAP_PIN_INPUT),
+	{ .reg_offset = OMAP_MUX_TERMINATOR },
+};
 
 static inline void igep0020_display_init(void)
 {
@@ -385,7 +409,7 @@ extern void __init igep0022_init(void);
 
 static void __init igep0020_init(void)
 {
-	int opt;
+	int opt = 0;
 
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
 	/* Ensure msecure is mux'd to be able to set the RTC. */
@@ -432,6 +456,13 @@ static void __init igep0020_init(void)
 
 	igep2_leds_init();
 
+	/*
+	 * By default UART1 is configured for RS485 usage, configure for
+	 * RS232 if flag is enabled.
+	 */
+	if (igep0020_board_pdata.options & IGEP0020_BOARD_OPT_RS232)
+		omap_mux_write_array(uart1_as_rs232_mux);
+
 	/* Expansion board initialitzations */
 	/* - IGEP0022 */
 	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_IGEP0022)
@@ -470,22 +501,12 @@ static int __init ei485_early_param(char *str)
 
 	strncpy(opt, str, 16);
 
-	omap_mux_init_signal("uart1_tx", OMAP_PIN_OUTPUT);
-	omap_mux_init_signal("uart1_rx", OMAP_PIN_INPUT);
-
-	if (!strcmp(opt, "no")) {
-		/*
-		 * To use UART1 as RS232 port instead of RS485 we need configure
-		 * UART1_RTS and UART1_CTS pins in safe mode. To set the RS485
-		 * comment next to lines.
-		 */
-		omap_mux_init_signal("uart1_rts.safe_mode", 0);
-		omap_mux_init_signal("uart1_cts.safe_mode", 0);
-		pr_info("IGEP: board options: ei485=no \n");
-	} else {
-		omap_mux_init_signal("uart1_rts", 0);
-		omap_mux_init_signal("uart1_cts", 0);
-	}
+	/*
+	 * To use UART1 as RS232 port instead of RS485 we need configure
+	 * UART1_RTS and UART1_CTS pins in safe mode.
+	 */
+	if (!strcmp(opt, "no"))
+		igep0020_board_pdata.options  |= IGEP0020_BOARD_OPT_RS232;
 
 	return 0;
 }
