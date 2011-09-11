@@ -426,8 +426,8 @@ void __init igep00x0_tsc2046_init(int busnum, int cs, int irq,
 }
 
 #else
-void __init igep00x0_tsc2046_init(int busnum, int gpio_pendown,
-			int debounce, struct ads7846_platform_data *pdata) {}
+void __init igep00x0_tsc2046_init(int busnum, int cs, int irq,
+			int debounce) {}
 #endif
 
 #if defined(CONFIG_CAN_MCP251X) || \
