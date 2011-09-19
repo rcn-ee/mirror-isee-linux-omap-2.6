@@ -81,8 +81,25 @@ static inline void igep0022_i2c2_init(void)
 	omap_register_i2c_bus(2, 400, NULL, 0);
 }
 
+#ifdef CONFIG_OMAP_MUX
+static struct omap_board_mux igep0022_mux[] __initdata = {
+	/* McSPI 1 */
+	OMAP3_MUX(MCSPI1_CLK, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCSPI1_SIMO, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCSPI1_SOMI, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	{ .reg_offset = OMAP_MUX_TERMINATOR },
+};
+#else
+#define igep0022_mux	NULL
+#endif
+
 void __init igep0022_init(void)
 {
+	mux_partition = omap_mux_get("core");
+
+	/* Mux initialitzation for igep0022 */
+	omap_mux_write_array(mux_partition, igep0022_mux);
+
 	/* Register I2C2 bus */
 	igep0022_i2c2_init();
 
@@ -106,6 +123,7 @@ void __init igep0022_init(void)
 	/* CAN driver for Microchip 251x CAN Controller with SPI Interface */
 	omap_mux_init_gpio(IGEP2_GPIO_MCP251X_NRESET, OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_gpio(IGEP2_GPIO_MCP251X_IRQ, OMAP_PIN_INPUT_PULLUP);
+	gpio_request(IGEP2_GPIO_MCP251X_IRQ, "MCP251X IRQ");
 	omap_mux_init_signal("mcspi1_cs0", 0);
 	igep00x0_mcp251x_init(1, 0, IGEP2_GPIO_MCP251X_IRQ,
 				IGEP2_GPIO_MCP251X_NRESET);
