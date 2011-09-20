@@ -414,8 +414,6 @@ static void __init igep0020_init(void)
 {
 	int opt = 0;	
 	
-	mux_partition = omap_mux_get("core");
-	
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
 	/* Ensure msecure is mux'd to be able to set the RTC. */
 	omap_mux_init_signal("sys_drm_msecure", OMAP_PIN_OFF_OUTPUT_HIGH);
@@ -466,7 +464,7 @@ static void __init igep0020_init(void)
 	 * By default UART1 is configured for RS485 usage, configure for
 	 * RS232 if flag is enabled.
 	 */
-	
+	mux_partition = omap_mux_get("core");
 	if (igep0020_board_pdata.options & IGEP0020_BOARD_OPT_RS232)
 		omap_mux_write_array(mux_partition, uart1_as_rs232_mux);
 
