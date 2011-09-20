@@ -67,7 +67,7 @@ static struct twl4030_codec_data omap3_codec_pdata = {
 };
 
 static struct regulator_consumer_supply omap3_vdda_dac_supplies[] = {
-	REGULATOR_SUPPLY("vdda_dac", "omapdss_venc"),
+	REGULATOR_SUPPLY("vdda_dac", "omapdss"),
 };
 
 static struct regulator_init_data omap3_vdac_idata = {
