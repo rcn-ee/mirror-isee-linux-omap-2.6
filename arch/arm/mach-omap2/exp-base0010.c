@@ -33,8 +33,15 @@
 #include <plat/mcspi.h>
 
 #include "board-igep00x0.h"
+#include "devices.h"
 #include "mux.h"
 #include "twl-common.h"
+
+#if defined(CONFIG_VIDEO_OMAP3) || \
+	defined(CONFIG_VIDEO_OMAP3_MODULE)
+#include "../../../drivers/media/video/isp/isp.h"
+#include "../../../drivers/media/video/isp/ispreg.h"
+#endif
 
 /* SMSC911X Ethernet controller */
 #define IGEP3_RA_SMSC911X0_CS       	5
@@ -292,6 +299,68 @@ static struct platform_device base0010_gpio_keys_device = {
 	},
 };
 
+#if defined(CONFIG_VIDEO_OMAP3) || \
+	defined(CONFIG_VIDEO_OMAP3_MODULE)
+
+static struct i2c_board_info base0010_camera_i2c_devices[] = {
+	{
+		I2C_BOARD_INFO("tvp5150", (0xba >> 1)),
+	},
+};
+
+static struct isp_subdev_i2c_board_info base0010_camera_primary_subdevs[] = {
+	{
+		.board_info = &base0010_camera_i2c_devices[0],
+		.i2c_adapter_id = 3,
+	},
+	{ NULL, 0, },
+};
+
+static struct isp_v4l2_subdevs_group base0010_camera_subdevs[] = {
+	{
+		.subdevs = base0010_camera_primary_subdevs,
+		.interface = ISP_INTERFACE_PARALLEL,
+		.bus = { .parallel = {
+				.width			= 8,
+				.data_lane_shift	= 0,
+				.clk_pol		= 0,
+				.bridge		= ISPCTRL_PAR_BRIDGE_DISABLE,
+		} },
+	},
+	{ NULL, 0, },
+};
+
+static struct isp_platform_data isp_pdata = {
+	.subdevs = base0010_camera_subdevs,
+};
+
+void __init base0010_camera_init(void)
+{
+	omap_mux_init_signal("cam_fld", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_hs", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_vs", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_xclka", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_pclk", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d0", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d1", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d2", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d3", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d4", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d5", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d6", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d7", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d8", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d9", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d10", OMAP_PIN_INPUT);
+	omap_mux_init_signal("cam_d11", OMAP_PIN_INPUT);
+
+	if (omap3_init_camera(&isp_pdata) < 0)
+		pr_warning("IGEP: Unable to register camera platform \n");
+}
+#else
+void __init base0010_camera_init(void) {}
+#endif
+
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux base0010_mux[] __initdata = {
 	/* Display Sub System */
@@ -395,6 +464,9 @@ void __init base0010_revb_init(void)
 
 	/* General Purpose IO */
 	base0010_gpio_init();
+
+	/* Register OMAP3 camera devices (tvp5151) */
+	base0010_camera_init();
 }
 
 void __init base0010_init(struct twl4030_platform_data *pdata)
