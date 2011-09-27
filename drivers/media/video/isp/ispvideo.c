@@ -522,10 +522,6 @@ struct isp_buffer *isp_video_buffer_next(struct isp_video *video,
 	else
 		buf->vbuf.sequence = atomic_read(&pipe->frame_number);
 
-	buf->state = error ? ISP_BUF_STATE_ERROR : ISP_BUF_STATE_DONE;
-
-	wake_up(&buf->wait);
-
 	if (list_empty(&video->dmaqueue)) {
 		if (queue->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
 			state = ISP_PIPELINE_QUEUE_OUTPUT
