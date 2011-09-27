@@ -38,8 +38,6 @@
 #include "ispreg.h"
 #include "ispccdc.h"
 
-static int interlaced_cnt = 0;
-
 static struct v4l2_mbus_framefmt *
 __ccdc_get_format(struct isp_ccdc_device *ccdc, struct v4l2_subdev_fh *fh,
 		  unsigned int pad, enum v4l2_subdev_format_whence which);
@@ -786,8 +784,6 @@ void ispccdc_restore_context(struct isp_device *isp)
 {
 	struct isp_ccdc_device *ccdc = &isp->isp_ccdc;
 
-	isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_CFG, ISPCCDC_CFG_VDLC);
-
 	ccdc->update = OMAP3ISP_CCDC_ALAW | OMAP3ISP_CCDC_LPF
 		     | OMAP3ISP_CCDC_BLCLAMP | OMAP3ISP_CCDC_BCOMP;
 	ccdc_apply_controls(ccdc);
@@ -1159,20 +1155,20 @@ static void ccdc_configure(struct isp_ccdc_device *ccdc)
 	/* Generate VD0 on the last line of the image and VD1 on the
 	 * 2/3 height line.
 	 */
-	isp_reg_writel(isp, ((314 - 2) << ISPCCDC_VDINT_0_SHIFT) |
-		       ((314 * 2 / 3) << ISPCCDC_VDINT_1_SHIFT),
+	isp_reg_writel(isp, ((ODD_LINES - 1) << ISPCCDC_VDINT_0_SHIFT) |
+		       ((ODD_LINES * 2 / 3) << ISPCCDC_VDINT_1_SHIFT),
 		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VDINT);
 
 	/* CCDC_PAD_SOURCE_OF */
 	format = &ccdc->formats[CCDC_PAD_SOURCE_OF];
 
 	isp_reg_writel(isp, (0 << ISPCCDC_HORZ_INFO_SPH_SHIFT) |
-		       ((720*2-1) << ISPCCDC_HORZ_INFO_NPH_SHIFT),
+		       ((FRAME_WIDTH * 2 - 1) << ISPCCDC_HORZ_INFO_NPH_SHIFT),
 		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_HORZ_INFO);
 
 	isp_reg_writel(isp, 0 << ISPCCDC_VERT_START_SLV0_SHIFT,
 		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VERT_START);
-	isp_reg_writel(isp, (314 - 1)
+	isp_reg_writel(isp, (ODD_LINES - 1)
 			<< ISPCCDC_VERT_LINES_NLV_SHIFT,
 		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VERT_LINES);
 
@@ -1418,10 +1414,14 @@ done:
 
 static int ispccdc_isr_buffer(struct isp_ccdc_device *ccdc)
 {
+/*	struct isp_device *isp = to_isp_device(ccdc); */
 	struct isp_pipeline *pipe = to_isp_pipeline(&ccdc->subdev.entity);
-	struct isp_device *isp = to_isp_device(ccdc);
-	struct isp_buffer *buffer;
 	int restart = 0;
+
+	if (!ccdc->start) {
+		restart = 1;
+		goto done;
+	}
 
 	/* The CCDC generates VD0 interrupts even when disabled (the datasheet
 	 * doesn't explicitly state if that's supposed to happen or not, so it
@@ -1444,23 +1444,10 @@ static int ispccdc_isr_buffer(struct isp_ccdc_device *ccdc)
 		goto done;
 	}
 
-	if(!interlaced_cnt) {
-		interlaced_cnt = 1;
-		restart = 1;
-	} else {
-		interlaced_cnt = 0;
-		buffer = isp_video_buffer_next(&ccdc->video_out, ccdc->error);
-	  if (buffer != NULL) {
-		ispccdc_set_outaddr(ccdc, buffer->isp_addr);
-		restart = 1;
-	  } else
-		restart = 1;
-	}
-
 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
 
 	if (ccdc->state == ISP_PIPELINE_STREAM_SINGLESHOT &&
-		isp_pipeline_ready(pipe))
+	    isp_pipeline_ready(pipe))
 		isp_pipeline_set_stream(pipe, ISP_PIPELINE_STREAM_SINGLESHOT);
 
 done:
@@ -1496,65 +1483,80 @@ static void ispccdc_vd0_isr(struct isp_ccdc_device *ccdc)
 		ispccdc_enable(ccdc);
 }
 
-/*
- * ispccdc_vd1_isr - Handle VD1 event
- * @ccdc: Pointer to ISP CCDC device.
- */
+static void ispccdc_release_buffer(struct isp_buffer *buffer, int error)
+{
+	buffer->buffer.state = error ? ISP_BUF_STATE_ERROR : ISP_BUF_STATE_DONE;
+	wake_up(&buffer->buffer.wait);
+}
+
+static void ispccdc_release_last_buffer(struct isp_ccdc_device *ccdc)
+{
+	struct isp_buffer *buffer = ccdc->last_buffer;
+	ccdc->last_buffer = NULL;
+	ispccdc_release_buffer(buffer, ccdc->error);
+}
+
+
+static void ispccdc_change_numlines(struct isp_device *isp, int numlines)
+{
+	isp_reg_writel(isp, ((numlines - 1) << ISPCCDC_VDINT_0_SHIFT) |
+		       ((numlines * 2 / 3) << ISPCCDC_VDINT_1_SHIFT),
+		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VDINT);
+
+	isp_reg_writel(isp, (numlines - 1)
+		       << ISPCCDC_VERT_LINES_NLV_SHIFT,
+		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VERT_LINES);
+}
+
+static inline int ispccdc_read_numlines(struct isp_device *isp)
+{
+	return isp_reg_readl(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VERT_LINES) + 1;
+}
+
+static inline struct isp_buffer *ispccdc_getbuffer(struct isp_ccdc_device *ccdc)
+{
+	return isp_video_buffer_next(&ccdc->video_out, ccdc->error);
+}
+
+static inline void ispccdc_set_next_buffer(struct isp_ccdc_device *ccdc)
+{
+	ispccdc_set_outaddr(ccdc, ccdc->current_buffer->isp_addr);
+}
+
 static void ispccdc_vd1_isr(struct isp_ccdc_device *ccdc)
 {
-	unsigned long flags;
+	struct isp_device *isp = to_isp_device(ccdc);
+	int numlines;
+	u32 syn_mode;
+	u32 status;
 
-	spin_lock_irqsave(&ccdc->lsc.req_lock, flags);
+	syn_mode = isp_reg_readl(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SYN_MODE);
+	status = syn_mode & ISPCCDC_SYN_MODE_FLDSTAT;
 
-	/*
-	 * Depending on the CCDC pipeline state, CCDC stopping should be
-	 * handled differently. In SINGLESHOT we emulate an internal CCDC
-	 * stopping because the CCDC hw works only in continuous mode.
-	 * When CONTINUOUS pipeline state is used and the CCDC writes it's
-	 * data to memory the CCDC and LSC are stopped immediately but
-	 * without change the CCDC stopping state machine. The CCDC
-	 * stopping state machine should be used only when user request
-	 * for stopping is received (SINGLESHOT is an exeption).
-	 */
-	switch (ccdc->state) {
-	case ISP_PIPELINE_STREAM_SINGLESHOT:
-		ccdc->stopping = CCDC_STOP_REQUEST;
-		break;
+	numlines = ispccdc_read_numlines(isp);
 
-	case ISP_PIPELINE_STREAM_CONTINUOUS:
-		if (ccdc->output & CCDC_OUTPUT_MEMORY) {
-			if (ccdc->lsc.state != LSC_STATE_STOPPED)
-				__ispccdc_lsc_enable(ccdc, 0);
-			__ispccdc_enable(ccdc, 0);
+	if (!ccdc->start && !status)
+		ccdc->start = 1;
+
+	if (ccdc->start) {
+		if (ccdc->interlaced_cnt) {
+			ccdc->interlaced_cnt = 0;
+			ccdc->last_buffer = ccdc->current_buffer;
+			if (!list_empty(&ccdc->video_out.dmaqueue)) {
+				ccdc->current_buffer = ispccdc_getbuffer(ccdc);
+				if (ccdc->current_buffer != NULL)
+					ispccdc_set_next_buffer(ccdc);
+			} else
+				ccdc->current_buffer = NULL;
+		} else {
+			ccdc->interlaced_cnt = 1;
+			if (ccdc->last_buffer)
+				ispccdc_release_last_buffer(ccdc);
 		}
-		break;
-
-	case ISP_PIPELINE_STREAM_STOPPED:
-		break;
 	}
 
-	if (__ispccdc_handle_stopping(ccdc, CCDC_EVENT_VD1))
-		goto done;
-
-	if (ccdc->lsc.request == NULL)
-		goto done;
-
-	/*
-	 * LSC need to be reconfigured. Stop it here and on next LSC_DONE IRQ
-	 * do the appropriate changes in registers
-	 */
-	if (ccdc->lsc.state == LSC_STATE_RUNNING) {
-		__ispccdc_lsc_enable(ccdc, 0);
-		ccdc->lsc.state = LSC_STATE_RECONFIG;
-		goto done;
-	}
-
-	/* LSC has been in STOPPED state, enable it */
-	if (ccdc->lsc.state == LSC_STATE_STOPPED)
-		ispccdc_lsc_enable(ccdc);
-
-done:
-	spin_unlock_irqrestore(&ccdc->lsc.req_lock, flags);
+	numlines = numlines == ODD_LINES ? EVEN_LINES : ODD_LINES;
+	ispccdc_change_numlines(isp, numlines);
 }
 
 /*
@@ -1593,6 +1595,7 @@ static int ccdc_video_queue(struct isp_video *video, struct isp_buffer *buffer)
 		return -ENODEV;
 
 	ispccdc_set_outaddr(ccdc, buffer->isp_addr);
+	ccdc->current_buffer = buffer;
 
 	/* We now have a buffer queued on the output, restart the pipeline in
 	 * on the next CCDC interrupt if running in continuous mode (or when
@@ -1676,8 +1679,6 @@ static int ccdc_set_stream(struct v4l2_subdev *sd, int enable)
 			return 0;
 
 		isp_subclk_enable(isp, OMAP3_ISP_SUBCLK_CCDC);
-		isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_CFG,
-			    ISPCCDC_CFG_VDLC);
 
 		ccdc_configure(ccdc);
 		/* TODO: Don't configure the video port if all of its output
@@ -1714,6 +1715,10 @@ static int ccdc_set_stream(struct v4l2_subdev *sd, int enable)
 			isp_sbl_disable(isp, OMAP3_ISP_SBL_CCDC_WRITE);
 		isp_subclk_disable(isp, OMAP3_ISP_SUBCLK_CCDC);
 		ccdc->underrun = 0;
+		ccdc->current_buffer = NULL;
+		ccdc->interlaced_cnt = 0;
+		ccdc->start = 0;
+
 		break;
 	}
 
@@ -2212,6 +2217,10 @@ int isp_ccdc_init(struct isp_device *isp)
 	ccdc->lsc.state = LSC_STATE_STOPPED;
 	INIT_LIST_HEAD(&ccdc->lsc.free_queue);
 	spin_lock_init(&ccdc->lsc.req_lock);
+
+	ccdc->current_buffer = NULL;
+	ccdc->last_buffer = NULL;
+	ccdc->interlaced_cnt = 0;
 
 	ccdc->syncif.ccdc_mastermode = 0;
 	ccdc->syncif.datapol = 0;

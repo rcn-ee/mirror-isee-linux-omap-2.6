@@ -47,6 +47,10 @@ enum ccdc_input_entity {
 
 #define	OMAP3ISP_CCDC_NEVENTS	16
 
+#define ODD_LINES   313
+#define EVEN_LINES  312
+#define FRAME_WIDTH 720
+
 /*
  * struct ispccdc_syncif - Structure for Sync Interface between sensor and CCDC
  * @ccdc_mastermode: Master mode. 1 - Master, 0 - Slave.
@@ -204,6 +208,10 @@ struct isp_ccdc_device {
 	wait_queue_head_t wait;
 	unsigned int stopping;
 	struct mutex ioctl_lock;
+	struct isp_buffer *current_buffer;
+	struct isp_buffer *last_buffer;
+	int interlaced_cnt;
+	int start;
 };
 
 struct isp_device;
