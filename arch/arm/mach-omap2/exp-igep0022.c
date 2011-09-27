@@ -123,7 +123,6 @@ void __init igep0022_init(void)
 	/* CAN driver for Microchip 251x CAN Controller with SPI Interface */
 	omap_mux_init_gpio(IGEP2_GPIO_MCP251X_NRESET, OMAP_PIN_INPUT_PULLUP);
 	omap_mux_init_gpio(IGEP2_GPIO_MCP251X_IRQ, OMAP_PIN_INPUT_PULLUP);
-	gpio_request(IGEP2_GPIO_MCP251X_IRQ, "MCP251X IRQ");
 	omap_mux_init_signal("mcspi1_cs0", 0);
 	igep00x0_mcp251x_init(1, 0, IGEP2_GPIO_MCP251X_IRQ,
 				IGEP2_GPIO_MCP251X_NRESET);

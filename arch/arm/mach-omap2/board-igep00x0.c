@@ -454,7 +454,7 @@ void __init igep00x0_mcp251x_init(int bus_num, int cs, int irq, int nreset)
 {
 	struct spi_board_info *spi = &mcp251x_spi_board_info;
 
-	  if ((gpio_request(nreset, "MCP251X IRQ") == 0)
+	if ((gpio_request(irq, "MCP251X IRQ") == 0)
 		&& (gpio_direction_input(irq) == 0))
 		gpio_export(irq, 0);
 	else {
