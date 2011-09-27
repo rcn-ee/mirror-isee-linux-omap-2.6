@@ -154,7 +154,7 @@ static void isp_enable_interrupts(struct isp_device *isp)
 			     | IRQ0ENABLE_CCDC_LSC_PREF_ERR_IRQ
 			     | IRQ0ENABLE_CCDC_LSC_DONE_IRQ
 			     | IRQ0ENABLE_CCDC_VD0_IRQ
-/*			     | IRQ0ENABLE_CCDC_VD1_IRQ */
+			     | IRQ0ENABLE_CCDC_VD1_IRQ
 			     | IRQ0ENABLE_HS_VS_IRQ
 			     | IRQ0ENABLE_HIST_DONE_IRQ
 			     | IRQ0ENABLE_H3A_AWB_DONE_IRQ
