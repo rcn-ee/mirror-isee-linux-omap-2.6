@@ -225,6 +225,11 @@ config MACH_IGEP0030
 	depends on ARCH_OMAP3
 	select OMAP_PACKAGE_CBB
 
+config MACH_IGEP0032
+	bool "IGEP0032 COM"
+	depends on ARCH_OMAP3
+	select OMAP_PACKAGE_CBB
+
 config MACH_SBC3530
 	bool "OMAP3 SBC STALKER board"
 	depends on ARCH_OMAP3

@@ -157,6 +157,10 @@ obj-$(CONFIG_MACH_IGEP0030)		+= board-igep0030.o \
 					   board-igep00x0.o \
 					   exp-base0010.o \
 					   hsmmc.o
+obj-$(CONFIG_MACH_IGEP0032)		+= board-igep0032.o \
+					   board-igep00x0.o \
+					   exp-base0010.o \
+					   hsmmc.o
 obj-$(CONFIG_MACH_OMAP3_TOUCHBOOK)	+= board-omap3touchbook.o \
 					   hsmmc.o
 obj-$(CONFIG_MACH_OMAP_4430SDP)		+= board-4430sdp.o \
