@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.35.13
-# Fri Jul 22 12:12:16 2011
+# Fri Sep 23 12:02:11 2011
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -313,6 +313,7 @@ CONFIG_OMAP_PACKAGE_CBB=y
 # CONFIG_MACH_CM_T35 is not set
 CONFIG_MACH_IGEP0020=y
 CONFIG_MACH_IGEP0030=y
+CONFIG_MACH_IGEP0032=y
 # CONFIG_MACH_SBC3530 is not set
 # CONFIG_MACH_OMAP_3630SDP is not set
 # CONFIG_OMAP3_EMU is not set
