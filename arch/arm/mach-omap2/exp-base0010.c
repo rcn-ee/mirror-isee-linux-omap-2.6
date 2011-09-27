@@ -26,6 +26,8 @@
 #include <linux/i2c/twl.h>
 #include <linux/mfd/twl4030-codec.h>
 
+#include <asm/mach-types.h>
+
 #include <plat/board.h>
 #include <plat/common.h>
 #include <plat/display.h>
@@ -74,11 +76,11 @@
 #define IGEP3_GPIO_MCP251X_IRQ		13
 #define IGEP3_GPIO_MCP251X_NRESET	61
 /* General Purpose IO */
-#define IGEP3_GPIO_OUTPUT1		14
-#define IGEP3_GPIO_OUTPUT2		21
-#define IGEP3_GPIO_OUTPUT3		17
-#define IGEP3_GPIO_INPUT2		18
-#define IGEP3_GPIO_INPUT3		168
+#define IGEP3_GPIO_OUTPUT0		14
+#define IGEP3_GPIO_OUTPUT1		21
+#define IGEP3_GPIO_OUTPUT2		17
+#define IGEP3_GPIO_INPUT0		18
+#define IGEP3_GPIO_INPUT1		53
 /* User buttons */
 #define IGEP3_GPIO_SW202		62
 
@@ -166,6 +168,12 @@ static inline void __init base0010_smsc911x_init(void)
 			IGEP3_RA_SMSC911X1_IRQ,	IGEP3_RA_SMSC911X1_NRESET);
 	} else {
 		/* Configure MUX for hardware rev. B */
+		if (machine_is_igep0032()) {
+			/* id=0 is already on IGEP0032 board file */
+			smsc911x0_device.id = 1;
+			smsc911x0_device.id = 2;
+		}
+
 		omap_mux_init_signal("gpmc_ncs5", 0);
 		omap_mux_init_gpio(IGEP3_RB_SMSC911X0_IRQ, OMAP_PIN_INPUT);
 		omap_mux_init_gpio(IGEP3_RB_SMSC911X0_NRESET, OMAP_PIN_OUTPUT);
@@ -250,6 +258,12 @@ static inline void base0010_display_init(void)
 
 static inline void base0010_gpio_init(void)
 {
+	if ((gpio_request(IGEP3_GPIO_OUTPUT0, "GPIO OUTPUT0") == 0)
+		&& (gpio_direction_output(IGEP3_GPIO_OUTPUT0, 0) == 0))
+		gpio_export(IGEP3_GPIO_OUTPUT0, 0);
+	else
+		pr_err("IGEP: Could not obtain gpio OUTPUT0\n");
+
 	if ((gpio_request(IGEP3_GPIO_OUTPUT1, "GPIO OUTPUT1") == 0)
 		&& (gpio_direction_output(IGEP3_GPIO_OUTPUT1, 0) == 0))
 		gpio_export(IGEP3_GPIO_OUTPUT1, 0);
@@ -262,19 +276,21 @@ static inline void base0010_gpio_init(void)
 	else
 		pr_err("IGEP: Could not obtain gpio OUTPUT2\n");
 
-	if ((gpio_request(IGEP3_GPIO_OUTPUT3, "GPIO OUTPUT3") == 0)
-		&& (gpio_direction_output(IGEP3_GPIO_OUTPUT3, 0) == 0))
-		gpio_export(IGEP3_GPIO_OUTPUT3, 0);
-	else
-		pr_err("IGEP: Could not obtain gpio OUTPUT3\n");
+	if (gpio_request(IGEP3_GPIO_INPUT0, "GPIO INPUT0")
+	    || gpio_direction_input(IGEP3_GPIO_INPUT0))
+		pr_err("IGEP: Could not obtain gpio INPUT0\n");
 
-	if (gpio_request(IGEP3_GPIO_INPUT2, "GPIO INPUT2")
-	    || gpio_direction_input(IGEP3_GPIO_INPUT2))
-		pr_err("IGEP: Could not obtain gpio INPUT2\n");
-
-	if (gpio_request(IGEP3_GPIO_INPUT3, "GPIO INPUT3")
-	    || gpio_direction_input(IGEP3_GPIO_INPUT3))
-		pr_err("IGEP: Could not obtain gpio INPUT3\n");
+	/*
+	 * The GPIO INPUT1 (GPIO53) is connected to one led (D442) on the
+	 * IGEP0032 machine, so by default is configured as a led and can't
+	 * be used as input GPIO, if you want use this GPIO as input you should
+	 * remove led configuration from board-igep0032.c file and uncomment
+	 * following lines.
+	 *
+	if (gpio_request(IGEP3_GPIO_INPUT1, "GPIO INPUT1")
+	    || gpio_direction_input(IGEP3_GPIO_INPUT1))
+		pr_err("IGEP: Could not obtain gpio INPUT1\n");
+	 */
 }
 
 static struct gpio_keys_button base0010_gpio_keys[] = {
@@ -442,6 +458,13 @@ void __init base0010_revb_init(void)
 		pr_warning("IGEP: Could not obtain gpio USBHUB NRESET\n");
 
 	/*
+	 * If we're using IGEP0032 COM we can enable the modem option by
+	 * default as there aren't incompatibilies
+	 */
+	if (machine_is_igep0032())
+		igep00x0_buddy_pdata.options |= IGEP00X0_BUDDY_OPT_MODEM;
+
+	/*
 	 * NOTE: Bluetooth UART and PCM voice interface (PCM VSP) is
 	 * INCOMPATIBLE with modem (disabled by default, enable with
 	 * buddy.modem=yes in kernel command line
@@ -465,8 +488,9 @@ void __init base0010_revb_init(void)
 	/* General Purpose IO */
 	base0010_gpio_init();
 
-	/* Register OMAP3 camera devices (tvp5151) */
-	base0010_camera_init();
+	/* Register OMAP3 camera devices (tvp5151) only for IGEP0032 COM */
+	if (machine_is_igep0032())
+		base0010_camera_init();
 }
 
 void __init base0010_init(struct twl4030_platform_data *pdata)
@@ -496,6 +520,6 @@ void __init base0010_init(struct twl4030_platform_data *pdata)
 	/* Ethernet with SMSC9221 LAN Controller */
 	base0010_smsc911x_init();
 
-	if (igep00x0_buddy_pdata.revision & IGEP00X0_BUDDY_HWREV_B)
+	if ( igep00x0_buddy_pdata.revision & IGEP00X0_BUDDY_HWREV_B )
 		base0010_revb_init();
 }
