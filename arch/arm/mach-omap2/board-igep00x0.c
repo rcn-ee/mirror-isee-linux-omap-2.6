@@ -538,6 +538,24 @@ void __init igep00x0_at24c01_init(int busnum)
 void __init igep00x0_at24c01_init(int busnum) {}
 #endif
 
+/* Use MCBSP3_* pins as UART2 mode */
+static struct omap_board_mux uart2_mcbsp3_mode1_mux[] = {
+	OMAP3_MUX(UART2_TX, OMAP_MUX_MODE7 | OMAP_PIN_INPUT),
+	OMAP3_MUX(UART2_RX, OMAP_MUX_MODE7 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP3_FSX, OMAP_MUX_MODE1 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP3_CLKX, OMAP_MUX_MODE1 | OMAP_PIN_OUTPUT),
+	{ .reg_offset = OMAP_MUX_TERMINATOR },
+};
+
+/* Use UART2_* pins as UART2 mode */
+static struct omap_board_mux uart2_mcbsp3_mode7_mux[] = {
+	OMAP3_MUX(UART2_TX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(UART2_RX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP3_FSX, OMAP_MUX_MODE7 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP3_CLKX, OMAP_MUX_MODE7 | OMAP_PIN_INPUT),
+	{ .reg_offset = OMAP_MUX_TERMINATOR },
+};
+
 void __init igep00x0_modem_init(int on, int nreset, int pwrmon)
 {
 	/*
@@ -556,15 +574,19 @@ void __init igep00x0_modem_init(int on, int nreset, int pwrmon)
 
 	/*
 	 * OMAP3530 CBB package can have UART2 muxed on 2 pins: uart2_* and
-	 * mcbsp3_*. The modem uses UART2 on mcbsp3 pins so we need to configure
-	 * the MUX properly.
+	 * mcbsp3_*.
+	 *
+	 * On IGEP0020 + IGEP0022 the modem uses UART2 on mcbsp3_* pins so we
+	 * need to configure the MUX properly.
 	 */
-	omap_mux_init_signal("uart2_rx.safe_mode", 0);
-	omap_mux_init_signal("uart2_tx.safe_mode", 0);
-
-	/* Configure pins mcbsp3_fsx and mcbsp3_clkx as UART2 */
-	omap_mux_init_signal("mcbsp3_fsx.uart2_rx", OMAP_PIN_INPUT);
-	omap_mux_init_signal("mcbsp3_clkx.uart2_tx", OMAP_PIN_OUTPUT);
+	if (machine_is_igep0020())
+		omap_mux_write_array(uart2_mcbsp3_mode1_mux);
+	else
+		/*
+		 * On IGEP003x + BASE0010 the modem uses UART2 on uart2_* pins
+		 * so we need to configure the MUX properly.
+		 */
+		omap_mux_write_array(uart2_mcbsp3_mode7_mux);
 
 	/* Modem I/O */
 	omap_mux_init_gpio(on, OMAP_PIN_OUTPUT);
