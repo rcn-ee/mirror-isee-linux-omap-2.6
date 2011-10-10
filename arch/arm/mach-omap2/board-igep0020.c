@@ -430,7 +430,9 @@ static void __init igep0020_init(void)
 			TWL_IGEP00X0_REGULATOR_VMMC1 |
 			TWL_IGEP00X0_REGULATOR_VIO);
 
-	omap_pmic_init(1, 2600, "twl4030", INT_34XX_SYS_NIRQ, &twl4030_pdata);
+	twl4030_pdata.codec->audio->reset_registers = 1;
+
+	omap3_pmic_init("twl4030", &twl4030_pdata);
 
 	/*
 	 * Bus 3 is attached to the DVI port where devices like the pico DLP
