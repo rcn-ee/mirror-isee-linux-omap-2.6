@@ -111,6 +111,8 @@ struct uart_omap_port {
 	unsigned char		msr_saved_flags;
 	char			name[20];
 	unsigned long		port_activity;
+	struct serial_rs485     rs485;
+	unsigned int            tx_in_progress:1, tx_wait_end:1;
 };
 
 #endif /* __OMAP_SERIAL_H__ */
