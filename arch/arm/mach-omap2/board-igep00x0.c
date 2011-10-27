@@ -22,6 +22,8 @@
 #include <linux/i2c/at24.h>
 #include <linux/i2c/twl.h>
 
+#include <linux/mtd/nand.h>
+
 #include <linux/regulator/fixed.h>
 #include <linux/regulator/machine.h>
 
@@ -38,9 +40,10 @@
 #include <plat/mcspi.h>
 #include <plat/onenand.h>
 #include <plat/usb.h>
-//#include <plat/timer-gp.h>
 
+#include "board-flash.h"
 #include "board-igep00x0.h"
+#include "control.h"
 #include "devices.h"
 #include "mux.h"
 #include "sdram-numonyx-m65kxxxxam.h"
@@ -264,7 +267,7 @@ early_param("buddy.revision", buddy_revision_early_param);
  * So MTD regards it as 4KiB page size and 256KiB block size 64*(2*2048)
  */
 
-static struct mtd_partition igep00x0_onenand_partitions[] = {
+static struct mtd_partition igep00x0_flash_partitions[] = {
 	{
 		.name           = "X-Loader",
 		.offset         = 0,
@@ -282,50 +285,27 @@ static struct mtd_partition igep00x0_onenand_partitions[] = {
 	},
 };
 
-static struct omap_onenand_platform_data igep00x0_onenand_data = {
-	.parts = igep00x0_onenand_partitions,
-	.nr_parts = ARRAY_SIZE(igep00x0_onenand_partitions),
-	.dma_channel	= -1,	/* disable DMA in OMAP OneNAND driver */
-};
-
-static struct platform_device igep00x0_onenand_device = {
-	.name		= "omap2-onenand",
-	.id		= -1,
-	.dev = {
-		.platform_data = &igep00x0_onenand_data,
-	},
-};
+static inline u32 get_sysboot_value(void)
+{
+	return omap_ctrl_readl(OMAP343X_CONTROL_STATUS) & IGEP00X0_SYSBOOT_MASK;
+}
 
 void __init igep00x0_flash_init(void)
 {
-	u8 cs = 0;
-	u8 onenandcs = GPMC_CS_NUM + 1;
+	u32 mux;
+	mux = get_sysboot_value();
 
-	for (cs = 0; cs < GPMC_CS_NUM; cs++) {
-		u32 ret;
-		ret = gpmc_cs_read_reg(cs, GPMC_CS_CONFIG1);
-
-		/* Check if NAND/oneNAND is configured */
-		if ((ret & 0xC00) == 0x800)
-			/* NAND found */
-			pr_err("IGEP: Unsupported NAND found\n");
-		else {
-			ret = gpmc_cs_read_reg(cs, GPMC_CS_CONFIG7);
-			if ((ret & 0x3F) == (ONENAND_MAP >> 24))
-				/* ONENAND found */
-				onenandcs = cs;
-		}
-	}
-
-	if (onenandcs > GPMC_CS_NUM) {
-		pr_err("IGEP: Unable to find configuration in GPMC\n");
-		return;
-	}
-
-	igep00x0_onenand_data.cs = onenandcs;
-
-	if (platform_device_register(&igep00x0_onenand_device) < 0)
-		pr_err("IGEP: Unable to register OneNAND device\n");
+	if (mux == IGEP00X0_SYSBOOT_NAND) {
+		pr_info("IGEP: initializing NAND memory device\n");
+		board_nand_init(igep00x0_flash_partitions,
+			ARRAY_SIZE(igep00x0_flash_partitions),
+			0, NAND_BUSWIDTH_16);
+	} else if (mux == IGEP00X0_SYSBOOT_ONENAND) {
+		pr_info("IGEP: initializing OneNAND memory device\n");
+		board_onenand_init(igep00x0_flash_partitions,
+			ARRAY_SIZE(igep00x0_flash_partitions), 0);
+	} else
+		pr_err("IGEP: Flash: unsupported sysboot sequence found\n");
 }
 
 #else

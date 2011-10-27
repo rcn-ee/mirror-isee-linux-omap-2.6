@@ -24,6 +24,10 @@
 #define TWL_IGEP00X0_REGULATOR_VMMC1	(1 << 0)
 #define TWL_IGEP00X0_REGULATOR_VIO	(1 << 1)
 
+#define IGEP00X0_SYSBOOT_MASK           0x1f
+#define IGEP00X0_SYSBOOT_NAND           0x0f
+#define IGEP00X0_SYSBOOT_ONENAND        0x10
+
 struct twl4030_platform_data;
 
 struct buddy_platform_data {
