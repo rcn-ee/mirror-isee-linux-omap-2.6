@@ -21,6 +21,7 @@
 #include <linux/init.h>
 #include <linux/clk.h>
 #include <linux/irq.h>
+#include <linux/ipipe.h>
 #include <linux/gpio.h>
 #include <linux/smsc911x.h>
 #include <linux/platform_device.h>
@@ -263,7 +264,7 @@ static void mx31_3ds_expio_irq_handler(uint32_t irq, struct irq_desc *desc)
 	for (; int_valid != 0; int_valid >>= 1, expio_irq++) {
 		if ((int_valid & 1) == 0)
 			continue;
-		generic_handle_irq(expio_irq);
+		ipipe_handle_chained_irq(expio_irq);
 	}
 }
 

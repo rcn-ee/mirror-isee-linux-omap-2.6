@@ -119,6 +119,34 @@ EXPORT_SYMBOL(pm_power_off);
 void (*arm_pm_restart)(char str, const char *cmd) = arm_machine_restart;
 EXPORT_SYMBOL_GPL(arm_pm_restart);
 
+#ifdef CONFIG_IPIPE
+static void __ipipe_halt_root(void)
+{
+	struct ipipe_percpu_domain_data *p;
+
+	/* Emulate idle entry sequence over the root domain. */
+
+	local_irq_disable_hw();
+
+	p = ipipe_root_cpudom_ptr();
+
+	trace_hardirqs_on();
+	clear_bit(IPIPE_STALL_FLAG, &p->status);
+
+	if (unlikely(__ipipe_ipending_p(p))) {
+		__ipipe_sync_pipeline();
+		local_irq_enable_hw();
+	} else {
+#ifdef CONFIG_IPIPE_TRACE_IRQSOFF
+		ipipe_trace_end(0x8000000E);
+#endif /* CONFIG_IPIPE_TRACE_IRQSOFF */
+		local_irq_enable_hw();
+		arch_idle();
+	}
+}
+#else /* !CONFIG_IPIPE */
+#define __ipipe_halt_root() arch_idle()
+#endif /* !CONFIG_IPIPE */
 
 /*
  * This is our default idle handler.  We need to disable
@@ -127,7 +155,7 @@ EXPORT_SYMBOL_GPL(arm_pm_restart);
 static void default_idle(void)
 {
 	if (!need_resched())
-		arch_idle();
+		__ipipe_halt_root();
 	local_irq_enable();
 }
 

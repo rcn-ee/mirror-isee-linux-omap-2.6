@@ -756,8 +756,7 @@ int __init mx27_clocks_init(unsigned long fref)
 #endif
 
 	mxc_timer_init(&gpt1_clk, MX27_IO_ADDRESS(MX27_GPT1_BASE_ADDR),
-			MX27_INT_GPT1);
+		       MX27_GPT1_BASE_ADDR, MX27_INT_GPT1);
 
 	return 0;
 }
-

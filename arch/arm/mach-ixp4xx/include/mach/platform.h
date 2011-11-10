@@ -150,10 +150,14 @@ extern struct pci_bus *ixp4xx_scan_bus(int nr, struct pci_sys_data *sys);
 
 static inline void gpio_line_config(u8 line, u32 direction)
 {
+	unsigned long flags;
+
+	local_irq_save_hw(flags);
 	if (direction == IXP4XX_GPIO_IN)
 		*IXP4XX_GPIO_GPOER |= (1 << line);
 	else
 		*IXP4XX_GPIO_GPOER &= ~(1 << line);
+	local_irq_restore_hw(flags);
 }
 
 static inline void gpio_line_get(u8 line, int *value)
@@ -163,11 +167,14 @@ static inline void gpio_line_get(u8 line, int *value)
 
 static inline void gpio_line_set(u8 line, int value)
 {
+	unsigned long flags;
+
+	local_irq_save_hw(flags);
 	if (value == IXP4XX_GPIO_HIGH)
 	    *IXP4XX_GPIO_GPOUTR |= (1 << line);
 	else if (value == IXP4XX_GPIO_LOW)
 	    *IXP4XX_GPIO_GPOUTR &= ~(1 << line);
+	local_irq_restore_hw(flags);
 }
 
 #endif // __ASSEMBLY__
-

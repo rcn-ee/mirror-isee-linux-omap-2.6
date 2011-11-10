@@ -88,13 +88,13 @@ static void s3c_irq_demux_uart(unsigned int irq, struct irq_desc *desc)
 	int base = uirq->base_irq;
 
 	if (pend & (1 << 0))
-		generic_handle_irq(base);
+		ipipe_handle_chained_irq(base);
 	if (pend & (1 << 1))
-		generic_handle_irq(base + 1);
+		ipipe_handle_chained_irq(base + 1);
 	if (pend & (1 << 2))
-		generic_handle_irq(base + 2);
+		ipipe_handle_chained_irq(base + 2);
 	if (pend & (1 << 3))
-		generic_handle_irq(base + 3);
+		ipipe_handle_chained_irq(base + 3);
 }
 
 static struct irq_chip s3c_irq_uart = {

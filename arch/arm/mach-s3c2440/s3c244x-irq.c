@@ -3,6 +3,8 @@
  * Copyright (c) 2003-2004 Simtec Electronics
  *	Ben Dooks <ben@simtec.co.uk>
  *
+ * Copyright (C) 2007 Sebastian Smolorz <ssmolorz@emlix.com>, emlix GmbH
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -25,6 +27,7 @@
 #include <linux/ioport.h>
 #include <linux/sysdev.h>
 #include <linux/io.h>
+#include <linux/ipipe.h>
 
 #include <mach/hardware.h>
 #include <asm/irq.h>
@@ -57,10 +60,10 @@ static void s3c_irq_demux_cam(unsigned int irq,
 
 	if (subsrc != 0) {
 		if (subsrc & 1) {
-			generic_handle_irq(IRQ_S3C2440_CAM_C);
+			ipipe_handle_chained_irq(IRQ_S3C2440_CAM_C);
 		}
 		if (subsrc & 2) {
-			generic_handle_irq(IRQ_S3C2440_CAM_P);
+			ipipe_handle_chained_irq(IRQ_S3C2440_CAM_P);
 		}
 	}
 }
@@ -89,6 +92,9 @@ static struct irq_chip s3c_irq_cam = {
 	.mask	    = s3c_irq_cam_mask,
 	.unmask	    = s3c_irq_cam_unmask,
 	.ack	    = s3c_irq_cam_ack,
+#ifdef CONFIG_IPIPE
+	.mask_ack   = s3c_irq_cam_ack,
+#endif /* CONFIG_IPIPE */
 };
 
 static int s3c244x_irq_add(struct sys_device *sysdev)

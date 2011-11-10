@@ -50,13 +50,13 @@ struct secondary_data secondary_data;
  * - A collection of single bit ipi messages.
  */
 struct ipi_data {
-	spinlock_t lock;
+	ipipe_spinlock_t lock;
 	unsigned long ipi_count;
 	unsigned long bits;
 };
 
 static DEFINE_PER_CPU(struct ipi_data, ipi_data) = {
-	.lock	= SPIN_LOCK_UNLOCKED,
+	.lock	= IPIPE_SPIN_LOCK_UNLOCKED,
 };
 
 enum ipi_msg_type {
@@ -65,6 +65,25 @@ enum ipi_msg_type {
 	IPI_CALL_FUNC,
 	IPI_CALL_FUNC_SINGLE,
 	IPI_CPU_STOP,
+	IPI_CPU_DUMP,
+#ifdef CONFIG_IPIPE
+	IPI_IPIPE_CRITICAL,
+	IPI_IPIPE_0,
+	IPI_IPIPE_1,
+	IPI_IPIPE_2,
+	IPI_IPIPE_3,
+	IPI_IPIPE_VNMI,
+#define IPI_IPIPE_ALL				\
+	((1UL << IPI_IPIPE_CRITICAL)|		\
+	 (1UL << IPI_IPIPE_0)|			\
+	 (1UL << IPI_IPIPE_1)|			\
+	 (1UL << IPI_IPIPE_2)|			\
+	 (1UL << IPI_IPIPE_3)|			\
+	 (1UL << IPI_IPIPE_VNMI))
+#define IPI_ROOT_MASK  IPI_IPIPE_ALL
+#else /* !CONFIG_IPIPE */
+#define IPI_ROOT_MASK  0
+#endif /* !CONFIG_IPIPE */
 };
 
 int __cpuinit __cpu_up(unsigned int cpu)
@@ -267,7 +286,7 @@ asmlinkage void __cpuinit secondary_start_kernel(void)
 	atomic_inc(&mm->mm_count);
 	current->active_mm = mm;
 	cpumask_set_cpu(cpu, mm_cpumask(mm));
-	cpu_switch_mm(mm->pgd, mm);
+	cpu_switch_mm(mm->pgd, mm, 1);
 	enter_lazy_tlb(mm, current);
 	local_flush_tlb_all();
 
@@ -344,7 +363,7 @@ static void send_ipi_message(const struct cpumask *mask, enum ipi_msg_type msg)
 	unsigned long flags;
 	unsigned int cpu;
 
-	local_irq_save(flags);
+	local_irq_save_hw(flags);
 
 	for_each_cpu(cpu, mask) {
 		struct ipi_data *ipi = &per_cpu(ipi_data, cpu);
@@ -359,7 +378,7 @@ static void send_ipi_message(const struct cpumask *mask, enum ipi_msg_type msg)
 	 */
 	smp_cross_call(mask);
 
-	local_irq_restore(flags);
+	local_irq_restore_hw(flags);
 }
 
 void arch_send_call_function_ipi_mask(const struct cpumask *mask)
@@ -404,6 +423,9 @@ static DEFINE_PER_CPU(struct clock_event_device, percpu_clockevent);
 static void ipi_timer(void)
 {
 	struct clock_event_device *evt = &__get_cpu_var(percpu_clockevent);
+#ifdef CONFIG_IPIPE
+	__ipipe_mach_update_tsc();
+#endif
 	irq_enter();
 	evt->event_handler(evt);
 	irq_exit();
@@ -423,6 +445,72 @@ asmlinkage void __exception do_local_timer(struct pt_regs *regs)
 	set_irq_regs(old_regs);
 }
 #endif
+
+#ifdef CONFIG_IPIPE
+
+int __ipipe_send_ipi(unsigned ipi, cpumask_t cpumask)
+{
+	enum ipi_msg_type msg = ipi - IPIPE_FIRST_IPI + IPI_IPIPE_CRITICAL;
+	send_ipi_message(&cpumask, msg);
+	return 0;
+}
+
+asmlinkage void __exception __ipipe_grab_ipi(struct pt_regs *regs) /* hw IRQs off */
+{
+	unsigned int cpu = ipipe_processor_id(), svc;
+	struct ipi_data *ipi = &per_cpu(ipi_data, cpu);
+	unsigned long allmsgs, svcmsgs;
+	int virq;
+
+	for (;;) {
+		spin_lock(&ipi->lock);
+		allmsgs = ipi->bits;
+		ipi->bits &= ~IPI_IPIPE_ALL;
+		spin_unlock(&ipi->lock);
+
+		if (allmsgs == 0)
+			break;
+
+		svcmsgs = allmsgs & IPI_IPIPE_ALL;
+		while (svcmsgs) {
+			svc = svcmsgs & -svcmsgs;
+			svcmsgs &= ~svc;
+			svc = ffz(~svc);
+			/*
+			 * Virtual NMIs ignore the root domain's stall
+			 * bit. When caught over high priority
+			 * domains, virtual VMIs are pipelined the
+			 * usual way as normal interrupts.
+			 */
+			if (svc == IPI_IPIPE_VNMI && ipipe_root_domain_p)
+				__ipipe_do_vnmi(IPIPE_SERVICE_VNMI, NULL);
+			else {
+				virq = svc - IPI_IPIPE_CRITICAL + IPIPE_FIRST_IPI;
+				__ipipe_handle_irq(virq, NULL);
+			}
+			ipi->ipi_count++;
+		}
+
+		if (allmsgs & ~IPI_IPIPE_ALL) {
+			__ipipe_mach_relay_ipi(cpu);
+			break;
+		}
+	}
+
+	__ipipe_exit_irq(regs);
+}
+
+void  __ipipe_root_ipi(unsigned int irq, struct pt_regs *regs)
+{
+	do_IPI(regs);
+}
+
+void  __ipipe_root_localtimer(unsigned int irq, struct pt_regs *regs)
+{
+	do_local_timer(regs);
+}
+
+#endif /* CONFIG_IPIPE */
 
 #ifdef CONFIG_GENERIC_CLOCKEVENTS_BROADCAST
 static void smp_timer_broadcast(const struct cpumask *mask)
@@ -499,12 +587,12 @@ asmlinkage void __exception do_IPI(struct pt_regs *regs)
 	ipi->ipi_count++;
 
 	for (;;) {
-		unsigned long msgs;
+		unsigned long msgs, flags;
 
-		spin_lock(&ipi->lock);
-		msgs = ipi->bits;
-		ipi->bits = 0;
-		spin_unlock(&ipi->lock);
+		spin_lock_irqsave_cond(&ipi->lock, flags);
+		msgs = ipi->bits & ~IPI_ROOT_MASK;
+		ipi->bits &= IPI_ROOT_MASK;
+		spin_unlock_irqrestore_cond(&ipi->lock, flags);
 
 		if (!msgs)
 			break;
@@ -645,19 +733,21 @@ void flush_tlb_all(void)
 
 void flush_tlb_mm(struct mm_struct *mm)
 {
-	if (tlb_ops_need_broadcast())
-		on_each_cpu_mask(ipi_flush_tlb_mm, mm, 1, mm_cpumask(mm));
-	else
+	if (tlb_ops_need_broadcast()) {
+		cpumask_t *mask = mm_cpumask(mm);
+		on_each_cpu_mask(ipi_flush_tlb_mm, mm, 1, mask);
+	} else
 		local_flush_tlb_mm(mm);
 }
 
 void flush_tlb_page(struct vm_area_struct *vma, unsigned long uaddr)
 {
 	if (tlb_ops_need_broadcast()) {
+		cpumask_t *mask = mm_cpumask(vma->vm_mm);
 		struct tlb_args ta;
 		ta.ta_vma = vma;
 		ta.ta_start = uaddr;
-		on_each_cpu_mask(ipi_flush_tlb_page, &ta, 1, mm_cpumask(vma->vm_mm));
+		on_each_cpu_mask(ipi_flush_tlb_page, &ta, 1, mask);
 	} else
 		local_flush_tlb_page(vma, uaddr);
 }
@@ -673,14 +763,15 @@ void flush_tlb_kernel_page(unsigned long kaddr)
 }
 
 void flush_tlb_range(struct vm_area_struct *vma,
-                     unsigned long start, unsigned long end)
+		     unsigned long start, unsigned long end)
 {
 	if (tlb_ops_need_broadcast()) {
+		cpumask_t *mask = mm_cpumask(vma->vm_mm);
 		struct tlb_args ta;
 		ta.ta_vma = vma;
 		ta.ta_start = start;
 		ta.ta_end = end;
-		on_each_cpu_mask(ipi_flush_tlb_range, &ta, 1, mm_cpumask(vma->vm_mm));
+		on_each_cpu_mask(ipi_flush_tlb_range, &ta, 1, mask);
 	} else
 		local_flush_tlb_range(vma, start, end);
 }

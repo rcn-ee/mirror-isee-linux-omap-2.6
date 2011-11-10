@@ -19,7 +19,7 @@
 #include "../kernel/entry-header.S"
 
 	.macro	DBGSTR, str
-#ifdef DEBUG
+#if defined(DEBUG) && !defined(CONFIG_IPIPE)
 	stmfd	sp!, {r0-r3, ip, lr}
 	add	r0, pc, #4
 	bl	printk
@@ -31,7 +31,7 @@
 	.endm
 
 	.macro  DBGSTR1, str, arg
-#ifdef DEBUG
+#if defined(DEBUG) && !defined(CONFIG_IPIPE)
 	stmfd	sp!, {r0-r3, ip, lr}
 	mov	r1, \arg
 	add	r0, pc, #4
@@ -44,7 +44,7 @@
 	.endm
 
 	.macro  DBGSTR3, str, arg1, arg2, arg3
-#ifdef DEBUG
+#if defined(DEBUG) && !defined(CONFIG_IPIPE)
 	stmfd	sp!, {r0-r3, ip, lr}
 	mov	r3, \arg3
 	mov	r2, \arg2
@@ -87,6 +87,14 @@ ENTRY(vfp_support_entry)
 					@ still there.  In this case, we do
 					@ not want to drop a pending exception.
 
+	enable_irq
+#ifdef CONFIG_IPIPE
+	disable_irq
+#ifdef CONFIG_SMP
+	mrc	p15, 0, r11, c0, c0, 5  @ reload current CPU number
+#endif
+	ldr	r4, [r3, r11, lsl #2]	@ reload last_VFP_context pointer
+#endif
 	VFPFMXR	FPEXC, r5		@ enable VFP, disable any pending
 					@ exceptions, so we can get at the
 					@ rest of it
@@ -139,6 +147,7 @@ check_for_exception:
 					@ out before setting an FPEXC that
 					@ stops us reading stuff
 	VFPFMXR	FPEXC, r1		@ restore FPEXC last
+	enable_irq_cond
 	sub	r2, r2, #4
 	str	r2, [sp, #S_PC]		@ retry the instruction
 #ifdef CONFIG_PREEMPT
@@ -164,6 +173,7 @@ look_for_VFP_exceptions:
 	@ Fall into hand on to next handler - appropriate coproc instr
 	@ not recognised by VFP
 
+	enable_irq_cond
 	DBGSTR	"not VFP"
 #ifdef CONFIG_PREEMPT
 	get_thread_info	r10

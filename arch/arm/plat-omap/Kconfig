@@ -129,6 +129,7 @@ config OMAP_MPU_TIMER
 	  timer provides more intra-tick resolution than the 32KHz timer,
 	  but consumes more power.
 
+if !IPIPE
 config OMAP_32K_TIMER
 	bool "Use 32KHz timer"
 	depends on ARCH_OMAP16XX || ARCH_OMAP2PLUS
@@ -138,6 +139,7 @@ config OMAP_32K_TIMER
 	  support for no tick during idle. The 32KHz timer provides less
 	  intra-tick resolution than OMAP_MPU_TIMER. The 32KHz timer is
 	  currently only available for OMAP16XX, 24XX, 34XX and OMAP4.
+endif
 
 endchoice
 

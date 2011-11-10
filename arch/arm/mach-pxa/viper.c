@@ -43,6 +43,7 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
 #include <linux/mtd/physmap.h>
+#include <linux/ipipe.h>
 
 #include <mach/pxa25x.h>
 #include <mach/audio.h>
@@ -287,7 +288,7 @@ static void viper_irq_handler(unsigned int irq, struct irq_desc *desc)
 
 		if (likely(pending)) {
 			irq = viper_bit_to_irq(__ffs(pending));
-			generic_handle_irq(irq);
+			ipipe_handle_chained_irq(irq);
 		}
 		pending = viper_irq_pending();
 	} while (pending);

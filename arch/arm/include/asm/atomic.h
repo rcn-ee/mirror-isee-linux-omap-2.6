@@ -158,10 +158,10 @@ static inline int atomic_add_return(int i, atomic_t *v)
 	unsigned long flags;
 	int val;
 
-	raw_local_irq_save(flags);
+	local_irq_save_hw(flags);
 	val = v->counter;
 	v->counter = val += i;
-	raw_local_irq_restore(flags);
+	local_irq_restore_hw(flags);
 
 	return val;
 }
@@ -172,10 +172,10 @@ static inline int atomic_sub_return(int i, atomic_t *v)
 	unsigned long flags;
 	int val;
 
-	raw_local_irq_save(flags);
+	local_irq_save_hw(flags);
 	val = v->counter;
 	v->counter = val -= i;
-	raw_local_irq_restore(flags);
+	local_irq_restore_hw(flags);
 
 	return val;
 }
@@ -186,11 +186,11 @@ static inline int atomic_cmpxchg(atomic_t *v, int old, int new)
 	int ret;
 	unsigned long flags;
 
-	raw_local_irq_save(flags);
+	local_irq_save_hw(flags);
 	ret = v->counter;
 	if (likely(ret == old))
 		v->counter = new;
-	raw_local_irq_restore(flags);
+	local_irq_restore_hw(flags);
 
 	return ret;
 }
@@ -199,9 +199,9 @@ static inline void atomic_clear_mask(unsigned long mask, unsigned long *addr)
 {
 	unsigned long flags;
 
-	raw_local_irq_save(flags);
+	local_irq_save_hw(flags);
 	*addr &= ~mask;
-	raw_local_irq_restore(flags);
+	local_irq_restore_hw(flags);
 }
 
 #endif /* __LINUX_ARM_ARCH__ */

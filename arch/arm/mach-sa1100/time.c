@@ -14,19 +14,47 @@
 #include <linux/irq.h>
 #include <linux/timex.h>
 #include <linux/clockchips.h>
+#include <linux/ipipe.h>
 
 #include <asm/mach/time.h>
 #include <mach/hardware.h>
 
 #define MIN_OSCR_DELTA 2
 
+#ifdef CONFIG_IPIPE
+int __ipipe_mach_timerint = IRQ_OST0;
+EXPORT_SYMBOL(__ipipe_mach_timerint);
+
+int __ipipe_mach_timerstolen = 0;
+EXPORT_SYMBOL(__ipipe_mach_timerstolen);
+
+unsigned int __ipipe_mach_ticks_per_jiffy = LATCH;
+EXPORT_SYMBOL(__ipipe_mach_ticks_per_jiffy);
+
+static struct __ipipe_tscinfo tsc_info = {
+	.type = IPIPE_TSC_TYPE_FREERUNNING,
+	.freq = CLOCK_TICK_RATE,
+	.counter_vaddr = io_p2v(0x90000010UL),
+	.u = {
+		{
+			.counter_paddr = 0x90000010UL,
+			.mask = 0xffffffff,
+		},
+	},
+};
+#endif /* CONFIG_IPIPE */
+
 static irqreturn_t sa1100_ost0_interrupt(int irq, void *dev_id)
 {
 	struct clock_event_device *c = dev_id;
 
 	/* Disarm the compare/match, signal the event. */
+#ifndef CONFIG_IPIPE
 	OIER &= ~OIER_E0;
 	OSSR = OSSR_M0;
+#else /* CONFIG_IPIPE */
+	__ipipe_tsc_update();
+#endif /* CONFIG_IPIPE */
 	c->event_handler(c);
 
 	return IRQ_HANDLED;
@@ -71,7 +99,14 @@ static struct clock_event_device ckevt_sa1100_osmr0 = {
 	.set_mode	= sa1100_osmr0_set_mode,
 };
 
-static cycle_t sa1100_read_oscr(struct clocksource *s)
+#ifdef CONFIG_IPIPE
+int __ipipe_check_tickdev(const char *devname)
+{
+	return !strcmp(devname, ckevt_sa1100_osmr0.name);
+}
+#endif /* CONFIG_IPIPE */
+
+static cycle_t sa1100_read_oscr(struct clocksource *cs)
 {
 	return OSCR;
 }
@@ -109,6 +144,10 @@ static void __init sa1100_timer_init(void)
 		clocksource_hz2mult(CLOCK_TICK_RATE, cksrc_sa1100_oscr.shift);
 
 	setup_irq(IRQ_OST0, &sa1100_timer_irq);
+
+#ifdef CONFIG_IPIPE
+	__ipipe_tsc_register(&tsc_info);
+#endif /* CONFIG_IPIPE */
 
 	clocksource_register(&cksrc_sa1100_oscr);
 	clockevents_register_device(&ckevt_sa1100_osmr0);
@@ -150,3 +189,38 @@ struct sys_timer sa1100_timer = {
 	.suspend	= sa1100_timer_suspend,
 	.resume		= sa1100_timer_resume,
 };
+
+#ifdef CONFIG_IPIPE
+void __ipipe_mach_acktimer(void)
+{
+	OSSR = OSSR_M0;  /* Clear match on timer 0 */
+	OIER &= ~OIER_E0;
+}
+
+/*
+ * Reprogram the timer
+ */
+
+void __ipipe_mach_set_dec(unsigned long delay)
+{
+	if (delay > MIN_OSCR_DELTA) {
+		OSMR0 = delay + OSCR;
+		OIER |= OIER_E0;
+	} else
+		ipipe_trigger_irq(IRQ_OST0);
+}
+EXPORT_SYMBOL(__ipipe_mach_set_dec);
+
+void __ipipe_mach_release_timer(void)
+{
+	sa1100_osmr0_set_mode(ckevt_sa1100_osmr0.mode, &ckevt_sa1100_osmr0);
+	if (ckevt_sa1100_osmr0.mode == CLOCK_EVT_MODE_ONESHOT)
+		sa1100_osmr0_set_next_event(LATCH, &ckevt_sa1100_osmr0);
+}
+EXPORT_SYMBOL(__ipipe_mach_release_timer);
+
+unsigned long __ipipe_mach_get_dec(void)
+{
+	return OSMR0 - OSCR;
+}
+#endif /* CONFIG_IPIPE */

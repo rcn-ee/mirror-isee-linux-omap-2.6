@@ -3,6 +3,8 @@
  * Copyright (c) 2003-2004 Simtec Electronics
  *	Ben Dooks <ben@simtec.co.uk>
  *
+ * Copyright (C) 2006, 2007 Sebastian Smolorz <ssmolorz@emlix.com>, emlix GmbH
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -23,6 +25,7 @@
 #include <linux/interrupt.h>
 #include <linux/ioport.h>
 #include <linux/sysdev.h>
+#include <linux/ipipe.h>
 
 #include <asm/irq.h>
 #include <asm/mach/irq.h>
@@ -87,6 +90,9 @@ struct irq_chip s3c_irq_level_chip = {
 	.name		= "s3c-level",
 	.ack		= s3c_irq_maskack,
 	.mask		= s3c_irq_mask,
+#ifdef CONFIG_IPIPE
+	.mask_ack       = s3c_irq_maskack,
+#endif /* CONFIG_IPIPE */
 	.unmask		= s3c_irq_unmask,
 	.set_wake	= s3c_irq_wake
 };
@@ -283,6 +289,9 @@ static struct irq_chip s3c_irq_uart0 = {
 	.mask		= s3c_irq_uart0_mask,
 	.unmask		= s3c_irq_uart0_unmask,
 	.ack		= s3c_irq_uart0_ack,
+#ifdef CONFIG_IPIPE
+	.mask_ack       = s3c_irq_uart0_ack,
+#endif /* CONFIG_IPIPE */
 };
 
 /* UART1 */
@@ -310,6 +319,9 @@ static struct irq_chip s3c_irq_uart1 = {
 	.mask		= s3c_irq_uart1_mask,
 	.unmask		= s3c_irq_uart1_unmask,
 	.ack		= s3c_irq_uart1_ack,
+#ifdef CONFIG_IPIPE
+	.mask_ack	= s3c_irq_uart1_ack,
+#endif /* CONFIG_IPIPE */
 };
 
 /* UART2 */
@@ -337,6 +349,9 @@ static struct irq_chip s3c_irq_uart2 = {
 	.mask		= s3c_irq_uart2_mask,
 	.unmask		= s3c_irq_uart2_unmask,
 	.ack		= s3c_irq_uart2_ack,
+#ifdef CONFIG_IPIPE
+	.mask_ack	= s3c_irq_uart2_ack,
+#endif /* CONFIG_IPIPE */
 };
 
 /* ADC and Touchscreen */
@@ -385,10 +400,10 @@ static void s3c_irq_demux_adc(unsigned int irq,
 
 	if (subsrc != 0) {
 		if (subsrc & 1) {
-			generic_handle_irq(IRQ_TC);
+			ipipe_handle_chained_irq(IRQ_TC);
 		}
 		if (subsrc & 2) {
-			generic_handle_irq(IRQ_ADC);
+			ipipe_handle_chained_irq(IRQ_ADC);
 		}
 	}
 }
@@ -413,13 +428,13 @@ static void s3c_irq_demux_uart(unsigned int start)
 
 	if (subsrc != 0) {
 		if (subsrc & 1)
-			generic_handle_irq(start);
+			ipipe_handle_chained_irq(start);
 
 		if (subsrc & 2)
-			generic_handle_irq(start+1);
+			ipipe_handle_chained_irq(start+1);
 
 		if (subsrc & 4)
-			generic_handle_irq(start+2);
+			ipipe_handle_chained_irq(start+2);
 	}
 }
 
@@ -466,7 +481,7 @@ s3c_irq_demux_extint8(unsigned int irq,
 		eintpnd &= ~(1<<irq);
 
 		irq += (IRQ_EINT4 - 4);
-		generic_handle_irq(irq);
+		ipipe_handle_chained_irq(irq);
 	}
 
 }
@@ -489,7 +504,7 @@ s3c_irq_demux_extint4t7(unsigned int irq,
 
 		irq += (IRQ_EINT4 - 4);
 
-		generic_handle_irq(irq);
+		ipipe_handle_chained_irq(irq);
 	}
 }
 
@@ -612,7 +627,7 @@ void __init s3c24xx_init_irq(void)
 		default:
 			//irqdbf("registering irq %d (s3c irq)\n", irqno);
 			set_irq_chip(irqno, &s3c_irq_chip);
-			set_irq_handler(irqno, handle_edge_irq);
+			set_irq_handler(irqno, handle_level_irq);
 			set_irq_flags(irqno, IRQF_VALID);
 		}
 	}
@@ -632,14 +647,14 @@ void __init s3c24xx_init_irq(void)
 	for (irqno = IRQ_EINT0; irqno <= IRQ_EINT3; irqno++) {
 		irqdbf("registering irq %d (ext int)\n", irqno);
 		set_irq_chip(irqno, &s3c_irq_eint0t4);
-		set_irq_handler(irqno, handle_edge_irq);
+		set_irq_handler(irqno, handle_level_irq);
 		set_irq_flags(irqno, IRQF_VALID);
 	}
 
 	for (irqno = IRQ_EINT4; irqno <= IRQ_EINT23; irqno++) {
 		irqdbf("registering irq %d (extended s3c irq)\n", irqno);
 		set_irq_chip(irqno, &s3c_irqext_chip);
-		set_irq_handler(irqno, handle_edge_irq);
+		set_irq_handler(irqno, handle_level_irq);
 		set_irq_flags(irqno, IRQF_VALID);
 	}
 
@@ -671,7 +686,7 @@ void __init s3c24xx_init_irq(void)
 	for (irqno = IRQ_TC; irqno <= IRQ_ADC; irqno++) {
 		irqdbf("registering irq %d (s3c adc irq)\n", irqno);
 		set_irq_chip(irqno, &s3c_irq_adc);
-		set_irq_handler(irqno, handle_edge_irq);
+		set_irq_handler(irqno, handle_level_irq);
 		set_irq_flags(irqno, IRQF_VALID);
 	}
 

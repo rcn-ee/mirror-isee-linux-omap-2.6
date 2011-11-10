@@ -623,8 +623,7 @@ int __init mx31_clocks_init(unsigned long fref)
 	}
 
 	mxc_timer_init(&ipg_clk, MX31_IO_ADDRESS(MX31_GPT1_BASE_ADDR),
-			MX31_INT_GPT);
+		       MX31_GPT1_BASE_ADDR, MX31_INT_GPT);
 
 	return 0;
 }
-

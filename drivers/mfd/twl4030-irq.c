@@ -334,7 +334,11 @@ static int twl4030_irq_thread(void *data)
 					note_interrupt(module_irq, d,
 							IRQ_NONE);
 				else
+#ifndef CONFIG_IPIPE
 					d->handle_irq(module_irq, d);
+#else
+					d->ipipe_ack(module_irq, d);
+#endif
 			}
 		}
 		local_irq_enable();

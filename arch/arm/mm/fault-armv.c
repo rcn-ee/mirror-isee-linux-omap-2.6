@@ -28,6 +28,30 @@
 
 static unsigned long shared_pte_mask = L_PTE_MT_BUFFERABLE;
 
+#ifdef CONFIG_ARM_FCSE_BEST_EFFORT
+static void fcse_set_pte_shared(struct vm_area_struct *vma,
+				unsigned long address, pte_t *ptep)
+{
+	pte_t entry;
+
+	if (!(vma->vm_flags & VM_MAYSHARE) || address >= TASK_SIZE)
+		return;
+
+	entry = *ptep;
+	if ((pte_val(entry)
+	     & (L_PTE_PRESENT | PTE_CACHEABLE | L_PTE_WRITE | L_PTE_DIRTY | L_PTE_SHARED))
+	    == (L_PTE_PRESENT | PTE_CACHEABLE | L_PTE_WRITE | L_PTE_DIRTY)) {
+		pte_val(entry) |= L_PTE_SHARED;
+		/* Bypass set_pte_at here, we are not changing
+		   hardware bits, flush is not needed */
+		++vma->vm_mm->context.fcse.shared_dirty_pages;
+		*ptep = entry;
+	}
+}
+#else /* !CONFIG_ARM_FCSE_BEST_EFFORT */
+#define fcse_set_pte_shared(vma, addr, ptep) do { } while (0)
+#endif /* !CONFIG_ARM_FCSE_BEST_EFFORT */
+
 /*
  * We take the easy way out of this problem - we make the
  * PTE uncacheable.  However, we leave the write buffer on.
@@ -65,6 +89,31 @@ static int do_adjust_pte(struct vm_area_struct *vma, unsigned long address,
 	return ret;
 }
 
+#ifndef CONFIG_ARM_FCSE_GUARANTEED
+#if USE_SPLIT_PTLOCKS
+/*
+ * If we are using split PTE locks, then we need to take the page
+ * lock here.  Otherwise we are using shared mm->page_table_lock
+ * which is already locked, thus cannot take it.
+ */
+static inline void do_pte_lock(spinlock_t *ptl)
+{
+	/*
+	 * Use nested version here to indicate that we are already
+	 * holding one similar spinlock.
+	 */
+	spin_lock_nested(ptl, SINGLE_DEPTH_NESTING);
+}
+
+static inline void do_pte_unlock(spinlock_t *ptl)
+{
+	spin_unlock(ptl);
+}
+#else /* !USE_SPLIT_PTLOCKS */
+static inline void do_pte_lock(spinlock_t *ptl) {}
+static inline void do_pte_unlock(spinlock_t *ptl) {}
+#endif /* USE_SPLIT_PTLOCKS */
+
 static int adjust_pte(struct vm_area_struct *vma, unsigned long address,
 	unsigned long pfn)
 {
@@ -89,20 +138,22 @@ static int adjust_pte(struct vm_area_struct *vma, unsigned long address,
 	 */
 	ptl = pte_lockptr(vma->vm_mm, pmd);
 	pte = pte_offset_map_nested(pmd, address);
-	spin_lock(ptl);
+	do_pte_lock(ptl);
 
 	ret = do_adjust_pte(vma, address, pfn, pte);
 
-	spin_unlock(ptl);
+	do_pte_unlock(ptl);
 	pte_unmap_nested(pte);
 
 	return ret;
 }
+#endif /* CONFIG_ARM_FCSE_GUARANTEED */
 
 static void
 make_coherent(struct address_space *mapping, struct vm_area_struct *vma,
 	unsigned long addr, pte_t *ptep, unsigned long pfn)
 {
+#ifndef CONFIG_ARM_FCSE_GUARANTEED
 	struct mm_struct *mm = vma->vm_mm;
 	struct vm_area_struct *mpnt;
 	struct prio_tree_iter iter;
@@ -134,6 +185,14 @@ make_coherent(struct address_space *mapping, struct vm_area_struct *vma,
 	flush_dcache_mmap_unlock(mapping);
 	if (aliases)
 		do_adjust_pte(vma, addr, pfn, ptep);
+	else {
+		fcse_set_pte_shared(vma, addr, ptep);
+		flush_cache_page(vma, addr, pfn);
+	}
+#else /* CONFIG_ARM_FCSE_GUARANTEED */
+	if (vma->vm_flags & VM_MAYSHARE)
+		do_adjust_pte(vma, addr, pfn, ptep);
+#endif /* CONFIG_ARM_FCSE_GUARANTEED */
 }
 
 /*

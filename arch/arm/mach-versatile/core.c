@@ -869,14 +869,14 @@ static void __init versatile_timer_init(void)
 {
 	u32 val;
 
-	/* 
-	 * set clock frequency: 
+	/*
+	 * set clock frequency:
 	 *	VERSATILE_REFCLK is 32KHz
 	 *	VERSATILE_TIMCLK is 1MHz
 	 */
 	val = readl(__io_address(VERSATILE_SCTL_BASE));
 	writel((VERSATILE_TIMCLK << VERSATILE_TIMER1_EnSel) |
-	       (VERSATILE_TIMCLK << VERSATILE_TIMER2_EnSel) | 
+	       (VERSATILE_TIMCLK << VERSATILE_TIMER2_EnSel) |
 	       (VERSATILE_TIMCLK << VERSATILE_TIMER3_EnSel) |
 	       (VERSATILE_TIMCLK << VERSATILE_TIMER4_EnSel) | val,
 	       __io_address(VERSATILE_SCTL_BASE));
@@ -889,11 +889,10 @@ static void __init versatile_timer_init(void)
 	writel(0, TIMER2_VA_BASE + TIMER_CTRL);
 	writel(0, TIMER3_VA_BASE + TIMER_CTRL);
 
-	sp804_clocksource_init(TIMER3_VA_BASE);
+	sp804_clocksource_init(TIMER3_VA_BASE, VERSATILE_TIMER2_3_BASE + 0x20);
 	sp804_clockevents_init(TIMER0_VA_BASE, IRQ_TIMERINT0_1);
 }
 
 struct sys_timer versatile_timer = {
 	.init		= versatile_timer_init,
 };
-

@@ -1234,6 +1234,6 @@ int __init mx21_clocks_init(unsigned long lref, unsigned long href)
 #endif
 
 	mxc_timer_init(&gpt_clk[0], MX21_IO_ADDRESS(MX21_GPT1_BASE_ADDR),
-			MX21_INT_GPT1);
+		       MX21_GPT1_BASE_ADDR, MX21_INT_GPT1);
 	return 0;
 }

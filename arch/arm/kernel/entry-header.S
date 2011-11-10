@@ -165,6 +165,12 @@
 	.endm
 #endif	/* !CONFIG_THUMB2_KERNEL */
 
+       .macro slow_restore_user_regs
+	/* perform architecture specific actions before user return */
+	arch_ret_to_user r1, lr
+	restore_user_regs fast = 0, offset = 0
+       .endm
+
 /*
  * These are the registers used in the syscall handler, and allow us to
  * have in theory up to 7 arguments to a function - r0 to r6.

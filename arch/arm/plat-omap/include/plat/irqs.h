@@ -416,6 +416,8 @@
 #define INTCPS_NR_MIR_REGS	3
 #define INTCPS_NR_IRQS		96
 
+#define __IPIPE_FEATURE_PIC_MUTE
+
 #ifndef __ASSEMBLY__
 extern void omap_init_irq(void);
 extern int omap_irq_pending(void);

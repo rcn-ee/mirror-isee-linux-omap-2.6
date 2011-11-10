@@ -86,6 +86,7 @@ obj-$(CONFIG_TREE_PREEMPT_RCU) += rcutree.o
 obj-$(CONFIG_TREE_RCU_TRACE) += rcutree_trace.o
 obj-$(CONFIG_TINY_RCU) += rcutiny.o
 obj-$(CONFIG_RELAY) += relay.o
+obj-$(CONFIG_IPIPE) += ipipe/
 obj-$(CONFIG_SYSCTL) += utsname_sysctl.o
 obj-$(CONFIG_TASK_DELAY_ACCT) += delayacct.o
 obj-$(CONFIG_TASKSTATS) += taskstats.o tsacct.o
@@ -136,3 +137,5 @@ quiet_cmd_timeconst  = TIMEC   $@
 targets += timeconst.h
 $(obj)/timeconst.h: $(src)/timeconst.pl FORCE
 	$(call if_changed,timeconst)
+
+obj-$(CONFIG_XENOMAI) += xenomai/

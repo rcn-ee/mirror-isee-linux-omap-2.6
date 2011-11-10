@@ -87,6 +87,6 @@
 #define AT572D940HF_MASTER_CLOCK	80000000
 #define CLOCK_TICK_RATE		(AT572D940HF_MASTER_CLOCK/16)
 
-#endif
+#endif /* arch specific */
 
 #endif

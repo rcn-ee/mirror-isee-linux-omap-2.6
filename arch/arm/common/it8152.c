@@ -25,6 +25,7 @@
 #include <linux/ioport.h>
 #include <linux/irq.h>
 #include <linux/io.h>
+#include <linux/ipipe.h>
 
 #include <asm/mach/pci.h>
 #include <asm/hardware/it8152.h>
@@ -119,21 +120,21 @@ void it8152_irq_demux(unsigned int irq, struct irq_desc *desc)
 	       bits_pd &= ((1 << IT8152_PD_IRQ_COUNT) - 1);
 	       while (bits_pd) {
 		       i = __ffs(bits_pd);
-		       generic_handle_irq(IT8152_PD_IRQ(i));
+		       ipipe_handle_chained_irq(IT8152_PD_IRQ(i));
 		       bits_pd &= ~(1 << i);
 	       }
 
 	       bits_lp &= ((1 << IT8152_LP_IRQ_COUNT) - 1);
 	       while (bits_lp) {
 		       i = __ffs(bits_lp);
-		       generic_handle_irq(IT8152_LP_IRQ(i));
+		       ipipe_handle_chained_irq(IT8152_LP_IRQ(i));
 		       bits_lp &= ~(1 << i);
 	       }
 
 	       bits_ld &= ((1 << IT8152_LD_IRQ_COUNT) - 1);
 	       while (bits_ld) {
 		       i = __ffs(bits_ld);
-		       generic_handle_irq(IT8152_LD_IRQ(i));
+		       ipipe_handle_chained_irq(IT8152_LD_IRQ(i));
 		       bits_ld &= ~(1 << i);
 	       }
        }

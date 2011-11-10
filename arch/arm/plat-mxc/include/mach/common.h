@@ -32,7 +32,7 @@ extern void mx31_init_irq(void);
 extern void mx35_init_irq(void);
 extern void mx51_init_irq(void);
 extern void mxc91231_init_irq(void);
-extern void mxc_timer_init(struct clk *timer_clk, void __iomem *, int);
+extern void mxc_timer_init(struct clk *timer_clk, void __iomem *, unsigned long, int);
 extern int mx1_clocks_init(unsigned long fref);
 extern int mx21_clocks_init(unsigned long lref, unsigned long fref);
 extern int mx25_clocks_init(void);
@@ -49,5 +49,9 @@ extern void mxc_arch_reset_init(void __iomem *);
 extern void mxc91231_power_off(void);
 extern void mxc91231_arch_reset(int, const char *);
 extern void mxc91231_prepare_idle(void);
+
+#ifdef CONFIG_IPIPE
+void ipipe_mach_allow_hwtimer_uaccess(unsigned long aips1, unsigned long aips2);
+#endif
 
 #endif

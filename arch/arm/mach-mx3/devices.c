@@ -22,6 +22,7 @@
 #include <linux/platform_device.h>
 #include <linux/serial.h>
 #include <linux/gpio.h>
+#include <mach/common.h>
 #include <mach/hardware.h>
 #include <mach/irqs.h>
 #include <mach/common.h>
@@ -658,3 +659,15 @@ static int __init mx3_devices_init(void)
 }
 
 subsys_initcall(mx3_devices_init);
+
+#ifdef CONFIG_IPIPE
+static int post_cpu_init(void)
+{
+	if (cpu_is_mx31())
+		ipipe_mach_allow_hwtimer_uaccess(AIPS1_BASE_ADDR_VIRT,
+						 AIPS2_BASE_ADDR_VIRT);
+	return 0;
+}
+
+postcore_initcall(post_cpu_init);
+#endif /* CONFIG_IPIPE */

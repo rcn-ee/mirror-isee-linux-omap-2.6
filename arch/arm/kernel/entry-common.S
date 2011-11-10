@@ -2,6 +2,7 @@
  *  linux/arch/arm/kernel/entry-common.S
  *
  *  Copyright (C) 2000 Russell King
+ *  Copyright (C) 2005 Stelian Pop.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -34,6 +35,13 @@ ret_fast_syscall:
 	arch_ret_to_user r1, lr
 
 	restore_user_regs fast = 1, offset = S_OFF
+
+#ifdef CONFIG_IPIPE
+__ipipe_fast_exit_syscall:
+	disable_irq				@ disable interrupts
+	slow_restore_user_regs
+#endif /* CONFIG_IPIPE */
+
  UNWIND(.fnend		)
 
 /*
@@ -46,12 +54,14 @@ work_pending:
 	bne	work_resched
 	tst	r1, #_TIF_SIGPENDING|_TIF_NOTIFY_RESUME
 	beq	no_work_pending
+	enable_irq_cond
 	mov	r0, sp				@ 'regs'
 	mov	r2, why				@ 'syscall'
 	bl	do_notify_resume
 	b	ret_slow_syscall		@ Check work again
 
 work_resched:
+	enable_irq_cond
 	bl	schedule
 /*
  * "slow" syscall return path.  "why" tells us if this was a real syscall.
@@ -63,16 +73,14 @@ ret_slow_syscall:
 	tst	r1, #_TIF_WORK_MASK
 	bne	work_pending
 no_work_pending:
-	/* perform architecture specific actions before user return */
-	arch_ret_to_user r1, lr
-
-	restore_user_regs fast = 0, offset = 0
+	slow_restore_user_regs
 ENDPROC(ret_to_user)
 
 /*
  * This is how we return from a fork.
  */
 ENTRY(ret_from_fork)
+	enable_irq_cond
 	bl	schedule_tail
 	get_thread_info tsk
 	ldr	r1, [tsk, #TI_FLAGS]		@ check for syscall tracing
@@ -255,9 +263,13 @@ ENTRY(vector_swi)
 #endif
 	enable_irq
 
+#ifndef	CONFIG_IPIPE
 	get_thread_info tsk
 	adr	tbl, sys_call_table		@ load syscall table pointer
 	ldr	ip, [tsk, #TI_FLAGS]		@ check for syscall tracing
+#else /* CONFIG_IPIPE */
+	adr	tbl, sys_call_table		@ load syscall table pointer
+#endif /* CONFIG_IPIPE */
 
 #if defined(CONFIG_OABI_COMPAT)
 	/*
@@ -274,6 +286,17 @@ ENTRY(vector_swi)
 	eor	scno, scno, #__NR_SYSCALL_BASE	@ check OS number
 #endif
 
+#ifdef CONFIG_IPIPE
+	mov	r1, sp
+	mov	r0, scno
+	bl	__ipipe_syscall_root
+	cmp	r0, #0
+	get_thread_info tsk
+	blt	ret_slow_syscall
+	bgt	__ipipe_fast_exit_syscall
+	ldm	sp, { r0 - r3 }
+	ldr	ip, [tsk, #TI_FLAGS]		@ check for syscall tracing
+#endif /* CONFIG_IPIPE */
 	stmdb	sp!, {r4, r5}			@ push fifth and sixth args
 	tst	ip, #_TIF_SYSCALL_TRACE		@ are we tracing syscalls?
 	bne	__sys_trace
@@ -321,6 +344,9 @@ __sys_trace_return:
 	.type	__cr_alignment, #object
 __cr_alignment:
 	.word	cr_alignment
+#endif
+#ifdef CONFIG_IPIPE
+	.word	__ipipe_syscall_root
 #endif
 	.ltorg
 
@@ -477,3 +503,28 @@ ENTRY(sys_oabi_call_table)
 
 #endif
 
+
+#ifdef CONFIG_FRAME_POINTER
+
+	.text
+	.align 0
+	.type arm_return_addr %function
+	.global arm_return_addr
+
+arm_return_addr:
+	mov	ip, r0
+	mov	r0, fp
+3:
+	cmp	r0, #0
+	beq	1f		@ frame list hit end, bail
+	cmp	ip, #0
+	beq	2f		@ reached desired frame
+	ldr	r0, [r0, #-12]  @ else continue, get next fp
+	sub	ip, ip, #1
+	b	3b
+2:
+	ldr	r0, [r0, #-4]   @ get target return address
+1:
+	mov	pc, lr
+
+#endif

@@ -4,6 +4,7 @@
  *  Copyright (C) 1996,1997,1998 Russell King.
  *  ARM700 fix by Matthew Godbolt (linux-user@willothewisp.demon.co.uk)
  *  nommu support by Hyok S. Choi (hyok.choi@samsung.com)
+ *  Copyright (C) 2005 Stelian Pop.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -30,13 +31,18 @@
  */
 	.macro	irq_handler
 	get_irqnr_preamble r5, lr
-1:	get_irqnr_and_base r0, r6, r5, lr
+1:	get_irqnr_and_base r1, r6, r5, lr
+	movne	r0, r1
 	movne	r1, sp
 	@
 	@ routine called with r0 = irq number, r1 = struct pt_regs *
 	@
 	adrne	lr, BSYM(1b)
+#ifdef CONFIG_IPIPE
+	bne	__ipipe_grab_irq
+#else
 	bne	asm_do_IRQ
+#endif
 
 #ifdef CONFIG_SMP
 	/*
@@ -45,18 +51,45 @@
 	 * this macro assumes that irqstat (r6) and base (r5) are
 	 * preserved from get_irqnr_and_base above
 	 */
-	test_for_ipi r0, r6, r5, lr
+	test_for_ipi r1, r6, r5, lr
 	movne	r0, sp
 	adrne	lr, BSYM(1b)
+#ifdef CONFIG_IPIPE
+	bne	__ipipe_grab_ipi
+#else
 	bne	do_IPI
+#endif
 
 #ifdef CONFIG_LOCAL_TIMERS
-	test_for_ltirq r0, r6, r5, lr
+	test_for_ltirq r1, r6, r5, lr
 	movne	r0, sp
 	adrne	lr, BSYM(1b)
+#ifdef CONFIG_IPIPE
+	bne	__ipipe_grab_localtimer
+#else
 	bne	do_local_timer
 #endif
 #endif
+#endif
+#ifdef CONFIG_IPIPE
+#if !defined(CONFIG_SMP)
+	ldr	r0, =ipipe_percpu_domain
+	ldr	r1, =ipipe_root
+	ldr	r0, [r0]
+	cmp	r0, r1
+#if __GNUC__ >= 4
+	ldreq	r0, =__ipipe_root_status
+#else /* gcc < 4 */
+	ldreq 	r0, =__ipipe_root_status_addr
+	ldreq	r0, [r0]
+#endif /* gcc < 4 */
+	ldreq	r0, [r0]
+	tsteq	r0, #1
+#else /* CONFIG_SMP */
+	bl	__ipipe_check_root_interruptible
+	cmp	r0, #1
+#endif /* CONFIG_SMP */
+#endif /* CONFIG_IPIPE */
 
 	.endm
 
@@ -76,6 +109,21 @@
  THUMB(	str	sp, [sp, #S_SP]		)
  THUMB(	str	lr, [sp, #S_LR]		)
 	mov	r1, #\reason
+	.endm
+
+	.macro fcse_dabt_mva_to_va
+#ifdef	CONFIG_ARM_FCSE
+	@
+	@ If FCSE is enabled the data abort fault address must be
+	@ converted from MVA to VA. This must happen before the irqs are
+	@ enabled if PREEMPT is enabled, as context switches may
+	@ change the FCSE pid.
+	@
+	mrc     p15, 0, r2, c13, c0, 0
+	eor	r2, r2, r0
+	tst	r2, #0xfe000000
+	moveq   r0, r2
+#endif
 	.endm
 
 __pabt_invalid:
@@ -191,6 +239,7 @@ __dabt_svc:
 #else
 	bl	CPU_DABORT_HANDLER
 #endif
+	fcse_dabt_mva_to_va
 
 	@
 	@ set desired IRQ state, then call main handler
@@ -221,14 +270,25 @@ __irq_svc:
 #endif
 #ifdef CONFIG_PREEMPT
 	get_thread_info tsk
+#ifndef CONFIG_IPIPE
 	ldr	r8, [tsk, #TI_PREEMPT]		@ get preempt count
 	add	r7, r8, #1			@ increment it
 	str	r7, [tsk, #TI_PREEMPT]
 #endif
+#endif
 
 	irq_handler
+#ifdef CONFIG_IPIPE
+	ldrne	r4, [sp, #S_PSR]		@ irqs are already disabled
+	bne	__ipipe_fast_svc_irq_exit
+#endif
+
 #ifdef CONFIG_PREEMPT
+#ifndef	CONFIG_IPIPE
 	str	r8, [tsk, #TI_PREEMPT]		@ restore preempt count
+#else
+	ldr	r8, [tsk, #TI_PREEMPT]
+#endif
 	ldr	r0, [tsk, #TI_FLAGS]		@ get flags
 	teq	r8, #0				@ if preempt count != 0
 	movne	r0, #0				@ force flags to 0
@@ -240,6 +300,9 @@ __irq_svc:
 	tst	r4, #PSR_I_BIT
 	bleq	trace_hardirqs_on
 #endif
+#ifdef CONFIG_IPIPE
+__ipipe_fast_svc_irq_exit:
+#endif
 	svc_exit r4				@ return from exception
  UNWIND(.fnend		)
 ENDPROC(__irq_svc)
@@ -249,12 +312,16 @@ ENDPROC(__irq_svc)
 #ifdef CONFIG_PREEMPT
 svc_preempt:
 	mov	r8, lr
+#ifndef CONFIG_IPIPE
 1:	bl	preempt_schedule_irq		@ irq en/disable is done inside
+#else /* CONFIG_IPIPE */
+1:	bl	__ipipe_preempt_schedule_irq	@ irq en/disable is done inside
+#endif /* CONFIG_IPIPE */
 	ldr	r0, [tsk, #TI_FLAGS]		@ get new tasks TI_FLAGS
 	tst	r0, #_TIF_NEED_RESCHED
 	moveq	pc, r8				@ go again
 	b	1b
-#endif
+#endif /* CONFIG_PREEMPT */
 
 	.align	5
 __und_svc:
@@ -267,6 +334,15 @@ __und_svc:
 	svc_entry
 #endif
 
+#ifdef CONFIG_IPIPE
+	mov	r4, r2
+	mov	r0, #7				@ r0 = IPIPE_TRAP_UNDEFINSTR
+	mov	r1, sp				@ r1 = &regs
+	bl	__ipipe_dispatch_event		@ branch to trap handler
+	cmp	r0, #0
+	bne	1f
+	mov	r2, r4
+#endif /* CONFIG_IPIPE */
 	@
 	@ call emulation code, which returns using r9 if it has emulated
 	@ the instruction, or the more conventional lr if we are to treat
@@ -432,6 +508,7 @@ __dabt_usr:
 #else
 	bl	CPU_DABORT_HANDLER
 #endif
+	fcse_dabt_mva_to_va
 
 	@
 	@ IRQs on, then call the main handler
@@ -450,19 +527,28 @@ __irq_usr:
 
 	get_thread_info tsk
 #ifdef CONFIG_PREEMPT
+#ifndef CONFIG_IPIPE
 	ldr	r8, [tsk, #TI_PREEMPT]		@ get preempt count
 	add	r7, r8, #1			@ increment it
 	str	r7, [tsk, #TI_PREEMPT]
 #endif
+#endif
 
 	irq_handler
+#ifdef CONFIG_IPIPE
+	beq	__ipipe_usr_irq_continue
+	slow_restore_user_regs 		@ Fast exit path over non-root domains
+__ipipe_usr_irq_continue:
+#endif
 #ifdef CONFIG_PREEMPT
+#ifndef CONFIG_IPIPE
 	ldr	r0, [tsk, #TI_PREEMPT]
 	str	r8, [tsk, #TI_PREEMPT]
 	teq	r0, r7
  ARM(	strne	r0, [r0, -r0]	)
  THUMB(	movne	r0, #0		)
  THUMB(	strne	r0, [r0]	)
+#endif
 #endif
 
 	mov	why, #0
@@ -476,6 +562,17 @@ ENDPROC(__irq_usr)
 __und_usr:
 	usr_entry
 
+#ifdef CONFIG_IPIPE
+	mov	r0, #7				@ r0 = IPIPE_TRAP_UNDEFINSTR
+	mov	r1, sp				@ r1 = &regs
+	mov	r4, r2
+	mov	r5, r3
+	bl	__ipipe_dispatch_event		@ branch to trap handler
+	cmp	r0, #0
+	bne	ret_from_exception
+	mov	r2, r4
+	mov	r3, r5
+#endif /* CONFIG_IPIPE */
 	@
 	@ fall through to the emulation code, which returns using r9 if
 	@ it has emulated the instruction, or the more conventional lr
@@ -711,6 +808,20 @@ __pabt_usr:
 ENTRY(ret_from_exception)
  UNWIND(.fnstart	)
  UNWIND(.cantunwind	)
+#ifdef CONFIG_IPIPE
+#if !defined(CONFIG_SMP)
+	ldr	r0, =ipipe_percpu_domain
+	ldr	r1, =ipipe_root
+	ldr	r0, [r0]
+	cmp	r0, r1
+#else /* CONFIG_SMP */
+	bl     __ipipe_check_root
+	cmp     r0, #1
+#endif /* CONFIG_SMP */
+	beq     1f
+	slow_restore_user_regs          @ Fast exit path over non-root domains
+1:
+#endif /* CONFIG_IPIPE */
 	get_thread_info tsk
 	mov	why, #0
 	b	ret_to_user
@@ -748,7 +859,11 @@ ENTRY(__switch_to)
 	add	r4, r2, #TI_CPU_SAVE
 	ldr	r0, =thread_notify_head
 	mov	r1, #THREAD_NOTIFY_SWITCH
+#ifndef CONFIG_IPIPE
 	bl	atomic_notifier_call_chain
+#else /* !CONFIG_IPIPE */
+	bl	__ipipe_switch_to_notifier_call_chain
+#endif /* !CONFIG_IPIPE */
  THUMB(	mov	ip, r4			   )
 	mov	r0, r5
  ARM(	ldmia	r4, {r4 - sl, fp, sp, pc}  )	@ Load all regs saved previously
@@ -799,6 +914,50 @@ ENDPROC(__switch_to)
 #endif
 	.endm
 
+#ifdef CONFIG_IPIPE
+/*
+	I-pipe tsc area, here we store data shared with user-space for
+	tsc-emulation. If CONFIG_IPIPE_ARM_KUSER_TSC is enabled
+	__ipipe_kuser_get_tsc will be overwritten with the real TSC
+	emulation code.
+*/
+	.globl	__ipipe_tsc_area
+	.equ	__ipipe_tsc_area, CONFIG_VECTORS_BASE + 0x1000 + __ipipe_tsc_area_start - __kuser_helper_end
+
+#ifdef CONFIG_IPIPE_ARM_KUSER_TSC
+	.globl  __ipipe_tsc_addr
+	.equ	__ipipe_tsc_addr, CONFIG_VECTORS_BASE + 0x1000 + .LCcntr_addr - __kuser_helper_end
+
+	.globl	__ipipe_tsc_get
+	.equ	__ipipe_tsc_get, CONFIG_VECTORS_BASE + 0x1000 + __ipipe_kuser_get_tsc - __kuser_helper_end
+#endif
+
+	.align 5
+	.globl  __ipipe_tsc_area_start
+__ipipe_tsc_area_start:
+	.rep  3
+	.word 0
+	.endr
+
+#ifdef CONFIG_IPIPE_ARM_KUSER_TSC
+	.rep  4
+	.word 0
+	.endr
+.LCcntr_addr:
+	.word 0
+
+	.align 5
+__ipipe_kuser_get_tsc:
+	nop
+	mov	r0, #0
+	mov	r1, #0
+	usr_ret	lr
+	.rep 20
+	.word 0
+	.endr
+#endif
+#endif
+
 	.align	5
 	.globl	__kuser_helper_start
 __kuser_helper_start:
@@ -832,7 +991,7 @@ __kuser_helper_start:
  *
  * #define __kernel_dmb() \
  *         asm volatile ( "mov r0, #0xffff0fff; mov lr, pc; sub pc, r0, #95" \
- *	        : : : "r0", "lr","cc" )
+ *		: : : "r0", "lr","cc" )
  */
 
 __kuser_memory_barrier:				@ 0xffff0fa0
@@ -1000,7 +1159,7 @@ kuser_cmpxchg_fixup:
  * #define __kernel_get_tls() \
  *	({ register unsigned int __val asm("r0"); \
  *         asm( "mov r0, #0xffff0fff; mov lr, pc; sub pc, r0, #31" \
- *	        : "=r" (__val) : : "lr","cc" ); \
+ *		: "=r" (__val) : : "lr","cc" ); \
  *	   __val; })
  */
 

@@ -105,6 +105,9 @@ static void mxc_unmask_irq(unsigned int irq)
 static struct irq_chip mxc_avic_chip = {
 	.ack = mxc_mask_irq,
 	.mask = mxc_mask_irq,
+#ifdef CONFIG_IPIPE
+	.mask_ack = mxc_mask_irq,
+#endif
 	.unmask = mxc_unmask_irq,
 };
 
@@ -152,4 +155,3 @@ void __init mxc_init_irq(void __iomem *irqbase)
 
 	printk(KERN_INFO "MXC IRQ initialized\n");
 }
-

@@ -261,12 +261,21 @@
 
 #ifdef CONFIG_MMU
 
-#define cpu_switch_mm(pgd,mm) cpu_do_switch_mm(virt_to_phys(pgd),mm)
+#ifndef CONFIG_ARM_FCSE_BEST_EFFORT
+#define cpu_switch_mm(pgd,mm,fcse_switch)			\
+	({							\
+		fcse_switch;					\
+		cpu_do_switch_mm(virt_to_phys(pgd), (mm));	\
+	})
+#else /* CONFIG_ARM_FCSE_BEST_EFFORT */
+#define cpu_switch_mm(pgd,mm,fcse_switch)	\
+	cpu_do_switch_mm(virt_to_phys(pgd), (mm), (fcse_switch))
+#endif /* CONFIG_ARM_FCSE_BEST_EFFORT */
 
 #define cpu_get_pgd()	\
 	({						\
 		unsigned long pg;			\
-		__asm__("mrc	p15, 0, %0, c2, c0, 0"	\
+		__asm__ __volatile__ ("mrc	p15, 0, %0, c2, c0, 0"	\
 			 : "=r" (pg) : : "cc");		\
 		pg &= ~0x3fff;				\
 		(pgd_t *)phys_to_virt(pg);		\

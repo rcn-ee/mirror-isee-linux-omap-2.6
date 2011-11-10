@@ -15,6 +15,7 @@
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <mach/hardware.h>
+#include <asm/ipipe.h>
 #include <asm/mach/irq.h>
 
 
@@ -32,8 +33,15 @@
 #define INTC_MIR_CLEAR0		0x0088
 #define INTC_MIR_SET0		0x008c
 #define INTC_PENDING_IRQ0	0x0098
+#define INTC_PRIO               0x0100
 /* Number of IRQ state bits in each MIR register */
 #define IRQ_BITS_PER_REG	32
+
+#if !defined(MULTI_OMAP1) && !defined(MULTI_OMAP2)
+#define inline_single inline
+#else
+#define inline_single
+#endif
 
 /*
  * OMAP2 has a number of different interrupt controllers, each interrupt
@@ -66,12 +74,12 @@ static struct omap3_intc_regs intc_context[ARRAY_SIZE(irq_banks)];
 
 /* INTC bank register get/set */
 
-static void intc_bank_write_reg(u32 val, struct omap_irq_bank *bank, u16 reg)
+static inline_single void intc_bank_write_reg(u32 val, struct omap_irq_bank *bank, u16 reg)
 {
 	__raw_writel(val, bank->base_reg + reg);
 }
 
-static u32 intc_bank_read_reg(struct omap_irq_bank *bank, u16 reg)
+static inline_single u32 intc_bank_read_reg(struct omap_irq_bank *bank, u16 reg)
 {
 	return __raw_readl(bank->base_reg + reg);
 }
@@ -83,7 +91,7 @@ static int previous_irq;
  * an interrupt handler does not get posted before we unmask. Warn about
  * the interrupt handlers that need to flush posted writes.
  */
-static int omap_check_spurious(unsigned int irq)
+static inline_single int omap_check_spurious(unsigned int irq)
 {
 	u32 sir, spurious;
 
@@ -101,12 +109,13 @@ static int omap_check_spurious(unsigned int irq)
 }
 
 /* XXX: FIQ and additional INTC support (only MPU at the moment) */
-static void omap_ack_irq(unsigned int irq)
+static inline_single void omap_ack_irq(unsigned int irq)
 {
 	intc_bank_write_reg(0x1, &irq_banks[0], INTC_CONTROL);
+	dsb();
 }
 
-static void omap_mask_irq(unsigned int irq)
+static inline_single void omap_mask_irq(unsigned int irq)
 {
 	int offset = irq & (~(IRQ_BITS_PER_REG - 1));
 
@@ -148,6 +157,7 @@ static struct irq_chip omap_irq_chip = {
 	.name	= "INTC",
 	.ack	= omap_mask_ack_irq,
 	.mask	= omap_mask_irq,
+	.mask_ack = omap_mask_ack_irq,
 	.unmask	= omap_unmask_irq,
 };
 
@@ -167,8 +177,15 @@ static void __init omap_irq_bank_init_one(struct omap_irq_bank *bank)
 	while (!(intc_bank_read_reg(bank, INTC_SYSSTATUS) & 0x1))
 		/* Wait for reset to complete */;
 
+#ifndef CONFIG_IPIPE
 	/* Enable autoidle */
 	intc_bank_write_reg(1 << 0, bank, INTC_SYSCONFIG);
+	intc_bank_write_reg(0x2, bank, INTC_IDLE);
+#else /* CONFIG_IPIPE */
+	/* Disable autoidle */
+	intc_bank_write_reg(0, bank, INTC_SYSCONFIG);
+	intc_bank_write_reg(0x1, bank, INTC_IDLE);
+#endif /* CONFIG_IPIPE */
 }
 
 int omap_irq_pending(void)
@@ -226,6 +243,65 @@ void __init omap_init_irq(void)
 		set_irq_flags(i, IRQF_VALID);
 	}
 }
+
+#if defined(CONFIG_IPIPE) && defined(__IPIPE_FEATURE_PIC_MUTE)
+DECLARE_PER_CPU(__ipipe_irqbits_t, __ipipe_muted_irqs);
+
+void omap_mute_pic(void)
+{
+	struct omap_irq_bank *bank = &irq_banks[0];
+	unsigned muted;
+	int i;
+
+	if (cpu_is_omap34xx()) {
+		intc_bank_write_reg(0x1, bank, INTC_THRESHOLD);
+		intc_bank_write_reg(0x1, bank, INTC_CONTROL);
+		return;
+	}
+
+	for (i = 0; i < INTCPS_NR_MIR_REGS; i++) {
+		muted = __ipipe_irqbits[i];
+		if (muted)
+			muted &= ~intc_bank_read_reg(bank,
+						     INTC_MIR0 + 0x20 * i);
+		__raw_get_cpu_var(__ipipe_muted_irqs)[i] = muted;
+		if (muted)
+			intc_bank_write_reg(muted, bank,
+					    INTC_MIR_SET0 + 0x20 * i);
+	}
+	intc_bank_write_reg(0x1, bank, INTC_CONTROL);
+}
+
+void omap_unmute_pic(void)
+{
+	struct omap_irq_bank *bank = &irq_banks[0];
+	unsigned muted;
+	int i;
+
+	if (cpu_is_omap34xx()) {
+		intc_bank_write_reg(0xff, bank, INTC_THRESHOLD);
+		return;
+	}
+
+	for (i = 0; i < INTCPS_NR_MIR_REGS; i++) {
+		muted = __raw_get_cpu_var(__ipipe_muted_irqs)[i];
+		if (muted)
+			intc_bank_write_reg(muted, bank,
+					    INTC_MIR_CLEAR0 + 0x20 * i);
+	}
+}
+
+void omap_set_irq_prio(int irq, int hi)
+{
+	if (cpu_is_omap34xx()) {
+		struct omap_irq_bank *bank = &irq_banks[0];
+
+		if (irq >= INTCPS_NR_MIR_REGS * 32)
+			return;
+		intc_bank_write_reg(hi ? 0 : 0xfc, bank, INTC_PRIO + 4 * irq);
+	}
+}
+#endif /* __IPIPE_FEATURE_PIC_MUTE */
 
 #ifdef CONFIG_ARCH_OMAP3
 void omap_intc_save_context(void)

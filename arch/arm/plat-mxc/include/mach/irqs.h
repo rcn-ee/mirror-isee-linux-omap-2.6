@@ -69,4 +69,8 @@ extern int imx_irq_set_priority(unsigned char irq, unsigned char prio);
 /* switch betwean IRQ and FIQ */
 extern int mxc_set_irq_fiq(unsigned int irq, unsigned int type);
 
+#ifdef CONFIG_MXC_TZIC
+#define __IPIPE_FEATURE_PIC_MUTE
+#endif /* CONFIG_MXC_TZIC */
+
 #endif /* __ASM_ARCH_MXC_IRQS_H__ */

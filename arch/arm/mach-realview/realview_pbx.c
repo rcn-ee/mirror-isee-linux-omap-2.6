@@ -324,6 +324,7 @@ static void __init realview_pbx_timer_init(void)
 	timer1_va_base = __io_address(REALVIEW_PBX_TIMER0_1_BASE) + 0x20;
 	timer2_va_base = __io_address(REALVIEW_PBX_TIMER2_3_BASE);
 	timer3_va_base = __io_address(REALVIEW_PBX_TIMER2_3_BASE) + 0x20;
+	timer3_pa_base = REALVIEW_PBX_TIMER2_3_BASE + 0x20;
 
 #ifdef CONFIG_LOCAL_TIMERS
 	if (core_tile_pbx11mp() || core_tile_pbxa9mp())

@@ -242,7 +242,8 @@ int __init mx25_clocks_init(void)
 	/* Clock source for lcdc is upll */
 	__raw_writel(__raw_readl(CRM_BASE+0x64) | (1 << 7), CRM_BASE + 0x64);
 
-	mxc_timer_init(&gpt_clk, MX25_IO_ADDRESS(MX25_GPT1_BASE_ADDR), 54);
+	mxc_timer_init(&gpt_clk, MX25_IO_ADDRESS(MX25_GPT1_BASE_ADDR),
+		       MX25_GPT1_BASE_ADDR, 54);
 
 	return 0;
 }

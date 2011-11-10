@@ -24,7 +24,11 @@
 #else /* CONFIG_GENERIC_HARDIRQS */
 
 extern int nr_irqs;
+#if !defined(CONFIG_IPIPE) || defined(CONFIG_SPARSE_IRQ)
 extern struct irq_desc *irq_to_desc(unsigned int irq);
+#else
+#define irq_to_desc(irq)	(&irq_desc[irq])
+#endif
 
 # define for_each_irq_desc(irq, desc)					\
 	for (irq = 0, desc = irq_to_desc(irq); irq < nr_irqs;		\

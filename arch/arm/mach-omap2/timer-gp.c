@@ -35,6 +35,7 @@
 #include <linux/irq.h>
 #include <linux/clocksource.h>
 #include <linux/clockchips.h>
+#include <linux/ipipe.h>
 
 #include <asm/mach/time.h>
 #include <plat/dmtimer.h>
@@ -48,13 +49,31 @@ static struct clock_event_device clockevent_gpt;
 static u8 __initdata gptimer_id = 1;
 static u8 __initdata inited;
 struct omap_dm_timer *gptimer_wakeup;
+#ifndef CONFIG_OMAP_32K_TIMER
+static struct omap_dm_timer *gpt_clocksource;
+#endif /* !CONFIG_OMAP_32K_TIMER */
 
+#ifdef CONFIG_IPIPE
+int __ipipe_mach_timerint;
+EXPORT_SYMBOL(__ipipe_mach_timerint);
+
+int __ipipe_mach_timerstolen;
+EXPORT_SYMBOL(__ipipe_mach_timerstolen);
+
+unsigned int __ipipe_mach_ticks_per_jiffy;
+EXPORT_SYMBOL(__ipipe_mach_ticks_per_jiffy);
+
+#endif /* CONFIG_IPIPE */
 static irqreturn_t omap2_gp_timer_interrupt(int irq, void *dev_id)
 {
-	struct omap_dm_timer *gpt = (struct omap_dm_timer *)dev_id;
 	struct clock_event_device *evt = &clockevent_gpt;
+#ifndef CONFIG_IPIPE
+	struct omap_dm_timer *gpt = (struct omap_dm_timer *)dev_id;
 
 	omap_dm_timer_write_status(gpt, OMAP_TIMER_INT_OVERFLOW);
+#else /* CONFIG_IPIPE */
+	__ipipe_tsc_update();
+#endif /* CONFIG_IPIPE */
 
 	evt->event_handler(evt);
 	return IRQ_HANDLED;
@@ -124,6 +143,22 @@ int __init omap2_gp_clockevent_set_gptimer(u8 id)
 	return 0;
 }
 
+#ifdef CONFIG_IPIPE
+static struct __ipipe_tscinfo tsc_info = {
+	.type = IPIPE_TSC_TYPE_FREERUNNING,
+	.u = {
+		{
+			.mask = 0xffffffff,
+		},
+	},
+};
+
+int __ipipe_check_tickdev(const char *devname)
+{
+	return !strcmp(devname, clockevent_gpt.name);
+}
+#endif /* CONFIG_IPIPE */
+
 static void __init omap2_gp_clockevent_init(void)
 {
 	u32 tick_rate;
@@ -131,7 +166,7 @@ static void __init omap2_gp_clockevent_init(void)
 
 	inited = 1;
 
-	gptimer = omap_dm_timer_request_specific(gptimer_id);
+	gptimer = omap_dm_timer_request_specific_nonposted(gptimer_id);
 	BUG_ON(gptimer == NULL);
 	gptimer_wakeup = gptimer;
 
@@ -153,6 +188,12 @@ static void __init omap2_gp_clockevent_init(void)
 		gptimer_id, tick_rate);
 
 	omap2_gp_timer_irq.dev_id = (void *)gptimer;
+
+#ifdef CONFIG_IPIPE
+	__ipipe_mach_timerint = omap_dm_timer_get_irq(gptimer);
+	__ipipe_mach_ticks_per_jiffy = (tick_rate + HZ / 2) / HZ;
+#endif /* CONFIG_IPIPE */
+
 	setup_irq(omap_dm_timer_get_irq(gptimer), &omap2_gp_timer_irq);
 	omap_dm_timer_set_int_enable(gptimer, OMAP_TIMER_INT_OVERFLOW);
 
@@ -163,7 +204,6 @@ static void __init omap2_gp_clockevent_init(void)
 	clockevent_gpt.min_delta_ns =
 		clockevent_delta2ns(3, &clockevent_gpt);
 		/* Timer internal resynch latency. */
-
 	clockevent_gpt.cpumask = cpumask_of(0);
 	clockevents_register_device(&clockevent_gpt);
 }
@@ -171,10 +211,10 @@ static void __init omap2_gp_clockevent_init(void)
 /* Clocksource code */
 
 #ifdef CONFIG_OMAP_32K_TIMER
-/* 
+/*
  * When 32k-timer is enabled, don't use GPTimer for clocksource
  * instead, just leave default clocksource which uses the 32k
- * sync counter.  See clocksource setup in see plat-omap/common.c. 
+ * sync counter.  See clocksource setup in see plat-omap/common.c.
  */
 
 static inline void __init omap2_gp_clocksource_init(void) {}
@@ -182,7 +222,6 @@ static inline void __init omap2_gp_clocksource_init(void) {}
 /*
  * clocksource
  */
-static struct omap_dm_timer *gpt_clocksource;
 static cycle_t clocksource_read_cycles(struct clocksource *cs)
 {
 	return (cycle_t)omap_dm_timer_read_counter(gpt_clocksource);
@@ -207,7 +246,11 @@ static void __init omap2_gp_clocksource_init(void)
 	static char err2[] __initdata = KERN_ERR
 		"%s: can't register clocksource!\n";
 
+#ifdef CONFIG_IPIPE
+	gpt = omap_dm_timer_request_specific(3);
+#else
 	gpt = omap_dm_timer_request();
+#endif
 	if (!gpt)
 		printk(err1, clocksource_gpt.name);
 	gpt_clocksource = gpt;
@@ -218,8 +261,18 @@ static void __init omap2_gp_clocksource_init(void)
 
 	omap_dm_timer_set_load_start(gpt, 1, 0);
 
+#ifdef CONFIG_IPIPE
+	tsc_info.freq = tick_rate;
+	tsc_info.counter_vaddr =
+		omap_dm_timer_get_virt_counter_addr(gpt_clocksource);
+	tsc_info.u.counter_paddr =
+		omap_dm_timer_get_phys_counter_addr(gpt_clocksource);
+	__ipipe_tsc_register(&tsc_info);
+#endif
+
 	clocksource_gpt.mult =
 		clocksource_khz2mult(tick_rate/1000, clocksource_gpt.shift);
+
 	if (clocksource_register(&clocksource_gpt))
 		printk(err2, clocksource_gpt.name);
 }
@@ -233,6 +286,9 @@ static void __init omap2_gp_timer_init(void)
 #endif
 	omap_dm_timer_init();
 
+#ifdef CONFIG_IPIPE
+	omap2_gp_clockevent_set_gptimer(2);
+#endif
 	omap2_gp_clockevent_init();
 	omap2_gp_clocksource_init();
 }
@@ -240,3 +296,38 @@ static void __init omap2_gp_timer_init(void)
 struct sys_timer omap_timer = {
 	.init	= omap2_gp_timer_init,
 };
+
+#ifdef CONFIG_IPIPE
+void __ipipe_mach_acktimer(void)
+{
+	omap_dm_timer_write_status(gptimer, OMAP_TIMER_INT_OVERFLOW);
+	omap_dm_timer_read_status(gptimer);
+}
+
+/*
+ * Reprogram the timer
+ */
+
+void __ipipe_mach_set_dec(unsigned long delay)
+{
+	if (delay > 3)
+		omap_dm_timer_set_load_start(gptimer, 0, 0xffffffff - delay);
+	else
+		ipipe_trigger_irq(__ipipe_mach_timerint);
+}
+EXPORT_SYMBOL(__ipipe_mach_set_dec);
+
+void __ipipe_mach_release_timer(void)
+{
+	struct clock_event_device *ckdev = &clockevent_gpt;
+	ckdev->set_mode(ckdev->mode, ckdev);
+	if (ckdev->mode == CLOCK_EVT_MODE_ONESHOT)
+		ckdev->set_next_event(__ipipe_mach_ticks_per_jiffy, ckdev);
+}
+EXPORT_SYMBOL(__ipipe_mach_release_timer);
+
+unsigned long __ipipe_mach_get_dec(void)
+{
+	return 0xffffffff - omap_dm_timer_read_counter(gptimer);
+}
+#endif /* CONFIG_IPIPE */

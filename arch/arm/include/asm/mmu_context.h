@@ -19,6 +19,7 @@
 #include <asm/cachetype.h>
 #include <asm/proc-fns.h>
 #include <asm-generic/mm_hooks.h>
+#include <asm/fcse.h>
 
 void __check_kvm_seq(struct mm_struct *mm);
 
@@ -79,11 +80,58 @@ static inline void check_context(struct mm_struct *mm)
 #endif
 }
 
-#define init_new_context(tsk,mm)	0
+static inline int
+init_new_context(struct task_struct *tsk, struct mm_struct *mm)
+{
+#ifdef CONFIG_ARM_FCSE
+	int fcse_pid;
+
+#ifdef CONFIG_ARM_FCSE_BEST_EFFORT
+	if (!mm->context.fcse.large) {
+		fcse_pid = fcse_pid_alloc(mm);
+		mm->context.fcse.pid = fcse_pid << FCSE_PID_SHIFT;
+	} else {
+		/* We are normally forking a process vith a virtual address
+		   space larger than 32 MB, so its pid should be 0. */
+		FCSE_BUG_ON(mm->context.fcse.pid);
+		fcse_pid_reference(0);
+	}
+	/* If we are forking, set_pte_at will restore the correct high pages
+	   count, and shared writable pages are write-protected again. */
+	mm->context.fcse.shared_dirty_pages = 0;
+	mm->context.fcse.high_pages = 0;
+	mm->context.fcse.active = 0;
+#else /* CONFIG_ARM_FCSE_GUARANTEED */
+	fcse_pid = fcse_pid_alloc(mm);
+	if (fcse_pid < 0) {
+		/*
+		 * Set mm pid to FCSE_PID_INVALID, as even when
+		 * init_new_context fails, destroy_context is called.
+		 */
+		mm->context.fcse.pid = FCSE_PID_INVALID;
+		return fcse_pid;
+	}
+	mm->context.fcse.pid = fcse_pid << FCSE_PID_SHIFT;
+#endif /* CONFIG_ARM_FCSE_GUARANTEED */
+	FCSE_BUG_ON(fcse_mm_in_cache(mm));
+#endif /* CONFIG_ARM_FCSE */
+
+	return 0;
+}
 
 #endif
 
-#define destroy_context(mm)		do { } while(0)
+static inline void destroy_context(struct mm_struct *mm)
+{
+#ifdef CONFIG_ARM_FCSE
+#ifdef CONFIG_ARM_FCSE_BEST_EFFORT
+	FCSE_BUG_ON(mm->context.fcse.shared_dirty_pages);
+	FCSE_BUG_ON(mm->context.fcse.high_pages);
+#endif /* CONFIG_ARM_FCSE_BEST_EFFORT */
+	if (mm->context.fcse.pid != FCSE_PID_INVALID)
+		fcse_pid_free(mm);
+#endif /* CONFIG_ARM_FCSE */
+}
 
 /*
  * This is called when "tsk" is about to enter lazy TLB mode.
@@ -106,11 +154,11 @@ enter_lazy_tlb(struct mm_struct *mm, struct task_struct *tsk)
  * actually changed.
  */
 static inline void
-switch_mm(struct mm_struct *prev, struct mm_struct *next,
+__switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	  struct task_struct *tsk)
 {
 #ifdef CONFIG_MMU
-	unsigned int cpu = smp_processor_id();
+	unsigned int cpu = ipipe_processor_id();
 
 #ifdef CONFIG_SMP
 	/* check for possible thread migration */
@@ -121,17 +169,79 @@ switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	if (!cpumask_test_and_set_cpu(cpu, mm_cpumask(next)) || prev != next) {
 #ifdef CONFIG_SMP
 		struct mm_struct **crt_mm = &per_cpu(current_mm, cpu);
-		*crt_mm = next;
 #endif
-		check_context(next);
-		cpu_switch_mm(next->pgd, next);
-		if (cache_is_vivt())
+#if defined(CONFIG_IPIPE)
+		if (ipipe_root_domain_p) {
+			/* mark mm state as undefined. */
+			per_cpu(ipipe_active_mm, cpu) = NULL;
+			barrier();
+#ifdef CONFIG_SMP
+			*crt_mm = next;
+#endif
+			check_context(next);
+			cpu_switch_mm(next->pgd, next,
+				      fcse_switch_mm(prev, next));
+			barrier();
+			per_cpu(ipipe_active_mm, cpu) = next;
+			while (test_and_clear_thread_flag(TIF_MMSWITCH_INT)) {
+				/* mark mm state as undefined. */
+				per_cpu(ipipe_active_mm, cpu) = NULL;
+#ifdef CONFIG_SMP
+				*crt_mm = next;
+#endif
+				barrier();
+				check_context(next);
+				cpu_switch_mm(next->pgd, next,
+					      fcse_switch_mm(NULL, next));
+				barrier();
+				per_cpu(ipipe_active_mm, cpu) = next;
+			}
+		} else
+#endif /* CONFIG_IPIPE */
+		{
+#ifdef CONFIG_SMP
+			*crt_mm = next;
+#endif
+			check_context(next);
+			cpu_switch_mm(next->pgd, next,
+				      fcse_switch_mm(prev, next));
+		}
+#if defined(CONFIG_IPIPE) && defined(CONFIG_ARM_FCSE)
+		if (tsk)
+			set_tsk_thread_flag(tsk, TIF_SWITCHED);
+#endif /* CONFIG_IPIPE && CONFIG_ARM_FCSE */
+		if (cache_is_vivt() && prev)
 			cpumask_clear_cpu(cpu, mm_cpumask(prev));
-	}
+	} else
+		fcse_mark_dirty(next);
 #endif
 }
 
+static inline void
+switch_mm(struct mm_struct *prev, struct mm_struct *next,
+	  struct task_struct *tsk)
+{
+#if !defined(CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH) && !defined(CONFIG_SMP)
+	unsigned long flags;
+	local_irq_save_hw(flags);
+#endif /* !(CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH && SMP) */
+	__switch_mm(prev, next, tsk);
+#if !defined(CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH) && !defined(CONFIG_SMP)
+	local_irq_restore_hw(flags);
+#endif /* !(CONFIG_IPIPE_WANT_PREEMPTIBLE_SWITCH && SMP) */
+}
+
 #define deactivate_mm(tsk,mm)	do { } while (0)
+
+#ifndef CONFIG_ARM_FCSE_BEST_EFFORT
 #define activate_mm(prev,next)	switch_mm(prev, next, NULL)
+#else
+#define activate_mm(prev,next)						\
+	({								\
+	switch_mm(prev, next, NULL);					\
+	next->context.fcse.active = 1;					\
+	FCSE_BUG_ON(current->mm == next && !fcse_mm_in_cache(next));	\
+	})
+#endif
 
 #endif
