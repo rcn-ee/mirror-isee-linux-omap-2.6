@@ -17,8 +17,13 @@
 #include <linux/io.h>
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
+#include <linux/input.h>
+#include <linux/leds.h>
+#include <linux/smsc911x.h>
 
+#include <linux/spi/spi.h>
 #include <linux/regulator/machine.h>
+#include <linux/regulator/fixed.h>
 #include <linux/i2c/twl.h>
 
 #include <asm/mach-types.h>
@@ -29,129 +34,89 @@
 #include <plat/gpmc.h>
 #include <plat/usb.h>
 #include <plat/display.h>
-#include <plat/onenand.h>
 
+#include "twl-common.h"
 #include "mux.h"
 #include "hsmmc.h"
-#include "sdram-numonyx-m65kxxxxam.h"
+#include "board-igep00x0.h"
 
-#define IGEP2_SMSC911X_CS       5
-#define IGEP2_SMSC911X_GPIO     176
-#define IGEP2_GPIO_USBH_NRESET  24
-#define IGEP2_GPIO_LED0_GREEN 	26
-#define IGEP2_GPIO_LED0_RED 	27
-#define IGEP2_GPIO_LED1_RED   	28
-#define IGEP2_GPIO_DVI_PUP	170
-#define IGEP2_GPIO_WIFI_NPD 	94
-#define IGEP2_GPIO_WIFI_NRESET 	95
+#define SMSC911X_CS			5
+#define SMSC911X_IRQ			176
+#define SMSC911X_NRESET			64
+#define GPIO_USBH_NRESET		24
+#define GPIO_DVI_PUP			170
+#define GPIO_LED_D440_GREEN		26
+#define GPIO_LED_D440_RED		27
+#define GPIO_LED_D240_RED		28
 
-#if defined(CONFIG_MTD_ONENAND_OMAP2) || \
-	defined(CONFIG_MTD_ONENAND_OMAP2_MODULE)
+#define IGEP2_RB_GPIO_WIFI_NPD 		94
+#define IGEP2_RB_GPIO_WIFI_NRESET	95
+#define IGEP2_RB_GPIO_BT_NRESET		137
+#define IGEP2_RC_GPIO_WIFI_NPD		138
+#define IGEP2_RC_GPIO_WIFI_NRESET	139
+#define IGEP2_RC_GPIO_BT_NRESET		137
 
-#define ONENAND_MAP             0x20000000
+#define IGEP0020_BOARD_OPT_RS232	(1 << 0)
 
-/* NAND04GR4E1A ( x2 Flash built-in COMBO POP MEMORY )
- * Since the device is equipped with two DataRAMs, and two-plane NAND
- * Flash memory array, these two component enables simultaneous program
- * of 4KiB. Plane1 has only even blocks such as block0, block2, block4
- * while Plane2 has only odd blocks such as block1, block3, block5.
- * So MTD regards it as 4KiB page size and 256KiB block size 64*(2*2048)
+/* Board configuration options */
+struct board_platform_data {
+	unsigned options;
+};
+
+struct board_platform_data igep0020_board_pdata = {
+	.options = 0,
+};
+
+/*
+ * IGEP2 Hardware Revision Table
+ *
+ *  --------------------------------------------------------------------------
+ * | Id. | Hw Rev.            | HW0 (28) | WIFI_NPD | WIFI_NRESET | BT_NRESET |
+ *  --------------------------------------------------------------------------
+ * |  0  | B                  |   high   |  gpio94  |   gpio95    |     -     |
+ * |  0  | B/C (B-compatible) |   high   |  gpio94  |   gpio95    |  gpio137  |
+ * |  1  | C                  |   low    |  gpio138 |   gpio139   |  gpio137  |
+ *  --------------------------------------------------------------------------
  */
 
-static struct mtd_partition igep2_onenand_partitions[] = {
-	{
-		.name           = "X-Loader",
-		.offset         = 0,
-		.size           = 2 * (64*(2*2048))
-	},
-	{
-		.name           = "U-Boot",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = 6 * (64*(2*2048)),
-	},
-	{
-		.name           = "Environment",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = 2 * (64*(2*2048)),
-	},
-	{
-		.name           = "Kernel",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = 12 * (64*(2*2048)),
-	},
-	{
-		.name           = "File System",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = MTDPART_SIZ_FULL,
-	},
-};
+#define IGEP2_BOARD_HWREV_B	0
+#define IGEP2_BOARD_HWREV_C	1
 
-static int igep2_onenand_setup(void __iomem *onenand_base, int freq)
+static u8 hwrev;
+
+static void __init igep0020_get_revision(void)
 {
-       /* nothing is required to be setup for onenand as of now */
-       return 0;
-}
+	u8 ret;
 
-static struct omap_onenand_platform_data igep2_onenand_data = {
-	.parts = igep2_onenand_partitions,
-	.nr_parts = ARRAY_SIZE(igep2_onenand_partitions),
-	.onenand_setup = igep2_onenand_setup,
-	.dma_channel	= -1,	/* disable DMA in OMAP OneNAND driver */
-};
+	omap_mux_init_gpio(GPIO_LED_D240_RED, OMAP_PIN_INPUT);
 
-static struct platform_device igep2_onenand_device = {
-	.name		= "omap2-onenand",
-	.id		= -1,
-	.dev = {
-		.platform_data = &igep2_onenand_data,
-	},
-};
-
-void __init igep2_flash_init(void)
-{
-	u8		cs = 0;
-	u8		onenandcs = GPMC_CS_NUM + 1;
-
-	while (cs < GPMC_CS_NUM) {
-		u32 ret = 0;
-		ret = gpmc_cs_read_reg(cs, GPMC_CS_CONFIG1);
-
-		/* Check if NAND/oneNAND is configured */
-		if ((ret & 0xC00) == 0x800)
-			/* NAND found */
-			pr_err("IGEP v2: Unsupported NAND found\n");
-		else {
-			ret = gpmc_cs_read_reg(cs, GPMC_CS_CONFIG7);
-			if ((ret & 0x3F) == (ONENAND_MAP >> 24))
-				/* ONENAND found */
-				onenandcs = cs;
+	if ((gpio_request(GPIO_LED_D240_RED, "GPIO HW0 REV") == 0) &&
+	    (gpio_direction_input(GPIO_LED_D240_RED) == 0)) {
+		ret = gpio_get_value(GPIO_LED_D240_RED);
+		if (ret == 0) {
+			pr_info("IGEP: Hardware Rev. C\n");
+			hwrev = IGEP2_BOARD_HWREV_C;
+		} else if (ret ==  1) {
+			pr_info("IGEP: Hardware Rev. B\n");
+			hwrev = IGEP2_BOARD_HWREV_B;
+		} else {
+			pr_err("IGEP: Unknow Hardware Revision\n");
+			hwrev = -1;
 		}
-		cs++;
-	}
-	if (onenandcs > GPMC_CS_NUM) {
-		pr_err("IGEP v2: Unable to find configuration in GPMC\n");
-		return;
+	} else {
+		pr_warning("IGEP: Could not obtain gpio HW0 REV\n");
+		pr_err("IGEP: Unknow Hardware Revision\n");
 	}
 
-	if (onenandcs < GPMC_CS_NUM) {
-		igep2_onenand_data.cs = onenandcs;
-		if (platform_device_register(&igep2_onenand_device) < 0)
-			pr_err("IGEP v2: Unable to register OneNAND device\n");
-	}
+	gpio_free(GPIO_LED_D240_RED);
 }
-
-#else
-void __init igep2_flash_init(void) {}
-#endif
 
 #if defined(CONFIG_SMSC911X) || defined(CONFIG_SMSC911X_MODULE)
-
-#include <linux/smsc911x.h>
 
 static struct smsc911x_platform_config igep2_smsc911x_config = {
 	.irq_polarity	= SMSC911X_IRQ_POLARITY_ACTIVE_LOW,
 	.irq_type	= SMSC911X_IRQ_TYPE_OPEN_DRAIN,
-	.flags		= SMSC911X_USE_32BIT | SMSC911X_SAVE_MAC_ADDRESS  ,
+	.flags		= SMSC911X_USE_32BIT | SMSC911X_SAVE_MAC_ADDRESS,
 	.phy_interface	= PHY_INTERFACE_MODE_MII,
 };
 
@@ -160,13 +125,13 @@ static struct resource igep2_smsc911x_resources[] = {
 		.flags	= IORESOURCE_MEM,
 	},
 	{
-		.start	= OMAP_GPIO_IRQ(IGEP2_SMSC911X_GPIO),
-		.end	= OMAP_GPIO_IRQ(IGEP2_SMSC911X_GPIO),
+		.start	= OMAP_GPIO_IRQ(SMSC911X_IRQ),
+		.end	= OMAP_GPIO_IRQ(SMSC911X_IRQ),
 		.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_LOWLEVEL,
 	},
 };
 
-static struct platform_device igep2_smsc911x_device = {
+static struct platform_device smsc911x_device = {
 	.name		= "smsc911x",
 	.id		= 0,
 	.num_resources	= ARRAY_SIZE(igep2_smsc911x_resources),
@@ -175,75 +140,7 @@ static struct platform_device igep2_smsc911x_device = {
 		.platform_data = &igep2_smsc911x_config,
 	},
 };
-
-static inline void __init igep2_init_smsc911x(void)
-{
-	unsigned long cs_mem_base;
-
-	if (gpmc_cs_request(IGEP2_SMSC911X_CS, SZ_16M, &cs_mem_base) < 0) {
-		pr_err("IGEP v2: Failed request for GPMC mem for smsc911x\n");
-		gpmc_cs_free(IGEP2_SMSC911X_CS);
-		return;
-	}
-
-	igep2_smsc911x_resources[0].start = cs_mem_base + 0x0;
-	igep2_smsc911x_resources[0].end   = cs_mem_base + 0xff;
-
-	if ((gpio_request(IGEP2_SMSC911X_GPIO, "SMSC911X IRQ") == 0) &&
-	    (gpio_direction_input(IGEP2_SMSC911X_GPIO) == 0)) {
-		gpio_export(IGEP2_SMSC911X_GPIO, 0);
-	} else {
-		pr_err("IGEP v2: Could not obtain gpio for for SMSC911X IRQ\n");
-		return;
-	}
-
-	platform_device_register(&igep2_smsc911x_device);
-}
-
-#else
-static inline void __init igep2_init_smsc911x(void) { }
 #endif
-
-static struct omap_board_config_kernel igep2_config[] __initdata = {
-};
-
-static struct regulator_consumer_supply igep2_vmmc1_supply = {
-	.supply		= "vmmc",
-};
-
-static struct regulator_consumer_supply igep2_vmmc2_supply = {
-	.supply		= "vmmc",
-};
-
-/* VMMC1 for OMAP VDD_MMC1 (i/o) and MMC1 card */
-static struct regulator_init_data igep2_vmmc1 = {
-	.constraints = {
-		.min_uV			= 1850000,
-		.max_uV			= 3150000,
-		.valid_modes_mask	= REGULATOR_MODE_NORMAL
-					| REGULATOR_MODE_STANDBY,
-		.valid_ops_mask		= REGULATOR_CHANGE_VOLTAGE
-					| REGULATOR_CHANGE_MODE
-					| REGULATOR_CHANGE_STATUS,
-	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &igep2_vmmc1_supply,
-};
-
-/* VMMC2 for OMAP VDD_MMC2 (i/o) and MMC2 WIFI */
-static struct regulator_init_data igep2_vmmc2 = {
-	.constraints = {
-		.min_uV			= 1850000,
-		.max_uV			= 3150000,
-		.valid_modes_mask	= REGULATOR_MODE_NORMAL
-					| REGULATOR_MODE_STANDBY,
-		.valid_ops_mask		= REGULATOR_CHANGE_VOLTAGE
-					| REGULATOR_CHANGE_MODE
-					| REGULATOR_CHANGE_STATUS,
-	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &igep2_vmmc2_supply,
-};
 
 static struct omap2_hsmmc_info mmc[] = {
 	{
@@ -252,125 +149,38 @@ static struct omap2_hsmmc_info mmc[] = {
 		.gpio_cd	= -EINVAL,
 		.gpio_wp	= -EINVAL,
 	},
+#if defined(CONFIG_LIBERTAS_SDIO) || defined(CONFIG_LIBERTAS_SDIO_MODULE)
 	{
 		.mmc		= 2,
 		.wires		= 4,
 		.gpio_cd	= -EINVAL,
 		.gpio_wp	= -EINVAL,
 	},
+#endif
 	{}      /* Terminator */
 };
 
-static int igep2_twl_gpio_setup(struct device *dev,
-		unsigned gpio, unsigned ngpio)
-{
-	/* gpio + 0 is "mmc0_cd" (input/IRQ) */
-	mmc[0].gpio_cd = gpio + 0;
-	omap2_hsmmc_init(mmc);
-
-	/* link regulators to MMC adapters ... we "know" the
-	 * regulators will be set up only *after* we return.
-	*/
-	igep2_vmmc1_supply.dev = mmc[0].dev;
-	igep2_vmmc2_supply.dev = mmc[1].dev;
-
-	return 0;
-};
-
-static struct twl4030_gpio_platform_data igep2_gpio_data = {
-	.gpio_base	= OMAP_MAX_GPIO_LINES,
-	.irq_base	= TWL4030_GPIO_IRQ_BASE,
-	.irq_end	= TWL4030_GPIO_IRQ_END,
-	.use_leds	= false,
-	.setup		= igep2_twl_gpio_setup,
-};
-
-static struct twl4030_usb_data igep2_usb_data = {
-	.usb_mode	= T2_USB_MODE_ULPI,
-};
-
-static int igep2_enable_dvi(struct omap_dss_device *dssdev)
-{
-	gpio_direction_output(IGEP2_GPIO_DVI_PUP, 1);
-
-	return 0;
-}
-
-static void igep2_disable_dvi(struct omap_dss_device *dssdev)
-{
-	gpio_direction_output(IGEP2_GPIO_DVI_PUP, 0);
-}
-
-static struct omap_dss_device igep2_dvi_device = {
-	.type			= OMAP_DISPLAY_TYPE_DPI,
-	.name			= "dvi",
-	.driver_name		= "generic_panel",
-	.phy.dpi.data_lines	= 24,
-	.platform_enable	= igep2_enable_dvi,
-	.platform_disable	= igep2_disable_dvi,
-};
-
-static struct omap_dss_device *igep2_dss_devices[] = {
-	&igep2_dvi_device
-};
-
-static struct omap_dss_board_info igep2_dss_data = {
-	.num_devices	= ARRAY_SIZE(igep2_dss_devices),
-	.devices	= igep2_dss_devices,
-	.default_device	= &igep2_dvi_device,
-};
-
-static struct platform_device igep2_dss_device = {
-	.name	= "omapdss",
-	.id	= -1,
-	.dev	= {
-		.platform_data = &igep2_dss_data,
-	},
-};
-
-static struct regulator_consumer_supply igep2_vpll2_supply = {
-	.supply	= "vdds_dsi",
-	.dev	= &igep2_dss_device.dev,
-};
-
-static struct regulator_init_data igep2_vpll2 = {
-	.constraints = {
-		.name			= "VDVI",
-		.min_uV			= 1800000,
-		.max_uV			= 1800000,
-		.apply_uV		= true,
-		.valid_modes_mask	= REGULATOR_MODE_NORMAL
-					| REGULATOR_MODE_STANDBY,
-		.valid_ops_mask		= REGULATOR_CHANGE_MODE
-					| REGULATOR_CHANGE_STATUS,
-	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &igep2_vpll2_supply,
-};
-
-static void __init igep2_display_init(void)
-{
-	if (gpio_request(IGEP2_GPIO_DVI_PUP, "GPIO_DVI_PUP") &&
-	    gpio_direction_output(IGEP2_GPIO_DVI_PUP, 1))
-		pr_err("IGEP v2: Could not obtain gpio GPIO_DVI_PUP\n");
-}
-
-#if defined(CONFIG_LEDS_GPIO) || defined(CONFIG_LEDS_GPIO_MODULE)
-#include <linux/leds.h>
-
 static struct gpio_led igep2_gpio_leds[] = {
-	{
-		.name = "led0:red",
-		.gpio = IGEP2_GPIO_LED0_RED,
+	[0] = {
+		.name = "d440:red",
+		.gpio = GPIO_LED_D440_RED,
+		.default_trigger = "default-off"
 	},
-	{
-		.name = "led0:green",
-		.default_trigger = "heartbeat",
-		.gpio = IGEP2_GPIO_LED0_GREEN,
+	[1] = {
+		.name = "d440:green",
+		.gpio = GPIO_LED_D440_GREEN,
+		.default_trigger = "default-off",
 	},
-	{
-		.name = "led1:red",
-		.gpio = IGEP2_GPIO_LED1_RED,
+	[2] = {
+		.name = "d240:red",
+		.gpio = GPIO_LED_D240_RED,
+		.default_trigger = "default-off",
+	},
+	[3] = {
+		.name = "d240:green",
+		.default_trigger = "default-on",
+		.gpio = -EINVAL, /* gets replaced */
+		.active_low = true,
 	},
 };
 
@@ -387,74 +197,125 @@ static struct platform_device igep2_led_device = {
 	},
 };
 
-static void __init igep2_init_led(void)
+static void __init igep2_leds_init(void)
 {
 	platform_device_register(&igep2_led_device);
 }
 
-#else
-static inline void igep2_init_led(void) {}
-#endif
-
-static struct platform_device *igep2_devices[] __initdata = {
-	&igep2_dss_device,
+static struct spi_board_info igep2_spidev_board_info __initdata = {
+	.modalias	= "spidev",
+	.bus_num	= 2,
+	.chip_select	= 0,
+	.max_speed_hz	= 20000000,
+	.mode		= SPI_MODE_2,
 };
 
-static void __init igep2_init_irq(void)
+static int igep2_twl_gpio_setup(struct device *dev,
+		unsigned gpio, unsigned ngpio)
 {
-	omap_board_config = igep2_config;
-	omap_board_config_size = ARRAY_SIZE(igep2_config);
-	omap2_init_common_hw(m65kxxxxam_sdrc_params, m65kxxxxam_sdrc_params);
-	omap_init_irq();
-	omap_gpio_init();
-}
+	/* gpio + 0 is "mmc0_cd" (input/IRQ) */
+	mmc[0].gpio_cd = gpio + 0;
+	omap2_hsmmc_init(mmc);
 
-static struct twl4030_codec_audio_data igep2_audio_data = {
-	.audio_mclk = 26000000,
+	/*
+	 * REVISIT: need ehci-omap hooks for external VBUS
+	 * power switch and overcurrent detect
+	 */
+	gpio_request(gpio + 1, "EHCI NOC");
+	gpio_direction_input(gpio + 1);
+
+	/* TWL4030_GPIO_MAX + 0 == ledA, GPIO_USBH_CPEN (out, active low) */
+	gpio_request(gpio + TWL4030_GPIO_MAX, "USB_ PEN");
+	gpio_direction_output(gpio + TWL4030_GPIO_MAX, 0);
+
+	/* TWL4030_GPIO_MAX + 1 == ledB (out, active low LED) */
+	igep2_gpio_leds[3].gpio = gpio + TWL4030_GPIO_MAX + 1;
+
+	return 0;
 };
 
-static struct twl4030_codec_data igep2_codec_data = {
-	.audio_mclk = 26000000,
-	.audio = &igep2_audio_data,
+static struct twl4030_gpio_platform_data igep2_twl4030_gpio_pdata = {
+	.gpio_base	= OMAP_MAX_GPIO_LINES,
+	.irq_base	= TWL4030_GPIO_IRQ_BASE,
+	.irq_end	= TWL4030_GPIO_IRQ_END,
+	.use_leds	= true,
+	.setup		= igep2_twl_gpio_setup,
 };
 
-static struct twl4030_platform_data igep2_twldata = {
-	.irq_base	= TWL4030_IRQ_BASE,
-	.irq_end	= TWL4030_IRQ_END,
-
-	/* platform_data for children goes here */
-	.usb		= &igep2_usb_data,
-	.codec		= &igep2_codec_data,
-	.gpio		= &igep2_gpio_data,
-	.vmmc1          = &igep2_vmmc1,
-	.vmmc2		= &igep2_vmmc2,
-	.vpll2		= &igep2_vpll2,
-
-};
-
-static struct i2c_board_info __initdata igep2_i2c_boardinfo[] = {
-	{
-		I2C_BOARD_INFO("twl4030", 0x48),
-		.flags		= I2C_CLIENT_WAKE,
-		.irq		= INT_34XX_SYS_NIRQ,
-		.platform_data	= &igep2_twldata,
-	},
-};
-
-static int __init igep2_i2c_init(void)
+static int igep0020_enable_dvi(struct omap_dss_device *dssdev)
 {
-	omap_register_i2c_bus(1, 2600, igep2_i2c_boardinfo,
-			ARRAY_SIZE(igep2_i2c_boardinfo));
-	/* Bus 3 is attached to the DVI port where devices like the pico DLP
-	 * projector don't work reliably with 400kHz */
-	omap_register_i2c_bus(3, 100, NULL, 0);
+	gpio_direction_output(GPIO_DVI_PUP, 1);
+
 	return 0;
 }
 
-static struct omap_musb_board_data musb_board_data = {
-	.interface_type		= MUSB_INTERFACE_ULPI,
-	.mode			= MUSB_OTG,
-	.power			= 100,
+static void igep0020_disable_dvi(struct omap_dss_device *dssdev)
+{
+	gpio_direction_output(GPIO_DVI_PUP, 0);
+}
+
+static struct omap_dss_device *dss_devices[] = {
+	&igep00x0_dvi_device,
+	&igep00x0_tv_device,
+	&igep00x0_lcd43_device,
+	&igep00x0_lcd70_device,
+};
+
+static struct omap_dss_board_info dss_board_data = {
+	.num_devices	= ARRAY_SIZE(dss_devices),
+	.devices	= dss_devices,
+	.default_device	= &igep00x0_dvi_device,
+};
+
+static struct platform_device igep0020_dss_device = {
+	.name	= "omapdss",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &dss_board_data,
+	},
+};
+
+static int igep2_keymap[] = {
+	KEY(0, 0, KEY_LEFT),
+	KEY(0, 1, KEY_RIGHT),
+	KEY(0, 2, KEY_A),
+	KEY(0, 3, KEY_B),
+	KEY(1, 0, KEY_DOWN),
+	KEY(1, 1, KEY_UP),
+	KEY(1, 2, KEY_E),
+	KEY(1, 3, KEY_F),
+	KEY(2, 0, KEY_ENTER),
+	KEY(2, 1, KEY_I),
+	KEY(2, 2, KEY_J),
+	KEY(2, 3, KEY_K),
+	KEY(3, 0, KEY_M),
+	KEY(3, 1, KEY_N),
+	KEY(3, 2, KEY_O),
+	KEY(3, 3, KEY_P)
+};
+
+static struct matrix_keymap_data igep2_keymap_data = {
+	.keymap			= igep2_keymap,
+	.keymap_size		= ARRAY_SIZE(igep2_keymap),
+};
+
+static struct twl4030_keypad_data igep2_twl4030_keypad_data = {
+	.keymap_data	= &igep2_keymap_data,
+	.rows		= 4,
+	.cols		= 4,
+	.rep		= 1,
+};
+
+static struct twl4030_platform_data twl4030_pdata = {
+	/* platform_data for children goes here */
+	.gpio		= &igep2_twl4030_gpio_pdata,
+	.keypad		= &igep2_twl4030_keypad_data,
+};
+
+static struct i2c_board_info __initdata igep2_i2c3_boardinfo[] = {
+	{
+		I2C_BOARD_INFO("eeprom", 0x50),
+	},
 };
 
 static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
@@ -463,87 +324,207 @@ static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
 	.port_mode[2] = EHCI_HCD_OMAP_MODE_UNKNOWN,
 
 	.phy_reset = true,
-	.reset_gpio_port[0] = IGEP2_GPIO_USBH_NRESET,
+	.reset_gpio_port[0] = GPIO_USBH_NRESET,
 	.reset_gpio_port[1] = -EINVAL,
 	.reset_gpio_port[2] = -EINVAL,
 };
 
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux board_mux[] __initdata = {
+	/* SMSC9221 LAN Controller */
+	OMAP3_MUX(MCSPI1_CS2, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
+	/* Display Sub System */
+	OMAP3_MUX(DSS_PCLK, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_HSYNC, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_VSYNC, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_ACBIAS, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA0, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA1, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA2, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA3, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA4, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA5, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA6, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA7, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA8, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA9, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA10, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA11, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA12, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA13, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA14, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA15, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA16, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA17, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA18, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA19, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA20, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA21, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA22, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(DSS_DATA23, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(HDQ_SIO, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
+	/* McBSP 2 */
+	OMAP3_MUX(MCBSP2_FSX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP2_CLKX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP2_DR, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP2_DX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	/* Serial ports */
+	OMAP3_MUX(UART1_TX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(UART1_RX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),
+	OMAP3_MUX(UART1_RTS, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(UART1_CTS, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),
+	OMAP3_MUX(UART2_TX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(UART2_RX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 #else
 #define board_mux	NULL
 #endif
 
-static void __init igep2_init(void)
+/* Use UART1 as RS232 (not RS485) */
+static struct omap_board_mux uart1_as_rs232_mux[] = {
+	OMAP3_MUX(UART1_TX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(UART1_RX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),
+	OMAP3_MUX(UART1_RTS, OMAP_MUX_MODE7 | OMAP_PIN_INPUT),
+	OMAP3_MUX(UART1_CTS, OMAP_MUX_MODE7 | OMAP_PIN_INPUT),
+	{ .reg_offset = OMAP_MUX_TERMINATOR },
+};
+
+static inline void igep0020_display_init(void)
 {
+	if ((gpio_request(GPIO_DVI_PUP, "DVI PUP") == 0) &&
+	    (gpio_direction_output(GPIO_DVI_PUP, 1) == 0))
+		gpio_export(GPIO_DVI_PUP, 0);
+	else
+		pr_err("IGEP: Could not obtain gpio DVI PUP\n");
+
+	igep00x0_dvi_device.platform_enable = igep0020_enable_dvi;
+	igep00x0_dvi_device.platform_disable = igep0020_disable_dvi;
+
+	platform_device_register(&igep0020_dss_device);
+}
+
+/* Expansion board: IGEP0022 */
+extern void __init igep0022_init(void);
+
+static void __init igep0020_init(void)
+{
+	int opt = 0;
+
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
-	igep2_i2c_init();
-	platform_add_devices(igep2_devices, ARRAY_SIZE(igep2_devices));
+	/* Ensure msecure is mux'd to be able to set the RTC. */
+	omap_mux_init_signal("sys_drm_msecure", OMAP_PIN_OFF_OUTPUT_HIGH);
+
+	/* Get IGEP0020 Hardware Revision */
+	igep0020_get_revision();
+
+	/* Add twl4030 common data */
+	omap3_pmic_get_config(&twl4030_pdata, TWL_COMMON_PDATA_USB |
+			TWL_COMMON_PDATA_AUDIO | TWL_COMMON_PDATA_MADC,
+			TWL_COMMON_REGULATOR_VDAC | TWL_COMMON_REGULATOR_VPLL2);
+
+	igep00x0_pmic_get_config(&twl4030_pdata, 0,
+			TWL_IGEP00X0_REGULATOR_VMMC1 |
+			TWL_IGEP00X0_REGULATOR_VIO);
+
+	omap_pmic_init(1, 2600, "twl4030", INT_34XX_SYS_NIRQ, &twl4030_pdata);
+
+	/*
+	 * Bus 3 is attached to the DVI port where devices like the pico DLP
+	 * projector don't work reliably with 400kHz
+	 */
+	omap_register_i2c_bus(3, 100, igep2_i2c3_boardinfo,
+			 ARRAY_SIZE(igep2_i2c3_boardinfo));
+
+	/* Display initialitzation */
+	igep0020_display_init();
+
+	/* Register spidev devices (depends on hardware revision)*/
+	if (hwrev == IGEP2_BOARD_HWREV_B) {
+		igep2_spidev_board_info.bus_num	= 1;
+		igep2_spidev_board_info.chip_select = 3;
+	}
+	spi_register_board_info(&igep2_spidev_board_info, 1);
+
 	omap_serial_init();
-	usb_musb_init(&musb_board_data);
+
+	platform_device_register(&igep00x0_vdd33_device);
+
+	/* USB OTG & USB HOST */
+	usb_musb_init(&igep00x0_musb_board_data);
 	usb_ehci_init(&ehci_pdata);
 
-	igep2_flash_init();
-	igep2_init_led();
-	igep2_display_init();
-	igep2_init_smsc911x();
+	igep2_leds_init();
 
-	/* GPIO userspace leds */
-#if !defined(CONFIG_LEDS_GPIO) && !defined(CONFIG_LEDS_GPIO_MODULE)
-	if ((gpio_request(IGEP2_GPIO_LED0_RED, "led0:red") == 0) &&
-	    (gpio_direction_output(IGEP2_GPIO_LED0_RED, 1) == 0)) {
-		gpio_export(IGEP2_GPIO_LED0_RED, 0);
-		gpio_set_value(IGEP2_GPIO_LED0_RED, 0);
-	} else
-		pr_warning("IGEP v2: Could not obtain gpio GPIO_LED0_RED\n");
+	/*
+	 * By default UART1 is configured for RS485 usage, configure for
+	 * RS232 if flag is enabled.
+	 */
+	if (igep0020_board_pdata.options & IGEP0020_BOARD_OPT_RS232)
+		omap_mux_write_array(uart1_as_rs232_mux);
 
-	if ((gpio_request(IGEP2_GPIO_LED0_GREEN, "led0:green") == 0) &&
-	    (gpio_direction_output(IGEP2_GPIO_LED0_GREEN, 1) == 0)) {
-		gpio_export(IGEP2_GPIO_LED0_GREEN, 0);
-		gpio_set_value(IGEP2_GPIO_LED0_GREEN, 0);
-	} else
-		pr_warning("IGEP v2: Could not obtain gpio GPIO_LED0_GREEN\n");
+	/* Expansion board initialitzations */
+	/* - IGEP0022 */
+	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_IGEP0022)
+		igep0022_init();
 
-	if ((gpio_request(IGEP2_GPIO_LED1_RED, "led1:red") == 0) &&
-	    (gpio_direction_output(IGEP2_GPIO_LED1_RED, 1) == 0)) {
-		gpio_export(IGEP2_GPIO_LED1_RED, 0);
-		gpio_set_value(IGEP2_GPIO_LED1_RED, 0);
-	} else
-		pr_warning("IGEP v2: Could not obtain gpio GPIO_LED1_RED\n");
-#endif
+	/* Common initialitzations */
+	/* - Register flash devices */
+	igep00x0_flash_init();
+	/* - Ethernet with SMSC9221 LAN Controller */
+	igep00x0_smsc911x_init(&smsc911x_device, SMSC911X_CS,
+			SMSC911X_IRQ, SMSC911X_NRESET);
 
-	/* GPIO W-LAN + Bluetooth combo module */
-	if ((gpio_request(IGEP2_GPIO_WIFI_NPD, "GPIO_WIFI_NPD") == 0) &&
-	    (gpio_direction_output(IGEP2_GPIO_WIFI_NPD, 1) == 0)) {
-		gpio_export(IGEP2_GPIO_WIFI_NPD, 0);
-/* 		gpio_set_value(IGEP2_GPIO_WIFI_NPD, 0); */
-	} else
-		pr_warning("IGEP v2: Could not obtain gpio GPIO_WIFI_NPD\n");
-
-	if ((gpio_request(IGEP2_GPIO_WIFI_NRESET, "GPIO_WIFI_NRESET") == 0) &&
-	    (gpio_direction_output(IGEP2_GPIO_WIFI_NRESET, 1) == 0)) {
-		gpio_export(IGEP2_GPIO_WIFI_NRESET, 0);
-		gpio_set_value(IGEP2_GPIO_WIFI_NRESET, 0);
-		udelay(10);
-		gpio_set_value(IGEP2_GPIO_WIFI_NRESET, 1);
-	} else
-		pr_warning("IGEP v2: Could not obtain gpio GPIO_WIFI_NRESET\n");
+	/*
+	 * WLAN-BT combo module from MuRata with SDIO interface.
+	 *
+	 * NOTE: If we have an expansion board with modem enabled we need to
+	 * disable the bluetooth interface as is INCOMPATIBLE
+	 */
+	opt = igep00x0_buddy_pdata.options & IGEP00X0_BUDDY_OPT_MODEM;
+	if (hwrev == IGEP2_BOARD_HWREV_B)
+		igep00x0_wifi_bt_init(IGEP2_RB_GPIO_WIFI_NPD,
+			IGEP2_RB_GPIO_WIFI_NRESET, IGEP2_RB_GPIO_BT_NRESET,
+			!opt);
+	else if (hwrev == IGEP2_BOARD_HWREV_C)
+		igep00x0_wifi_bt_init(IGEP2_RC_GPIO_WIFI_NPD,
+			IGEP2_RC_GPIO_WIFI_NRESET, IGEP2_RC_GPIO_BT_NRESET,
+			!opt);
 }
 
-static void __init igep2_map_io(void)
+static int __init ei485_early_param(char *str)
 {
-	omap2_set_globals_343x();
-	omap34xx_map_common_io();
+	char opt[16];
+
+	if (!str)
+		return -EINVAL;
+
+	strncpy(opt, str, 16);
+
+	/*
+	 * To use UART1 as RS232 port instead of RS485 we need configure
+	 * UART1_RTS and UART1_CTS pins in safe mode.
+	 */
+	if (!strcmp(opt, "no"))
+		igep0020_board_pdata.options  |= IGEP0020_BOARD_OPT_RS232;
+
+	return 0;
 }
 
-MACHINE_START(IGEP0020, "IGEP v2 board")
+early_param("board.ei485", ei485_early_param);
+
+static void __init igep0020_map_io(void)
+{
+        omap2_set_globals_343x();
+        omap34xx_map_common_io();
+}
+
+MACHINE_START(IGEP0020, "IGEP0020 board")
 	.phys_io	= 0x48000000,
 	.io_pg_offst	= ((0xfa000000) >> 18) & 0xfffc,
 	.boot_params	= 0x80000100,
-	.map_io		= igep2_map_io,
-	.init_irq	= igep2_init_irq,
-	.init_machine	= igep2_init,
+	.map_io		= igep0020_map_io,
+	.init_irq	= igep00x0_init_irq,
+	.init_machine	= igep0020_init,
 	.timer		= &omap_timer,
 MACHINE_END
