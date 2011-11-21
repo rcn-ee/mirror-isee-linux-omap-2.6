@@ -200,9 +200,13 @@ static int __init buddy_early_param(char *str)
 		if (!strcmp(name, "base0010")) {
 			igep00x0_buddy_pdata.model = IGEP00X0_BUDDY_BASE0010;
 			pr_info("IGEP: IGEP003x machine + BASE0010 (buddy)\n");
+		} else if (!strcmp(name, "ilms0015")) {
+			igep00x0_buddy_pdata.model = IGEP00X0_BUDDY_ILMS0015;
+			pr_info("IGEP: IGEP003x machine + ILMS0015 (buddy)\n");
 		} else
 			pr_err("IGEP: Unknown buddy for IGEP003x machine\n");
-	}
+	} else
+		pr_err("IGEP: Unknown buddy for IGEP0032 machine\n");
 
 	return 0;
 }

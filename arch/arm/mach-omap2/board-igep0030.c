@@ -212,6 +212,8 @@ static struct omap_board_mux board_mux[] __initdata = {
 
 /* Expansion board: BASE0010 */
 extern void __init base0010_init(struct twl4030_platform_data *pdata);
+/* Expansion board: ILMS0015 */
+extern void __init ilms0015_init(void);
 
 static void __init igep0030_init(void)
 {
@@ -229,8 +231,11 @@ static void __init igep0030_init(void)
 
 	/* Expansion board initialitzations */
 	/* - BASE0010 (adds twl4030_pdata)  */
+	/* - ILMS0015 */
 	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_BASE0010)
 		base0010_init(&twl4030_pdata);
+	else if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_ILMS0015)
+		ilms0015_init();
 
 	/* Add twl4030 common data */
 	omap3_pmic_get_config(&twl4030_pdata, TWL_COMMON_PDATA_USB |
