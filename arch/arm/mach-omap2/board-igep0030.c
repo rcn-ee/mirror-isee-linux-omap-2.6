@@ -231,7 +231,8 @@ static void __init igep0030_init(void)
 
 	/* Add twl4030 common data */
 	omap3_pmic_get_config(&twl4030_pdata, TWL_COMMON_PDATA_USB |
-			TWL_COMMON_PDATA_AUDIO | TWL_COMMON_PDATA_MADC, 0);
+			TWL_COMMON_PDATA_AUDIO | TWL_COMMON_PDATA_MADC,
+			TWL_COMMON_REGULATOR_VPLL2);
 
 	igep00x0_pmic_get_config(&twl4030_pdata, 0,
 			TWL_IGEP00X0_REGULATOR_VMMC1 |
