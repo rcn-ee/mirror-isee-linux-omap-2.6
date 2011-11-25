@@ -82,7 +82,7 @@ inline void __init ilms0015_gpio_init(void)
 	for (gpio = 66; gpio < 94; gpio++) {
 		if ((gpio_request(gpio, "GPIO") == 0)
 			&& (gpio_direction_input(gpio) == 0))
-			gpio_export(gpio, 0);
+			gpio_export(gpio, 1);
 		else
 			pr_err("IGEP: Could not obtain GPIO\n");
 	}
@@ -152,4 +152,3 @@ void __init ilms0015_init(void)
 	/* Export some GPIO */
 	ilms0015_gpio_init();
 }
-
