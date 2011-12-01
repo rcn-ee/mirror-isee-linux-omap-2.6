@@ -204,6 +204,7 @@ struct isp_ccdc_device {
 	wait_queue_head_t wait;
 	unsigned int stopping;
 	struct mutex ioctl_lock;
+	int start;
 };
 
 struct isp_device;

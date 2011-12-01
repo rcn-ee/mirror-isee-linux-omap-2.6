@@ -218,6 +218,7 @@ isp_video_check_format(struct isp_video *video, struct isp_video_fh *vfh)
 	    vfh->format.fmt.pix.sizeimage != format.fmt.pix.sizeimage)
 		return -EINVAL;
 
+
 	return 0;
 }
 
@@ -293,21 +294,20 @@ void isp_video_mbus_to_pix(const struct isp_video *video,
 void isp_video_pix_to_mbus(const struct v4l2_pix_format *pix,
 			   struct v4l2_mbus_framefmt *mbus)
 {
-	unsigned int i;
-
 	memset(mbus, 0, sizeof(*mbus));
 	mbus->width = pix->width;
 	mbus->height = pix->height;
 
-	for (i = 0; i < ARRAY_SIZE(formats); ++i) {
+/*	for (i = 0; i < ARRAY_SIZE(formats); ++i) {
 		if (formats[i].pixelformat == pix->pixelformat)
 			break;
 	}
 
 	if (WARN_ON(i == ARRAY_SIZE(formats)))
 		return;
+*/
 
-	mbus->code = formats[i].code;
+	mbus->code = V4L2_MBUS_FMT_UYVY8_2X8;
 	mbus->colorspace = pix->colorspace;
 	mbus->field = pix->field;
 }
@@ -602,6 +602,25 @@ isp_video_querycap(struct file *file, void *fh, struct v4l2_capability *cap)
 	return 0;
 }
 
+static int isp_video_enum_fmt_vid_cap(struct file *file, void *fh,
+				      struct v4l2_fmtdesc *fmt)
+{
+
+	if (fmt == NULL || fmt->index)
+		return -EINVAL;
+
+       /* only capture is supported */
+	if (fmt->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+       /* only one format */
+	fmt->flags = 0;
+	strlcpy(fmt->description, "8-bit UYVY 4:2:2 Format",
+		sizeof(fmt->description));
+	fmt->pixelformat = V4L2_PIX_FMT_UYVY;
+	return 0;
+}
+
 static int
 isp_video_get_format(struct file *file, void *fh, struct v4l2_format *format)
 {
@@ -647,22 +666,42 @@ isp_video_try_format(struct file *file, void *fh, struct v4l2_format *format)
 {
 	struct isp_video *video = video_drvdata(file);
 	struct v4l2_subdev_format fmt;
-	struct v4l2_subdev *subdev;
-	u32 pad;
+	struct v4l2_subdev *sink_subdev;
+	struct v4l2_subdev *source_subdev;
+	struct media_pad *source_pad;
+	struct media_pad *sink_pad;
+	u32 pad = 0;
 	int ret;
 
 	if (format->type != video->type)
 		return -EINVAL;
 
-	subdev = isp_video_remote_subdev(video, &pad);
-	if (subdev == NULL)
+	sink_subdev = isp_video_remote_subdev(video, NULL);
+
+	if (sink_subdev == NULL)
 		return -EINVAL;
 
-	isp_video_pix_to_mbus(&format->fmt.pix, &fmt.format);
+	sink_pad = &sink_subdev->entity.pads[0];
+
+	mutex_lock(&video->mutex);
+
+	source_pad = media_entity_remote_source(sink_pad);
+	if (source_pad == NULL || media_entity_type(source_pad->entity)
+	    != MEDIA_ENTITY_TYPE_V4L2_SUBDEV)
+		return -EINVAL;
+
+	source_subdev = media_entity_to_v4l2_subdev(source_pad->entity);
+	if (source_subdev == NULL)
+		return -EINVAL;
 
 	fmt.pad = pad;
 	fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-	ret = v4l2_subdev_call(subdev, pad, get_fmt, NULL, &fmt);
+
+	ret = v4l2_subdev_call(source_subdev, pad, get_fmt, NULL, &fmt);
+	ret = v4l2_subdev_call(sink_subdev, pad, set_fmt, NULL, &fmt);
+
+	mutex_unlock(&video->mutex);
+
 	if (ret)
 		return ret == -ENOIOCTLCMD ? -EINVAL : ret;
 
@@ -1160,6 +1199,7 @@ static const struct v4l2_ioctl_ops isp_video_ioctl_ops = {
 	.vidioc_enum_input		= isp_video_enum_input,
 	.vidioc_g_input			= isp_video_g_input,
 	.vidioc_s_input			= isp_video_s_input,
+	.vidioc_enum_fmt_vid_cap        = isp_video_enum_fmt_vid_cap,
 	.vidioc_querystd		= isp_video_querystd,
 	.vidioc_g_std			= isp_video_g_std,
 	.vidioc_s_std			= isp_video_s_std,

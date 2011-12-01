@@ -362,7 +362,7 @@ static int isp_video_buffer_prepare_pfnmap(struct isp_video_buffer *buf)
 	unsigned long this_pfn;
 	unsigned long start;
 	unsigned long end;
-	dma_addr_t pa;
+	dma_addr_t pa = 0;
 	int ret = -EFAULT;
 
 	start = buf->vbuf.m.userptr;

@@ -38,6 +38,9 @@
 #include "ispreg.h"
 #include "ispccdc.h"
 
+#define PAL_NON_ACTIVE 23
+#define NTSC_NON_ACTIVE 20
+
 static struct v4l2_mbus_framefmt *
 __ccdc_get_format(struct isp_ccdc_device *ccdc, struct v4l2_subdev_fh *fh,
 		  unsigned int pad, enum v4l2_subdev_format_whence which);
@@ -785,8 +788,6 @@ void ispccdc_restore_context(struct isp_device *isp)
 	struct isp_ccdc_device *ccdc = &isp->isp_ccdc;
 	struct v4l2_mbus_framefmt *format;
 
-	isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_CFG, ISPCCDC_CFG_VDLC);
-
 	/* CCDC_PAD_SINK */
 	format = &ccdc->formats[CCDC_PAD_SINK];
 
@@ -888,7 +889,7 @@ static void ispccdc_config_outlineoffset(struct isp_ccdc_device *ccdc,
 		    ISPCCDC_SDOFST_FINV);
 
 	isp_reg_clr(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SDOFST,
-		    ISPCCDC_SDOFST_FOFST_4L);
+		    ISPCCDC_SDOFST_FOFST_1L);
 
 	switch (oddeven) {
 	case EVENEVEN:
@@ -1208,10 +1209,12 @@ static void ccdc_configure(struct isp_ccdc_device *ccdc)
 	 * Non BT656: Generate VD0 on the last line of the image and VD1 on the
 	 * 2/3 height line.
 	 */
-	if (pdata->is_bt656)
-		isp_reg_writel(isp,
-			(format->height/2 - 2) << ISPCCDC_VDINT_0_SHIFT,
-		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VDINT);
+	if (pdata->fldmode)
+		isp_reg_writel(isp, ((format->height / 2) <<
+				     ISPCCDC_VDINT_0_SHIFT |
+				     (format->height / 3) <<
+				     ISPCCDC_VDINT_1_SHIFT),
+			       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VDINT);
 	else
 		isp_reg_writel(isp, ((format->height - 2) << ISPCCDC_VDINT_0_SHIFT) |
 		       ((format->height * 2 / 3) << ISPCCDC_VDINT_1_SHIFT),
@@ -1231,11 +1234,23 @@ static void ccdc_configure(struct isp_ccdc_device *ccdc)
 		       ((format->width - 1) << ISPCCDC_HORZ_INFO_NPH_SHIFT),
 		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_HORZ_INFO);
 
-	isp_reg_writel(isp, 0 << ISPCCDC_VERT_START_SLV0_SHIFT,
-		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VERT_START);
+	if (pdata->is_bt656) {
+		if (format->priv == V4L2_STD_PAL)
+			isp_reg_writel(isp, (PAL_NON_ACTIVE <<
+					     ISPCCDC_VERT_START_SLV0_SHIFT |
+					     PAL_NON_ACTIVE <<
+					     ISPCCDC_VERT_START_SLV1_SHIFT),
+				       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VERT_START);
+		else if (format->priv == V4L2_STD_NTSC)
+			isp_reg_writel(isp, (NTSC_NON_ACTIVE <<
+					     ISPCCDC_VERT_START_SLV0_SHIFT |
+					     NTSC_NON_ACTIVE <<
+					     ISPCCDC_VERT_START_SLV1_SHIFT),
+				       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VERT_START);
+	}
 
-	if (pdata->is_bt656)
-		isp_reg_writel(isp, ((format->height >> 1) - 1)
+	if (pdata->fldmode)
+		isp_reg_writel(isp, (format->height / 2 - 1)
 				<< ISPCCDC_VERT_LINES_NLV_SHIFT,
 			       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VERT_LINES);
 	else
@@ -1523,6 +1538,19 @@ static int ispccdc_isr_buffer(struct isp_ccdc_device *ccdc)
 	struct isp_device *isp = to_isp_device(ccdc);
 	struct isp_buffer *buffer;
 	int restart = 0;
+	u32 syn_mode;
+	u32 status = 0;
+
+	if (ccdc->syncif.fldmode) {
+		syn_mode = isp_reg_readl(isp, OMAP3_ISP_IOMEM_CCDC,
+					 ISPCCDC_SYN_MODE);
+		status = syn_mode & ISPCCDC_SYN_MODE_FLDSTAT;
+
+		if (!ccdc->start && !status)
+			goto done;
+		else
+			ccdc->start = 1;
+	}
 
 	/* The CCDC generates VD0 interrupts even when disabled (the datasheet
 	 * doesn't explicitly state if that's supposed to happen or not, so it
@@ -1548,11 +1576,14 @@ static int ispccdc_isr_buffer(struct isp_ccdc_device *ccdc)
 		goto done;
 	}
 
-	buffer = isp_video_buffer_next(&ccdc->video_out, ccdc->error);
-	if (buffer != NULL) {
-		ispccdc_set_outaddr(ccdc, buffer->isp_addr);
+	if (!ccdc->syncif.fldmode || (ccdc->syncif.fldmode && !status)) {
+		buffer = isp_video_buffer_next(&ccdc->video_out, ccdc->error);
+		if (buffer != NULL) {
+			ispccdc_set_outaddr(ccdc, buffer->isp_addr);
+			restart = 1;
+		}
+	} else
 		restart = 1;
-	}
 
 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
 
@@ -1576,30 +1607,10 @@ static void ispccdc_vd0_isr(struct isp_ccdc_device *ccdc)
 {
 	unsigned long flags;
 	int restart = 0;
-	struct isp_device *isp = to_isp_device(ccdc);
 
-	if (ccdc->output & CCDC_OUTPUT_MEMORY) {
-		if (ccdc->syncif.bt_r656_en) {
-			u32 fid;
-			u32 syn_mode = isp_reg_readl(isp, OMAP3_ISP_IOMEM_CCDC,
-					ISPCCDC_SYN_MODE);
-
-			fid = syn_mode & ISPCCDC_SYN_MODE_FLDSTAT;
-			/* toggle the software maintained fid */
-			ccdc->syncif.fldstat ^= 1;
-			if (fid == ccdc->syncif.fldstat) {
-				if (fid == 0) {
-					restart = ispccdc_isr_buffer(ccdc);
-					goto done;
-				}
-			} else if (fid == 0) {
-				ccdc->syncif.fldstat = fid;
-			}
-		} else {
+	if (ccdc->output & CCDC_OUTPUT_MEMORY)
 			restart = ispccdc_isr_buffer(ccdc);
-		}
-	}
-done:
+
 	spin_lock_irqsave(&ccdc->lock, flags);
 	if (__ispccdc_handle_stopping(ccdc, CCDC_EVENT_VD0)) {
 		spin_unlock_irqrestore(&ccdc->lock, flags);
@@ -1685,8 +1696,8 @@ int ispccdc_isr(struct isp_ccdc_device *ccdc, u32 events)
 	if (ccdc->state == ISP_PIPELINE_STREAM_STOPPED)
 		return 0;
 
-	if (!ccdc->syncif.bt_r656_en &&
-			(events & IRQ0STATUS_CCDC_VD1_IRQ))
+	if ((events & IRQ0STATUS_CCDC_VD1_IRQ) &&
+		!ccdc->syncif.bt_r656_en)
 		ispccdc_vd1_isr(ccdc);
 
 	ispccdc_lsc_isr(ccdc, events);
@@ -1796,8 +1807,6 @@ static int ccdc_set_stream(struct v4l2_subdev *sd, int enable)
 			return 0;
 
 		isp_subclk_enable(isp, OMAP3_ISP_SUBCLK_CCDC);
-		isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_CFG,
-			    ISPCCDC_CFG_VDLC);
 
 		ccdc_configure(ccdc);
 
@@ -1835,6 +1844,7 @@ static int ccdc_set_stream(struct v4l2_subdev *sd, int enable)
 			isp_sbl_disable(isp, OMAP3_ISP_SBL_CCDC_WRITE);
 		isp_subclk_disable(isp, OMAP3_ISP_SUBCLK_CCDC);
 		ccdc->underrun = 0;
+		ccdc->start = 0;
 		break;
 	}
 
@@ -1919,6 +1929,8 @@ ccdc_try_format(struct isp_ccdc_device *ccdc, struct v4l2_subdev_fh *fh,
 		fmt->height = clamp_t(u32, height, 32, fmt->height - 1);
 		break;
 	}
+
+	fmt->code = V4L2_MBUS_FMT_UYVY8_2X8;
 
 	/* Data is written to memory unpacked, each 10-bit or 12-bit pixel is
 	 * stored on 2 bytes.
@@ -2333,6 +2345,8 @@ int isp_ccdc_init(struct isp_device *isp)
 	ccdc->lsc.state = LSC_STATE_STOPPED;
 	INIT_LIST_HEAD(&ccdc->lsc.free_queue);
 	spin_lock_init(&ccdc->lsc.req_lock);
+
+	ccdc->start = 0;
 
 	ccdc->syncif.ccdc_mastermode = 0;
 	ccdc->syncif.datapol = 0;
