@@ -303,9 +303,21 @@ static struct twl4030_hsmmc_info mmc[] = {
 static int igep2_twl_gpio_setup(struct device *dev,
 		unsigned gpio, unsigned ngpio)
 {
+
 	/* gpio + 0 is "mmc0_cd" (input/IRQ) */
 	mmc[0].gpio_cd = gpio + 0;
 	twl4030_mmc_init(mmc);
+
+	/*
+	 * REVISIT: need ehci-omap hooks for external VBUS
+	 * power switch and overcurrent detect
+	 */
+	gpio_request(gpio + 1, "EHCI NOC");
+	gpio_direction_input(gpio + 1);
+
+	/* TWL4030_GPIO_MAX + 0 == ledA, GPIO_USBH_CPEN (out, active low) */
+	gpio_request(gpio + TWL4030_GPIO_MAX, "USB_ PEN");
+	gpio_direction_output(gpio + TWL4030_GPIO_MAX, 0);
 
 	/* link regulators to MMC adapters ... we "know" the
 	 * regulators will be set up only *after* we return.
