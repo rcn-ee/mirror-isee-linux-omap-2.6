@@ -52,6 +52,8 @@
 #include <linux/device.h>
 #include "smsc911x.h"
 
+#include <asm/mach-types.h>
+
 #define SMSC_CHIPNAME		"smsc911x"
 #define SMSC_MDIONAME		"smsc911x-mdio"
 #define SMSC_DRV_VERSION	"2008-10-21"
@@ -1173,17 +1175,21 @@ static int smsc911x_open(struct net_device *dev)
 		SMSC_WARNING(HW, "dev_addr is not a valid MAC address");
 		return -EADDRNOTAVAIL;
 	}
+
 	/*
 	 * WORKAROUND: Somehow SMSC soft reset is failing with latest version
 	 * of EVM's where the reset line is completely dis-connected.
 	 */
-#if 0
-	/* Reset the LAN911x */
-	if (smsc911x_soft_reset(pdata)) {
-		SMSC_WARNING(HW, "soft reset failed");
-		return -EIO;
+
+	if (!machine_is_omap3evm()) {
+		/* Reset the LAN911x */
+		if (smsc911x_soft_reset(pdata)) {
+			SMSC_WARNING(HW, "soft reset failed");
+			return -EIO;
+		}
+
 	}
-#endif
+
 	smsc911x_reg_write(pdata, HW_CFG, 0x00050000);
 	smsc911x_reg_write(pdata, AFC_CFG, 0x006E3740);
 
