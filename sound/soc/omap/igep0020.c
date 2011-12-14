@@ -101,7 +101,8 @@ static int __init igep2_soc_init(void)
 {
 	int ret;
 
-	if (!machine_is_igep0020() && !machine_is_igep0030()) {
+	if (!machine_is_igep0020() && !machine_is_igep0030() &&
+	    !machine_is_igep0032()) {
 		return -ENODEV;
 	}
 	printk(KERN_INFO "IGEP SoC init\n");
