@@ -83,6 +83,7 @@
 #define IGEP3_GPIO_INPUT1		53
 /* User buttons */
 #define IGEP3_GPIO_SW202		62
+#define IGEP3_GPIO_SW101		15
 
 #if defined(CONFIG_SMSC911X) || defined(CONFIG_SMSC911X_MODULE)
 
@@ -296,8 +297,8 @@ static inline void base0010_gpio_init(void)
 static struct gpio_keys_button base0010_gpio_keys[] = {
 	{
 		.code	= BTN_EXTRA,
-		.gpio	= IGEP3_GPIO_SW202,
-		.desc	= "sw202",
+		.gpio   = IGEP3_GPIO_SW202,
+		.desc	= "btn_extra",
 		.wakeup	= 1,
 	},
 };
@@ -511,7 +512,16 @@ void __init base0010_init(struct twl4030_platform_data *pdata)
 	/* Register I2C3 bus */
 	omap_register_i2c_bus(3, 100, NULL, 0);
 
-	/* Add platform devices */
+	/* 
+	 * Add platform devices 
+	 * NOTE: The GPIO pin connected to the user button switch is different
+	 * for base0010 revision A and B.
+	 * By default the GPIO key is configured as rev A unless board.revision
+	 * kernel param is B.
+	 */
+	if (igep00x0_buddy_pdata.revision & IGEP00X0_BUDDY_HWREV_B)
+		base0010_gpio_keys[0].gpio = IGEP3_GPIO_SW101;
+
 	platform_device_register(&base0010_gpio_keys_device);
 
 	/* Display initialitzation */
