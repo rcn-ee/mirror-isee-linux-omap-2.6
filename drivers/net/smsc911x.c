@@ -1117,7 +1117,6 @@ static void smsc911x_rx_multicast_update_workaround(struct smsc911x_data *pdata)
 	spin_unlock(&pdata->mac_lock);
 }
 
-#ifdef CONFIG_SMSC_PHY
 static int smsc911x_phy_disable_energy_detect(struct smsc911x_data *pdata)
 {
 	int rc = 0;
@@ -1183,17 +1182,6 @@ static int smsc911x_phy_enable_energy_detect(struct smsc911x_data *pdata)
 	}
 	return 0;
 }
-#else
-static inline int smsc911x_phy_disable_energy_detect(struct smsc911x_data *pdata)
-{
-	return 0;
-}
-
-static inline int smsc911x_phy_enable_energy_detect(struct smsc911x_data *pdata)
-{
-	return 0;
-}
-#endif
 
 static int smsc911x_soft_reset(struct smsc911x_data *pdata)
 {
