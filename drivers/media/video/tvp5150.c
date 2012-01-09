@@ -900,6 +900,29 @@ static int tvp5150_s_ctrl(struct v4l2_ctrl *ctrl)
 	return -EINVAL;
 }
 
+static int tvp5150_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct v4l2_subdev *sd = to_sd(ctrl);
+	int ret;
+
+	switch (ctrl->id) {
+	case V4L2_CID_BRIGHTNESS:
+		ret = tvp5150_read(sd, TVP5150_BRIGHT_CTL);
+		return ret;
+	case V4L2_CID_CONTRAST:
+		ret = tvp5150_read(sd, TVP5150_CONTRAST_CTL);
+		return ret;
+	case V4L2_CID_SATURATION:
+		ret = tvp5150_read(sd, TVP5150_SATURATION_CTL);
+		return ret;
+	case V4L2_CID_HUE:
+		ret = tvp5150_read(sd, TVP5150_HUE_CTL);
+		return ret;
+	}
+
+	return -EINVAL;
+}
+
 /*
 static struct v4l2_mbus_framefmt *
 __tvp5150_get_pad_format(struct tvp5150 *tvp5150, struct v4l2_subdev_fh *fh,
@@ -1254,6 +1277,7 @@ static int tvp5150_open(struct v4l2_subdev *subdev, struct v4l2_subdev_fh *fh)
 
 static const struct v4l2_ctrl_ops tvp5150_ctrl_ops = {
 	.s_ctrl = tvp5150_s_ctrl,
+	.g_volatile_ctrl = tvp5150_g_volatile_ctrl,
 };
 
 static const struct v4l2_subdev_core_ops tvp5150_core_ops = {
