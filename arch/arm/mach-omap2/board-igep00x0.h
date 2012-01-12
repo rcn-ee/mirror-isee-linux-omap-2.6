@@ -29,6 +29,12 @@
 #define IGEP00X0_SYSBOOT_NAND           0x0f
 #define IGEP00X0_SYSBOOT_ONENAND        0x10
 
+#if defined(CONFIG_VIDEO_OMAP3) || \
+	defined(CONFIG_VIDEO_OMAP3_MODULE)
+#include "../../../drivers/media/video/isp/isp.h"
+#include "../../../drivers/media/video/isp/ispreg.h"
+#endif
+
 struct twl4030_platform_data;
 
 struct buddy_platform_data {
@@ -69,7 +75,12 @@ void igep00x0_at24c01_init(int busnum);
 
 void igep00x0_modem_init(int on, int nreset, int pwrmon);
 
-void igep00x0_camera_init(void);
+#if defined(CONFIG_VIDEO_OMAP3) ||		\
+	defined(CONFIG_VIDEO_OMAP3_MODULE)
+
+void igep00x0_camera_init(struct isp_platform_data *isp_pdata,
+			  int reset_pin, int pdn_pin);
+#endif
 
 void igep00x0_init_irq(void);
 

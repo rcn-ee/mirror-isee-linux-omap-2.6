@@ -84,6 +84,9 @@
 /* User buttons */
 #define IGEP3_GPIO_SW202		62
 #define IGEP3_GPIO_SW101		15
+/* TVP5151 video encoder */
+#define IGEP3_GPIO_TVP5151_PDN		126
+#define IGEP3_GPIO_TVP5151_RESET	167
 
 #if defined(CONFIG_SMSC911X) || defined(CONFIG_SMSC911X_MODULE)
 
@@ -341,7 +344,11 @@ static struct isp_v4l2_subdevs_group base0010_camera_subdevs[] = {
 				.width			= 8,
 				.data_lane_shift	= 0,
 				.clk_pol		= 0,
+				.hdpol                  = 0,
+				.vdpol                  = 0,
+				.fldmode                = 1,
 				.bridge		= ISPCTRL_PAR_BRIDGE_DISABLE,
+				.is_bt656               = 1,
 		} },
 	},
 	{ NULL, 0, },
@@ -353,26 +360,9 @@ static struct isp_platform_data isp_pdata = {
 
 void __init base0010_camera_init(void)
 {
-	omap_mux_init_signal("cam_fld", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_hs", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_vs", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_xclka", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_pclk", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d0", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d1", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d2", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d3", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d4", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d5", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d6", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d7", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d8", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d9", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d10", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d11", OMAP_PIN_INPUT);
-
-	if (omap3_init_camera(&isp_pdata) < 0)
-		pr_warning("IGEP: Unable to register camera platform \n");
+	/* Register OMAP3 camera devices (tvp5151) */
+	igep00x0_camera_init(&isp_pdata, IGEP3_GPIO_TVP5151_RESET,
+			     IGEP3_GPIO_TVP5151_PDN);
 }
 #else
 void __init base0010_camera_init(void) {}
@@ -438,6 +428,26 @@ static struct omap_board_mux base0010_mux[] __initdata = {
 	OMAP3_MUX(I2C2_SCL, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
 	/* User buttons */
 	OMAP3_MUX(GPMC_NWP, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),
+	/* OMAP3 ISP */
+	OMAP3_MUX(CAM_STROBE, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(CAM_FLD, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_HS, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_VS, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_XCLKA, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_PCLK, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D0, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D1, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D2, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D3, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D4, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D5, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D6, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D7, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D8, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D9, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D10, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D11, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_WEN, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 #else

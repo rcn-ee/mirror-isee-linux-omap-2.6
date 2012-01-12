@@ -39,47 +39,45 @@
 #define IGEP2_GPIO_TVP5151_PDN		126
 #define IGEP2_GPIO_TVP5151_RESET	167
 
-static inline void igep0022_i2c2_init(void)
-{
-	/*
-	 * From TVP5151 datasheet Table 3-8. Reset and Power-Down Modes
-	 *   PDN RESETB CONFIGURATION
-	 *    0    0    Reserved (unknown state)
-	 *    0    1    Powers down the decoder
-	 *    1    0    Resets the decoder
-	 *    1    1    Normal operation
-	 *
-	 * If TVP5151_PDN and TPVP5151_RESET is set to 0 the I2C2_SDA line
-	 * is forced to low level and all devices connected to I2C2 stop
-	 * working, this affects to EEPROM connected to the same bus. By default
-	 * we should configure these pins to logical 1 (Normal operation)
-	 *
-	 * OMAP3530 CBB package can have GPIO126 muxed on 2 pins: mmc1_dat4 and
-	 * cam_strobe.
-	 */
-	omap_mux_init_signal("cam_strobe.gpio_126", 0);
-	omap_mux_init_gpio(IGEP2_GPIO_TVP5151_RESET, OMAP_PIN_OUTPUT);
+#if defined(CONFIG_VIDEO_OMAP3) || \
+	defined(CONFIG_VIDEO_OMAP3_MODULE)
 
-	if ((gpio_request(IGEP2_GPIO_TVP5151_PDN, "TVP5151 PDN") == 0) &&
-		(gpio_direction_output(IGEP2_GPIO_TVP5151_PDN, 0) == 0))
-		gpio_export(IGEP2_GPIO_TVP5151_PDN, 0);
-	else
-		pr_warning("IGEP: Could not obtain gpio TVP5151 PDN\n");
+static struct i2c_board_info igep0022_camera_i2c_devices[] = {
+	{
+		I2C_BOARD_INFO("tvp5150", (0xb8 >> 1)),
+	},
+};
 
-	if ((gpio_request(IGEP2_GPIO_TVP5151_RESET, "TVP5151 RESET") == 0)
-		&& (gpio_direction_output(IGEP2_GPIO_TVP5151_RESET, 0) == 0)) {
-		gpio_export(IGEP2_GPIO_TVP5151_RESET, 0);
-		/* Initialize TVP5151 power up sequence */
-		udelay(10);
-		gpio_set_value(IGEP2_GPIO_TVP5151_PDN, 1);
-		udelay(10);
-                gpio_set_value(IGEP2_GPIO_TVP5151_RESET, 1);
-		udelay(200);
-	} else
-		pr_warning("IGEP: Could not obtain gpio TVP5151 RESET\n");
+static struct isp_subdev_i2c_board_info igep0022_camera_primary_subdevs[] = {
+	{
+		.board_info = &igep0022_camera_i2c_devices[0],
+		.i2c_adapter_id = 2,
+	},
+	{ NULL, 0, },
+};
 
-	omap_register_i2c_bus(2, 400, NULL, 0);
-}
+static struct isp_v4l2_subdevs_group igep0022_camera_subdevs[] = {
+	{
+		.subdevs = igep0022_camera_primary_subdevs,
+		.interface = ISP_INTERFACE_PARALLEL,
+		.bus = { .parallel = {
+				.width			= 8,
+				.data_lane_shift	= 0,
+				.clk_pol		= 0,
+				.hdpol                  = 0,
+				.vdpol                  = 0,
+				.fldmode                = 1,
+				.bridge		= ISPCTRL_PAR_BRIDGE_DISABLE,
+				.is_bt656               = 1,
+		} },
+	},
+	{ NULL, 0, },
+};
+
+static struct isp_platform_data isp_pdata = {
+	.subdevs = igep0022_camera_subdevs,
+};
+#endif
 
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux igep0022_mux[] __initdata = {
@@ -87,6 +85,26 @@ static struct omap_board_mux igep0022_mux[] __initdata = {
 	OMAP3_MUX(MCSPI1_CLK, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 	OMAP3_MUX(MCSPI1_SIMO, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 	OMAP3_MUX(MCSPI1_SOMI, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	/* OMAP3 ISP */
+	OMAP3_MUX(CAM_STROBE, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(CAM_FLD, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_HS, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_VS, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_XCLKA, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_PCLK, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D0, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D1, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D2, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D3, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D4, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D5, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D6, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D7, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D8, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D9, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D10, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D11, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_WEN, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 #else
@@ -101,7 +119,7 @@ void __init igep0022_init(void)
 	omap_mux_write_array(mux_partition, igep0022_mux);
 
 	/* Register I2C2 bus */
-	igep0022_i2c2_init();
+	omap_register_i2c_bus(2, 400, NULL, 0);
 
 	/* AT24C01 EEPROM with I2C interface */
 	igep00x0_at24c01_init(2);
@@ -127,6 +145,10 @@ void __init igep0022_init(void)
 	igep00x0_mcp251x_init(1, 0, IGEP2_GPIO_MCP251X_IRQ,
 				IGEP2_GPIO_MCP251X_NRESET);
 
+#if defined(CONFIG_VIDEO_OMAP3) || \
+	defined(CONFIG_VIDEO_OMAP3_MODULE)
 	/* Register OMAP3 camera devices (tvp5151) */
-	igep00x0_camera_init();
+	igep00x0_camera_init(&isp_pdata, IGEP2_GPIO_TVP5151_RESET,
+			     IGEP2_GPIO_TVP5151_PDN);
+#endif
 }

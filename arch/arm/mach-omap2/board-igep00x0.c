@@ -48,12 +48,6 @@
 #include "mux.h"
 #include "sdram-numonyx-m65kxxxxam.h"
 
-#if defined(CONFIG_VIDEO_OMAP3) || \
-	defined(CONFIG_VIDEO_OMAP3_MODULE)
-#include "../../../drivers/media/video/isp/isp.h"
-#include "../../../drivers/media/video/isp/ispreg.h"
-#endif
-
 struct omap_mux_partition *mux_partition = NULL;
 
 struct omap_dss_device igep00x0_dvi_device = {
@@ -598,69 +592,46 @@ void __init igep00x0_modem_init(int on, int nreset, int pwrmon)
 		pr_warning("IGEP: Could not obtain gpio MODEM PWRMON\n");
 }
 
-#if defined(CONFIG_VIDEO_OMAP3) || \
+#if defined(CONFIG_VIDEO_OMAP3) ||		\
 	defined(CONFIG_VIDEO_OMAP3_MODULE)
-
-static struct i2c_board_info igep00x0_camera_i2c_devices[] = {
-	{
-		I2C_BOARD_INFO("tvp5150", (0xb8 >> 1)),
-	},
-};
-
-static struct isp_subdev_i2c_board_info igep00x0_camera_primary_subdevs[] = {
-	{
-		.board_info = &igep00x0_camera_i2c_devices[0],
-		.i2c_adapter_id = 2,
-	},
-	{ NULL, 0, },
-};
-
-static struct isp_v4l2_subdevs_group igep00x0_camera_subdevs[] = {
-	{
-		.subdevs = igep00x0_camera_primary_subdevs,
-		.interface = ISP_INTERFACE_PARALLEL,
-		.bus = { .parallel = {
-				.width			= 8,
-				.data_lane_shift	= 0,
-				.clk_pol		= 0,
-				.hdpol                  = 0,
-				.vdpol                  = 0,
-				.fldmode                = 1,
-				.bridge		= ISPCTRL_PAR_BRIDGE_DISABLE,
-				.is_bt656               = 1,
-		} },
-	},
-	{ NULL, 0, },
-};
-
-static struct isp_platform_data isp_pdata = {
-	.subdevs = igep00x0_camera_subdevs,
-};
-
-void __init igep00x0_camera_init(void)
+void __init igep00x0_camera_init(struct isp_platform_data *isp_pdata,
+				 int reset_pin, int pdn_pin)
 {
-	omap_mux_init_signal("cam_fld", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_hs", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_vs", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_xclka", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_pclk", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d0", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d1", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d2", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d3", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d4", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d5", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d6", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d7", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d8", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d9", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d10", OMAP_PIN_INPUT);
-	omap_mux_init_signal("cam_d11", OMAP_PIN_INPUT);
+	/*
+	 * From TVP5151 datasheet Table 3-8. Reset and Power-Down Modes
+	 *   PDN RESETB CONFIGURATION
+	 *    0    0    Reserved (unknown state)
+	 *    0    1    Powers down the decoder
+	 *    1    0    Resets the decoder
+	 *    1    1    Normal operation
+	 *
+	 * If TVP5151_PDN and TPVP5151_RESET is set to 0 the I2C2_SDA line
+	 * is forced to low level and all devices connected to I2C2 stop
+	 * working, this affects to EEPROM connected to the same bus. By default
+	 * we should configure these pins to logical 1 (Normal operation)
+	 *
+	 */
+	if ((gpio_request(pdn_pin, "TVP5151 PDN") == 0) &&
+		(gpio_direction_output(pdn_pin, 0) == 0))
+		gpio_export(pdn_pin, 0);
+	else
+		pr_warning("IGEP: Could not obtain gpio TVP5151 PDN\n");
 
-	if (omap3_init_camera(&isp_pdata) < 0)
-		pr_warning("IGEP: Unable to register camera platform \n");
+	if ((gpio_request(reset_pin, "TVP5151 RESET") == 0)
+		&& (gpio_direction_output(reset_pin, 0) == 0)) {
+		gpio_export(reset_pin, 0);
+		/* Initialize TVP5151 power up sequence */
+		udelay(10);
+		gpio_set_value(pdn_pin, 1);
+		udelay(10);
+		gpio_set_value(reset_pin, 1);
+		udelay(200);
+	} else
+		pr_warning("IGEP: Could not obtain gpio TVP5151 RESET\n");
+
+	if (omap3_init_camera(isp_pdata) < 0)
+		pr_warning("IGEP: Unable to register camera platform\n");
 }
-
 #else
 void __init igep00x0_camera_init(void) {}
 #endif
