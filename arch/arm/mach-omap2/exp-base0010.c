@@ -440,7 +440,14 @@ static struct omap_board_mux base0010_mux[] __initdata = {
 	OMAP3_MUX(SDMMC2_DAT6, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(ETK_D4, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),
 	OMAP3_MUX(SDMMC2_DAT4, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),
-	OMAP3_MUX(GPMC_NCS2, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),
+	/*
+         * The GPIO INPUT3 (GPIO53) is connected to one led (D442) on the
+         * IGEP0032 machine, so by default is configured as a led and can't
+         * be used as input GPIO, if you want use this GPIO as input you should
+         * remove led configuration from board-igep0032.c file and uncomment
+         * following lines.
+         */
+	/*OMAP3_MUX(GPMC_NCS2, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),*/
 	/* User buttons */
 	OMAP3_MUX(GPMC_NWP, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),
 	/* OMAP3 ISP */
