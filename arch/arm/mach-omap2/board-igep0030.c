@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 - ISEE 2007 SL
+ * Copyright (C) 2010-2011 - ISEE 2007 SL
  *
  * Modified from mach-omap2/board-generic.c
  *
@@ -17,6 +17,7 @@
 #include <linux/io.h>
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
+#include <linux/leds.h>
 
 #include <linux/regulator/machine.h>
 #include <linux/i2c/twl.h>
@@ -31,133 +32,45 @@
 #include <plat/usb.h>
 #include <plat/onenand.h>
 
+
+#include "board-igep00x0.h"
 #include "mux.h"
 #include "hsmmc.h"
-#include "sdram-numonyx-m65kxxxxam.h"
+#include "twl-common.h"
 
-#define IGEP3_GPIO_LED0_GREEN	54
-#define IGEP3_GPIO_LED0_RED	53
-#define IGEP3_GPIO_LED1_RED	16
+#define GPIO_LED_D210_RED	16
+#define GPIO_WIFI_NPD		138
+#define GPIO_WIFI_NRESET	139
+#define GPIO_BT_NRESET		137
 
-#define IGEP3_GPIO_WIFI_NPD	138
-#define IGEP3_GPIO_WIFI_NRESET	139
-#define IGEP3_GPIO_BT_NRESET	137
-
-#define IGEP3_GPIO_USBH_NRESET  115
-
-
-#if defined(CONFIG_MTD_ONENAND_OMAP2) || \
-	defined(CONFIG_MTD_ONENAND_OMAP2_MODULE)
-
-#define ONENAND_MAP             0x20000000
+#define IGEP3_RD_GPIO_LED_D440_GREEN	54
+#define IGEP3_RD_GPIO_LED_D440_RED	53
+#define IGEP3_RD_GPIO_USBH_NRESET	183
+#define IGEP3_RE_GPIO_USBH_NRESET	54
 
 /*
- * x2 Flash built-in COMBO POP MEMORY
- * Since the device is equipped with two DataRAMs, and two-plane NAND
- * Flash memory array, these two component enables simultaneous program
- * of 4KiB. Plane1 has only even blocks such as block0, block2, block4
- * while Plane2 has only odd blocks such as block1, block3, block5.
- * So MTD regards it as 4KiB page size and 256KiB block size 64*(2*2048)
+ * IGEP3 Hardware Revision
+ *
+ * Revision D is only assembled with OMAP35x
+ * Revision E is only assembled with DM37xx
+ *
  */
 
-static struct mtd_partition igep3_onenand_partitions[] = {
-	{
-		.name           = "X-Loader",
-		.offset         = 0,
-		.size           = 2 * (64*(2*2048))
-	},
-	{
-		.name           = "U-Boot",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = 6 * (64*(2*2048)),
-	},
-	{
-		.name           = "Environment",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = 2 * (64*(2*2048)),
-	},
-	{
-		.name           = "Kernel",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = 12 * (64*(2*2048)),
-	},
-	{
-		.name           = "File System",
-		.offset         = MTDPART_OFS_APPEND,
-		.size           = MTDPART_SIZ_FULL,
-	},
-};
+#define IGEP3_BOARD_HWREV_D	0xD
+#define IGEP3_BOARD_HWREV_E	0xE
 
-static struct omap_onenand_platform_data igep3_onenand_pdata = {
-	.parts = igep3_onenand_partitions,
-	.nr_parts = ARRAY_SIZE(igep3_onenand_partitions),
-	.onenand_setup = NULL,
-	.dma_channel	= -1,	/* disable DMA in OMAP OneNAND driver */
-};
+static u8 hwrev;
 
-static struct platform_device igep3_onenand_device = {
-	.name		= "omap2-onenand",
-	.id		= -1,
-	.dev = {
-		.platform_data = &igep3_onenand_pdata,
-	},
-};
-
-void __init igep3_flash_init(void)
+static void __init igep0030_get_revision(void)
 {
-	u8 cs = 0;
-	u8 onenandcs = GPMC_CS_NUM + 1;
-
-	for (cs = 0; cs < GPMC_CS_NUM; cs++) {
-		u32 ret;
-		ret = gpmc_cs_read_reg(cs, GPMC_CS_CONFIG1);
-
-		/* Check if NAND/oneNAND is configured */
-		if ((ret & 0xC00) == 0x800)
-			/* NAND found */
-			pr_err("IGEP3: Unsupported NAND found\n");
-		else {
-			ret = gpmc_cs_read_reg(cs, GPMC_CS_CONFIG7);
-
-			if ((ret & 0x3F) == (ONENAND_MAP >> 24))
-				/* OneNAND found */
-				onenandcs = cs;
-		}
+	if (cpu_is_omap3630()) {
+		pr_info("IGEP: Hardware Rev. E\n");
+		hwrev = IGEP3_BOARD_HWREV_E;
+	} else {
+		pr_info("IGEP: Hardware Rev. D\n");
+		hwrev = IGEP3_BOARD_HWREV_D;
 	}
-
-	if (onenandcs > GPMC_CS_NUM) {
-		pr_err("IGEP3: Unable to find configuration in GPMC\n");
-		return;
-	}
-
-	igep3_onenand_pdata.cs = onenandcs;
-
-	if (platform_device_register(&igep3_onenand_device) < 0)
-		pr_err("IGEP3: Unable to register OneNAND device\n");
 }
-
-#else
-void __init igep3_flash_init(void) {}
-#endif
-
-static struct regulator_consumer_supply igep3_vmmc1_supply = {
-	.supply		= "vmmc",
-};
-
-/* VMMC1 for OMAP VDD_MMC1 (i/o) and MMC1 card */
-static struct regulator_init_data igep3_vmmc1 = {
-	.constraints = {
-		.min_uV			= 1850000,
-		.max_uV			= 3150000,
-		.valid_modes_mask	= REGULATOR_MODE_NORMAL
-					| REGULATOR_MODE_STANDBY,
-		.valid_ops_mask		= REGULATOR_CHANGE_VOLTAGE
-					| REGULATOR_CHANGE_MODE
-					| REGULATOR_CHANGE_STATUS,
-	},
-	.num_consumer_supplies  = 1,
-	.consumer_supplies      = &igep3_vmmc1_supply,
-};
 
 static struct omap2_hsmmc_info mmc[] = {
 	[0] = {
@@ -177,223 +90,215 @@ static struct omap2_hsmmc_info mmc[] = {
 	{}      /* Terminator */
 };
 
-#if defined(CONFIG_LEDS_GPIO) || defined(CONFIG_LEDS_GPIO_MODULE)
-#include <linux/leds.h>
-
-static struct gpio_led igep3_gpio_leds[] = {
+static struct gpio_led gpio_led_data[] = {
 	[0] = {
-		.name			= "gpio-led:red:d0",
-		.gpio			= IGEP3_GPIO_LED0_RED,
-		.default_trigger	= "default-off"
+		.name = "d440:red",
+		.gpio = -EINVAL, /* gets replaced */
+		.default_trigger = "default-off",
+		.active_low = true,
 	},
 	[1] = {
-		.name			= "gpio-led:green:d0",
-		.gpio			= IGEP3_GPIO_LED0_GREEN,
-		.default_trigger	= "default-off",
+		.name = "d440:green",
+		.gpio = -EINVAL, /* gets replaced */
+		.default_trigger = "default-off",
+		.active_low = true,
 	},
 	[2] = {
-		.name			= "gpio-led:red:d1",
-		.gpio			= IGEP3_GPIO_LED1_RED,
-		.default_trigger	= "default-off",
+		.name = "d210:red",
+		.gpio = GPIO_LED_D210_RED,
+		.default_trigger = "default-off",
+		.active_low = true,
 	},
 	[3] = {
-		.name			= "gpio-led:green:d1",
-		.default_trigger	= "heartbeat",
-		.gpio			= -EINVAL, /* gets replaced */
+		.name = "d210:green",
+		.default_trigger = "default-on",
+		.gpio = -EINVAL, /* gets replaced */
+		.active_low = true,
 	},
 };
 
-static struct gpio_led_platform_data igep3_led_pdata = {
-	.leds           = igep3_gpio_leds,
-	.num_leds       = ARRAY_SIZE(igep3_gpio_leds),
+static struct gpio_led_platform_data gpio_led_pdata = {
+	.leds           = gpio_led_data,
+	.num_leds       = ARRAY_SIZE(gpio_led_data),
 };
 
-static struct platform_device igep3_led_device = {
+static struct platform_device gpio_led_device = {
 	 .name   = "leds-gpio",
 	 .id     = -1,
 	 .dev    = {
-		 .platform_data = &igep3_led_pdata,
+		 .platform_data = &gpio_led_pdata,
 	},
 };
 
-static void __init igep3_leds_init(void)
-{
-	platform_device_register(&igep3_led_device);
-}
-
-#else
-static inline void igep3_leds_init(void)
-{
-	if ((gpio_request(IGEP3_GPIO_LED0_RED, "gpio-led:red:d0") == 0) &&
-	    (gpio_direction_output(IGEP3_GPIO_LED0_RED, 1) == 0)) {
-		gpio_export(IGEP3_GPIO_LED0_RED, 0);
-		gpio_set_value(IGEP3_GPIO_LED0_RED, 1);
-	} else
-		pr_warning("IGEP3: Could not obtain gpio GPIO_LED0_RED\n");
-
-	if ((gpio_request(IGEP3_GPIO_LED0_GREEN, "gpio-led:green:d0") == 0) &&
-	    (gpio_direction_output(IGEP3_GPIO_LED0_GREEN, 1) == 0)) {
-		gpio_export(IGEP3_GPIO_LED0_GREEN, 0);
-		gpio_set_value(IGEP3_GPIO_LED0_GREEN, 1);
-	} else
-		pr_warning("IGEP3: Could not obtain gpio GPIO_LED0_GREEN\n");
-
-	if ((gpio_request(IGEP3_GPIO_LED1_RED, "gpio-led:red:d1") == 0) &&
-		(gpio_direction_output(IGEP3_GPIO_LED1_RED, 1) == 0)) {
-		gpio_export(IGEP3_GPIO_LED1_RED, 0);
-		gpio_set_value(IGEP3_GPIO_LED1_RED, 1);
-	} else
-		pr_warning("IGEP3: Could not obtain gpio GPIO_LED1_RED\n");
-}
-#endif
-
-static int igep3_twl4030_gpio_setup(struct device *dev,
+static int twl4030_gpio_setup(struct device *dev,
 		unsigned gpio, unsigned ngpio)
 {
 	/* gpio + 0 is "mmc0_cd" (input/IRQ) */
 	mmc[0].gpio_cd = gpio + 0;
 	omap2_hsmmc_init(mmc);
 
-	/*
-	 * link regulators to MMC adapters ... we "know" the
-	 * regulators will be set up only *after* we return.
+	/* REVISIT: need ehci-omap hooks for external VBUS
+	 * power switch and overcurrent detect
 	 */
-	igep3_vmmc1_supply.dev = mmc[0].dev;
+	gpio_request(gpio + 1, "EHCI NOC");
+	gpio_direction_input(gpio + 1);
+
+	if (hwrev == IGEP3_BOARD_HWREV_D) {
+		gpio_led_data[0].gpio = IGEP3_RD_GPIO_LED_D440_RED;
+		gpio_led_data[1].gpio = IGEP3_RD_GPIO_LED_D440_GREEN;
+	} else {
+		/* Hardware Rev. E */
+		/* TWL4030_GPIO_MAX + 0 == ledA (out, active low LED) */
+		gpio_led_data[0].gpio = gpio + TWL4030_GPIO_MAX + 0;
+		/* gpio + 13 == ledsync (out, active low LED) */
+		gpio_led_data[1].gpio = gpio + 13;
+	}
 
 	/* TWL4030_GPIO_MAX + 1 == ledB (out, active low LED) */
-#if !defined(CONFIG_LEDS_GPIO) && !defined(CONFIG_LEDS_GPIO_MODULE)
-	if ((gpio_request(gpio+TWL4030_GPIO_MAX+1, "gpio-led:green:d1") == 0)
-	    && (gpio_direction_output(gpio + TWL4030_GPIO_MAX + 1, 1) == 0)) {
-		gpio_export(gpio + TWL4030_GPIO_MAX + 1, 0);
-		gpio_set_value(gpio + TWL4030_GPIO_MAX + 1, 0);
-	} else
-		pr_warning("IGEP3: Could not obtain gpio GPIO_LED1_GREEN\n");
-#else
-	igep3_gpio_leds[3].gpio = gpio + TWL4030_GPIO_MAX + 1;
-#endif
+	gpio_led_data[3].gpio = gpio + TWL4030_GPIO_MAX + 1;
+
+	/* Register led devices */
+	platform_device_register(&gpio_led_device);
 
 	return 0;
 };
 
-static struct twl4030_gpio_platform_data igep3_twl4030_gpio_pdata = {
+static struct twl4030_gpio_platform_data twl4030_gpio_pdata = {
 	.gpio_base	= OMAP_MAX_GPIO_LINES,
 	.irq_base	= TWL4030_GPIO_IRQ_BASE,
 	.irq_end	= TWL4030_GPIO_IRQ_END,
 	.use_leds	= true,
-	.setup		= igep3_twl4030_gpio_setup,
+	.setup		= twl4030_gpio_setup,
 };
 
-static struct twl4030_usb_data igep3_twl4030_usb_data = {
-	.usb_mode	= T2_USB_MODE_ULPI,
-};
-
-static void __init igep3_init_irq(void)
-{
-	omap2_init_common_infrastructure();
-	omap2_init_common_devices(m65kxxxxam_sdrc_params,
-				  m65kxxxxam_sdrc_params);
-	omap_init_irq();
-}
-
-static struct twl4030_platform_data igep3_twl4030_pdata = {
-	.irq_base	= TWL4030_IRQ_BASE,
-	.irq_end	= TWL4030_IRQ_END,
-
+static struct twl4030_platform_data twl4030_pdata = {
 	/* platform_data for children goes here */
-	.usb		= &igep3_twl4030_usb_data,
-	.gpio		= &igep3_twl4030_gpio_pdata,
-	.vmmc1		= &igep3_vmmc1,
+	.gpio		= &twl4030_gpio_pdata,
 };
 
-static struct i2c_board_info __initdata igep3_i2c_boardinfo[] = {
-	{
-		I2C_BOARD_INFO("twl4030", 0x48),
-		.flags		= I2C_CLIENT_WAKE,
-		.irq		= INT_34XX_SYS_NIRQ,
-		.platform_data	= &igep3_twl4030_pdata,
-	},
+static struct ehci_hcd_omap_platform_data ehci_pdata __initdata = {
+	.port_mode[0] = EHCI_HCD_OMAP_MODE_UNKNOWN,
+	.port_mode[1] = EHCI_HCD_OMAP_MODE_PHY,
+	.port_mode[2] = EHCI_HCD_OMAP_MODE_UNKNOWN,
+
+	.phy_reset = true,
+	.reset_gpio_port[0] = -EINVAL,
+	.reset_gpio_port[1] = -EINVAL, /* gets replaced */
+	.reset_gpio_port[2] = -EINVAL,
 };
-
-static int __init igep3_i2c_init(void)
-{
-	omap_register_i2c_bus(1, 2600, igep3_i2c_boardinfo,
-			ARRAY_SIZE(igep3_i2c_boardinfo));
-
-	return 0;
-}
-
-static struct omap_musb_board_data musb_board_data = {
-	.interface_type	= MUSB_INTERFACE_ULPI,
-	.mode		= MUSB_OTG,
-	.power		= 100,
-};
-
-#if defined(CONFIG_LIBERTAS_SDIO) || defined(CONFIG_LIBERTAS_SDIO_MODULE)
-
-static void __init igep3_wifi_bt_init(void)
-{
-	/* Configure MUX values for W-LAN + Bluetooth GPIO's */
-	omap_mux_init_gpio(IGEP3_GPIO_WIFI_NPD, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(IGEP3_GPIO_WIFI_NRESET, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(IGEP3_GPIO_BT_NRESET, OMAP_PIN_OUTPUT);
-
-	/* Set GPIO's for  W-LAN + Bluetooth combo module */
-	if ((gpio_request(IGEP3_GPIO_WIFI_NPD, "GPIO_WIFI_NPD") == 0) &&
-	    (gpio_direction_output(IGEP3_GPIO_WIFI_NPD, 1) == 0)) {
-		gpio_export(IGEP3_GPIO_WIFI_NPD, 0);
-	} else
-		pr_warning("IGEP3: Could not obtain gpio GPIO_WIFI_NPD\n");
-
-	if ((gpio_request(IGEP3_GPIO_WIFI_NRESET, "GPIO_WIFI_NRESET") == 0) &&
-	    (gpio_direction_output(IGEP3_GPIO_WIFI_NRESET, 1) == 0)) {
-		gpio_export(IGEP3_GPIO_WIFI_NRESET, 0);
-		gpio_set_value(IGEP3_GPIO_WIFI_NRESET, 0);
-		udelay(10);
-		gpio_set_value(IGEP3_GPIO_WIFI_NRESET, 1);
-	} else
-		pr_warning("IGEP3: Could not obtain gpio GPIO_WIFI_NRESET\n");
-
-	if ((gpio_request(IGEP3_GPIO_BT_NRESET, "GPIO_BT_NRESET") == 0) &&
-	    (gpio_direction_output(IGEP3_GPIO_BT_NRESET, 1) == 0)) {
-		gpio_export(IGEP3_GPIO_BT_NRESET, 0);
-	} else
-		pr_warning("IGEP3: Could not obtain gpio GPIO_BT_NRESET\n");
-}
-#else
-void __init igep3_wifi_bt_init(void) {}
-#endif
 
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux board_mux[] __initdata = {
+	OMAP3_MUX(I2C2_SDA, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
+	/* McBSP 2 */
+	OMAP3_MUX(MCBSP2_FSX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP2_CLKX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP2_DR, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP2_DX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
+	/* Serial ports */
+	OMAP3_MUX(UART2_RX, OMAP_MUX_MODE7 | OMAP_PIN_INPUT),
+	OMAP3_MUX(UART2_TX, OMAP_MUX_MODE7 | OMAP_PIN_INPUT),
+	OMAP3_MUX(MCBSP3_CLKX, OMAP_MUX_MODE1 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(MCBSP3_FSX, OMAP_MUX_MODE1 | OMAP_PIN_INPUT),
+	/* GPIO leds */
+	OMAP3_MUX(GPMC_NCS2, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),
+	OMAP3_MUX(GPMC_NCS3, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),
+	OMAP3_MUX(ETK_D2, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),
+	/* OMAP3 ISP */
+	OMAP3_MUX(CAM_STROBE, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
+	OMAP3_MUX(CAM_FLD, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_HS, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_VS, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_XCLKA, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_PCLK, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D0, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D1, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D2, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D3, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D4, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D5, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D6, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D7, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D8, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D9, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D10, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D11, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
+#else
+#define board_mux	NULL
 #endif
 
-static void __init igep3_init(void)
+/* Expansion board: BASE0010 */
+extern void __init base0010_init(struct twl4030_platform_data *pdata);
+/* Expansion board: ILMS0015 */
+extern void __init ilms0015_init(void);
+
+static void __init igep0030_init(void)
 {
+	int opt;
+
+	/* Board initialitzations */
+	/* - Mux initialization */
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
-
-	/* Register I2C busses and drivers */
-	igep3_i2c_init();
-
+	/* - Ensure msecure is mux'd to be able to set the RTC. */
+	omap_mux_init_signal("sys_drm_msecure", OMAP_PIN_OFF_OUTPUT_HIGH);
+	/* - Get IGEP0030 Hardware Revision */
+	igep0030_get_revision();
+	/* - Register serial devices */
 	omap_serial_init();
-	usb_musb_init(&musb_board_data);
 
-	igep3_flash_init();
-	igep3_leds_init();
+	/* Expansion board initialitzations */
+	/* - BASE0010 (adds twl4030_pdata)  */
+	/* - ILMS0015 */
+	if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_BASE0010)
+		base0010_init(&twl4030_pdata);
+	else if (igep00x0_buddy_pdata.model == IGEP00X0_BUDDY_ILMS0015)
+		ilms0015_init();
+
+	/* Add twl4030 common data */
+	omap3_pmic_get_config(&twl4030_pdata, TWL_COMMON_PDATA_USB |
+			TWL_COMMON_PDATA_AUDIO | TWL_COMMON_PDATA_MADC,
+			TWL_COMMON_REGULATOR_VPLL2);
+
+	igep00x0_pmic_get_config(&twl4030_pdata, 0,
+			TWL_IGEP00X0_REGULATOR_VMMC1 |
+			TWL_IGEP00X0_REGULATOR_VIO);
+
+	omap_pmic_init(1, 2600, "twl4030", INT_34XX_SYS_NIRQ, &twl4030_pdata);
+
+	/* - USB OTG & USB HOST */
+	if (hwrev == IGEP3_BOARD_HWREV_D)
+		ehci_pdata.reset_gpio_port[1] = IGEP3_RD_GPIO_USBH_NRESET;
+	else
+		/* Hardware Rev. E */
+		ehci_pdata.reset_gpio_port[1] = IGEP3_RE_GPIO_USBH_NRESET;
+
+	usb_ehci_init(&ehci_pdata);
+	usb_musb_init(&igep00x0_musb_board_data);
+
+	platform_device_register(&igep00x0_vdd33_device);
+
+	/* Common initialitzations */
+	/* - Register flash devices */
+	igep00x0_flash_init();
 
 	/*
-	 * WLAN-BT combo module from MuRata wich has a Marvell WLAN
-	 * (88W8686) + CSR Bluetooth chipset. Uses SDIO interface.
+	 * WLAN-BT combo module from MuRata with SDIO interface.
+	 *
+	 * NOTE: If we have an expansion board with modem enabled we need to
+	 * disable the bluetooth interface as is INCOMPATIBLE
 	 */
-	igep3_wifi_bt_init();
-
+	opt = igep00x0_buddy_pdata.options & IGEP00X0_BUDDY_OPT_MODEM;
+	igep00x0_wifi_bt_init(GPIO_WIFI_NPD, GPIO_WIFI_NRESET,
+			 GPIO_BT_NRESET, !opt);
 }
 
-MACHINE_START(IGEP0030, "IGEP OMAP3 module")
+MACHINE_START(IGEP0030, "IGEP0030 COM")
 	.boot_params	= 0x80000100,
+	.reserve	= omap_reserve,
 	.map_io		= omap3_map_io,
-	.init_irq	= igep3_init_irq,
-	.init_machine	= igep3_init,
+	.init_irq	= igep00x0_init_irq,
+	.init_machine	= igep0030_init,
 	.timer		= &omap_timer,
 MACHINE_END

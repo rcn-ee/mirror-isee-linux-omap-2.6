@@ -228,8 +228,21 @@ obj-$(CONFIG_MACH_CM_T35)		+= board-cm-t35.o \
 					   hsmmc.o
 obj-$(CONFIG_MACH_CM_T3517)		+= board-cm-t3517.o
 obj-$(CONFIG_MACH_IGEP0020)		+= board-igep0020.o \
+					   board-flash.o \
+					   exp-igep0022.o \
+					   board-igep00x0.o \
 					   hsmmc.o
 obj-$(CONFIG_MACH_IGEP0030)		+= board-igep0030.o \
+					   board-flash.o \
+					   board-igep00x0.o \
+					   exp-base0010.o \
+					   exp-ilms0015.o \
+					   hsmmc.o
+obj-$(CONFIG_MACH_IGEP0032)		+= board-igep0032.o \
+					   board-flash.o \
+					   board-igep00x0.o \
+					   exp-base0010.o \
+					   exp-ilms0015.o \
 					   hsmmc.o
 obj-$(CONFIG_MACH_OMAP3_TOUCHBOOK)	+= board-omap3touchbook.o \
 					   hsmmc.o
@@ -274,6 +287,8 @@ obj-y					+= $(smc91x-m) $(smc91x-y)
 
 smsc911x-$(CONFIG_SMSC911X)		:= gpmc-smsc911x.o
 obj-y					+= $(smsc911x-m) $(smsc911x-y)
+
+obj-y                                  += twl-common.o
 
 ifeq ($(CONFIG_MACH_OMAP3_BEAGLE),y)
 beagle-camera-$(CONFIG_VIDEO_OMAP3)	:= board-omap3beagle-camera.o
