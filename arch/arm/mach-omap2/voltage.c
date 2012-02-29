@@ -1944,8 +1944,8 @@ int omap_voltage_scale(struct voltagedomain *voltdm, unsigned long volt)
 		freq = opp_get_freq(opp);
 
 		if (freq == omap_device_get_rate(dev)) {
-			dev_warn(dev, "%s: Already at the requested"
-				"rate %ld\n", __func__, freq);
+			/*dev_warn(dev, "%s: Already at the requested"
+				" rate %ld\n", __func__, freq); */
 			continue;
 		}
 
