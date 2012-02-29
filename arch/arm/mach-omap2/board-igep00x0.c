@@ -492,7 +492,8 @@ void __init igep00x0_wifi_bt_init(int npd, int wifi_nreset, int bt_nreset,
 }
 
 #else
-void __init igep00x0_wifi_bt_init(int npd, int wifi_nreset, int bt_nreset) { }
+void __init igep00x0_wifi_bt_init(int npd, int wifi_nreset, int bt_nreset,
+			int bt_enable) { }
 #endif
 
 #if defined(CONFIG_EEPROM_AT24) || \
