@@ -441,7 +441,7 @@ void __init igep00x0_mcp251x_init(int bus_num, int cs, int irq, int nreset)
 	}
 
 	if (nreset) {
-		if ((gpio_request(irq, "MCP251X NRESET") == 0)
+		if ((gpio_request(nreset, "MCP251X NRESET") == 0)
 			&& (gpio_direction_output(nreset, 0) == 0))
 			gpio_export(nreset, 0);
 		else
