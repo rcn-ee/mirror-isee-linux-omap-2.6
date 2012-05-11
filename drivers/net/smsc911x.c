@@ -2240,8 +2240,6 @@ out_0:
 /* This implementation assumes the devices remains powered on its VDDVARIO
  * pins during suspend. */
 
- * pins during suspend. */
-
 /* TODO: implement freeze/thaw callbacks for hibernation.*/
 
 static int smsc911x_suspend(struct device *dev)
