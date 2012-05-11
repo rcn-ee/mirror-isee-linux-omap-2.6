@@ -1912,6 +1912,7 @@ static int __devinit smsc911x_init(struct net_device *dev)
 {
 	struct smsc911x_data *pdata = netdev_priv(dev);
 	unsigned int byte_test;
+	unsigned int to = 100;
 
 	SMSC_TRACE(PROBE, "Driver Parameters:");
 	SMSC_TRACE(PROBE, "LAN base: 0x%08lX",
@@ -1923,6 +1924,17 @@ static int __devinit smsc911x_init(struct net_device *dev)
 
 	if (pdata->ioaddr == 0) {
 		SMSC_WARNING(PROBE, "pdata->ioaddr: 0x00000000");
+		return -ENODEV;
+	}
+
+	/*
+	 * poll the READY bit in PMT_CTRL. Any other access to the device is
+	 * forbidden while this bit isn't set. Try for 100ms
+	 */
+	while (!(smsc911x_reg_read(pdata, PMT_CTRL) & PMT_CTRL_READY_) && --to)
+		udelay(1000);
+	if (to == 0) {
+		pr_err("Device not READY in 100ms aborting\n");
 		return -ENODEV;
 	}
 
@@ -2224,6 +2236,8 @@ out_0:
 
 #ifdef CONFIG_PM
 /* This implementation assumes the devices remains powered on its VDDVARIO
+ * pins during suspend. */
+
  * pins during suspend. */
 
 /* TODO: implement freeze/thaw callbacks for hibernation.*/
