@@ -312,9 +312,9 @@ static inline void base0010_gpio_init(void)
 
 static struct gpio_keys_button base0010_gpio_keys[] = {
 	{
-		.code	= BTN_EXTRA,
+		.code	= KEY_ESC,
 		.gpio   = IGEP3_GPIO_SW202,
-		.desc	= "btn_extra",
+		.desc	= "user0",
 		.wakeup	= 1,
 	},
 };
@@ -547,8 +547,10 @@ void __init base0010_init(struct twl4030_platform_data *pdata)
 	 * By default the GPIO key is configured as rev A unless board.revision
 	 * kernel param is B.
 	 */
-	if (igep00x0_buddy_pdata.revision & IGEP00X0_BUDDY_HWREV_B)
+	if (igep00x0_buddy_pdata.revision & IGEP00X0_BUDDY_HWREV_B) {
 		base0010_gpio_keys[0].gpio = IGEP3_GPIO_SW101;
+		base0010_gpio_keys[0].active_low = 1;
+	}
 
 	platform_device_register(&base0010_gpio_keys_device);
 
