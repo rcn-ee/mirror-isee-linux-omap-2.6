@@ -362,6 +362,69 @@ static struct omap2_mcspi_device_config tsc2046_mcspi_config = {
 	.single_channel	= 1,	/* 0: slave, 1: master */
 };
 
+static struct ads7846_platform_data tsc2046_pdata;
+
+int igep00x0_ads7846_filter(void *ads, int data_idx, int *val)
+{
+	struct ads7846 *ts = ads;
+
+	if (!ts->read_cnt || (abs(ts->last_read - *val) > ts->debounce_tol)) {
+		/* Start over collecting consistent readings. */
+		ts->read_rep = 0;
+		/*
+		 * Repeat it, if this was the first read or the read
+		 * wasn't consistent enough.
+		 */
+		if (ts->read_cnt < ts->debounce_max) {
+			ts->last_read = *val;
+			ts->read_cnt++;
+			return ADS7846_FILTER_REPEAT;
+		} else {
+			/*
+			 * Maximum number of debouncing reached and still
+			 * not enough number of consistent readings. Abort
+			 * the whole sample, repeat it in the next sampling
+			 * period.
+			 */
+			ts->read_cnt = 0;
+			return ADS7846_FILTER_IGNORE;
+		}
+	} else {
+		if (++ts->read_rep > ts->debounce_rep) {
+			/*
+			 * Got a good reading for this coordinate,
+			 * go for the next one.
+			 */
+			ts->read_cnt = 0;
+			ts->read_rep = 0;
+
+			/* invert y axis */
+			if (data_idx == 0) {
+				*val ^= tsc2046_pdata.y_max;
+			}
+
+			return ADS7846_FILTER_OK;
+		} else {
+			/* Read more values that are consistent. */
+			ts->read_cnt++;
+			return ADS7846_FILTER_REPEAT;
+		}
+	}
+};
+
+int igep00x0_ads7846_filter_init(const struct ads7846_platform_data *pdata,
+				 void **f_data)
+{
+	struct ads7846 *ads = container_of(f_data, struct ads7846, filter_data);
+
+	ads->debounce_max = pdata->debounce_max;
+	ads->debounce_tol = pdata->debounce_tol;
+	ads->debounce_rep = pdata->debounce_rep;
+
+	ads->filter_data = (void *) ads;
+	return 0;
+};
+
 static struct ads7846_platform_data tsc2046_pdata = {
 	.x_max			= 0x0fff,
 	.y_max			= 0x0fff,
@@ -372,6 +435,8 @@ static struct ads7846_platform_data tsc2046_pdata = {
 	.debounce_rep		= 1,
 	.gpio_pendown		= -EINVAL,
 	.keep_vref_on		= 1,
+	.filter 		= igep00x0_ads7846_filter,
+	.filter_init		= igep00x0_ads7846_filter_init,
 };
 
 static struct spi_board_info tsc2046_spi_board_info __initdata = {
