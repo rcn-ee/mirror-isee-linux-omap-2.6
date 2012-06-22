@@ -455,6 +455,19 @@ static struct spi_board_info tsc2046_spi_board_info __initdata = {
 	.platform_data		= &tsc2046_pdata,
 };
 
+static int __init tsc2046_early_param(char* options)
+{
+	if (strcmp(options, "lcd-43") == 0)
+	{
+		tsc2046_pdata.x_max = 3830;
+		tsc2046_pdata.x_min = 330;
+		tsc2046_pdata.y_max = 3830;
+		tsc2046_pdata.y_min = 330;
+	}
+	return 0;
+}
+early_param("omapdss.def_disp", tsc2046_early_param);
+
 void __init igep00x0_tsc2046_init(int busnum, int cs, int irq,
 			int debounce)
 {
