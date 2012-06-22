@@ -400,7 +400,7 @@ int igep00x0_ads7846_filter(void *ads, int data_idx, int *val)
 
 			/* invert y axis */
 			if (data_idx == 0) {
-				*val ^= tsc2046_pdata.y_max;
+				*val ^= 0x0fff;
 			}
 
 			return ADS7846_FILTER_OK;
@@ -426,8 +426,10 @@ int igep00x0_ads7846_filter_init(const struct ads7846_platform_data *pdata,
 };
 
 static struct ads7846_platform_data tsc2046_pdata = {
-	.x_max			= 0x0fff,
-	.y_max			= 0x0fff,
+	.x_max			= 3850,
+	.x_min			= 140,
+	.y_max			= 3850,
+	.y_min			= 140,
 	.x_plate_ohms		= 180,
 	.pressure_max		= 255,
 	.debounce_max		= 10,
