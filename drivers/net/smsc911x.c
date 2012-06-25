@@ -1245,6 +1245,8 @@ smsc911x_set_hw_mac_address(struct smsc911x_data *pdata, u8 dev_addr[6])
 
 static void smsc911x_disable_irq_chip(struct net_device *dev)
 {
+	struct smsc911x_data *pdata = netdev_priv(dev);
+
 	smsc911x_reg_write(pdata, INT_EN, 0);
 	smsc911x_reg_write(pdata, INT_STS, 0xFFFFFFFF);
 }
