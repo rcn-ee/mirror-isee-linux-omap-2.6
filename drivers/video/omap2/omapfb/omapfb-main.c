@@ -861,14 +861,14 @@ static void omapfb_calc_addr(const struct omapfb_info *ofbi,
 
 	if (ofbi->rotation_type == OMAP_DSS_ROT_VRFB) {
 		data_start_p = omapfb_get_region_rot_paddr(ofbi, rotation);
-		data_start_p = omapfb_get_region_rot_paddr(ofbi, 0);
+		data_start_v = NULL;
 	} else {
 		data_start_p = omapfb_get_region_paddr(ofbi, 0);
 		data_start_v = omapfb_get_region_vaddr(ofbi, 0);
 	}
 
 	if (ofbi->rotation_type == OMAP_DSS_ROT_VRFB)
-		offset = calc_rotation_offset_vrfb(var, fix, 0);
+		offset = calc_rotation_offset_vrfb(var, fix, rotation);
 	else
 		offset = calc_rotation_offset_dma(var, fix, rotation);
 
