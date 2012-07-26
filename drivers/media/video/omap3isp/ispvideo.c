@@ -1255,6 +1255,7 @@ static int isp_video_open(struct file *file)
 {
 	struct isp_video *video = video_drvdata(file);
 	struct isp_video_fh *handle;
+	struct media_pad *src_pad;
 	int ret = 0;
 
 	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
@@ -1283,6 +1284,32 @@ static int isp_video_open(struct file *file)
 	memset(&handle->format, 0, sizeof(handle->format));
 	handle->format.type = video->type;
 	handle->timeperframe.denominator = 1;
+
+	src_pad = media_entity_remote_source(&video->pad);
+
+	if (src_pad) { /* it's on an active link */
+		struct v4l2_subdev_format srcfmt = {
+			.pad = src_pad->index,
+			.which = V4L2_SUBDEV_FORMAT_ACTIVE,
+		};
+		struct v4l2_subdev *src_subdev =
+			isp_video_remote_subdev(video, NULL);
+		pr_debug("%s src_subdev=\"%s\"\n", __func__, src_subdev->name);
+
+		ret = v4l2_subdev_call(src_subdev, pad, get_fmt, NULL, &srcfmt);
+		if (ret)
+			goto done;
+		pr_debug("%s MBUS format %dx%d code:%x\n", __func__,
+				srcfmt.format.width, srcfmt.format.height,
+				srcfmt.format.code);
+
+		isp_video_mbus_to_pix(video, &srcfmt.format,
+			&handle->format.fmt.pix);
+		pr_debug("%s V4L format %dx%d 4CC:%x\n", __func__,
+				handle->format.fmt.pix.width,
+				handle->format.fmt.pix.height,
+				handle->format.fmt.pix.pixelformat);
+	}
 
 	handle->video = video;
 	file->private_data = &handle->vfh;
