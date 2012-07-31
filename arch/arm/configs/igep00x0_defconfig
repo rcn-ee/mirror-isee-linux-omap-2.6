@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.37 Kernel Configuration
-# Tue Jul 17 15:46:19 2012
+# Tue Jul 31 16:03:11 2012
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -261,6 +261,7 @@ CONFIG_OMAP_MBOX_FWK=y
 CONFIG_OMAP_MBOX_KFIFO_SIZE=256
 CONFIG_OMAP_IOMMU=y
 # CONFIG_OMAP_IOMMU_DEBUG is not set
+# CONFIG_OMAP_IOMMU_IVA2 is not set
 # CONFIG_OMAP_MPU_TIMER is not set
 CONFIG_OMAP_32K_TIMER=y
 # CONFIG_OMAP3_L2_AUX_SECURE_SAVE_RESTORE is not set
