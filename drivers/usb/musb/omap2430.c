@@ -263,18 +263,13 @@ static int musb_otg_notifications(struct notifier_block *nb,
 #ifdef CONFIG_USB_GADGET_MUSB_HDRC
 			if (musb->gadget_driver) {
 				otg_init(musb->xceiv);
-
-				if (data->interface_type ==
-						MUSB_INTERFACE_UTMI)
-					omap2430_musb_set_vbus(musb, 1);
+				omap2430_musb_set_vbus(musb, 1);
 
 			}
 #endif
 		} else {
 			otg_init(musb->xceiv);
-			if (data->interface_type ==
-					MUSB_INTERFACE_UTMI)
-				omap2430_musb_set_vbus(musb, 1);
+			omap2430_musb_set_vbus(musb, 1);
 		}
 		break;
 
