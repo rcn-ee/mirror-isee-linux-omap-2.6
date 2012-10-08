@@ -548,6 +548,16 @@ config VIDEO_MT9V032
 	  This is a Video4Linux2 sensor-level driver for the Micron
 	  MT9V032 752x480 CMOS sensor.
 
+config VIDEO_MT9V034
+	tristate "Micron MT9V034 sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT
+	---help---
+	  This is a Video4Linux2 sensor-level driver for the Micron
+	  MT9V034 752x480 CMOS sensor. The MT9V034 is a 1/3-inch
+	  wide-VGA format CMOS active-pixel digital image sensor with
+	  TrueSNAP gobal shutter and high dynamic range (HDR) operation.
+
 config VIDEO_TCM825X
 	tristate "TCM825x camera sensor support"
 	depends on I2C && VIDEO_V4L2
