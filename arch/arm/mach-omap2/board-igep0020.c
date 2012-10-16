@@ -18,6 +18,7 @@
 #include <linux/gpio.h>
 #include <linux/interrupt.h>
 #include <linux/input.h>
+#include <linux/opp.h>
 
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
@@ -36,6 +37,7 @@
 #include <video/omapdss.h>
 #include <video/omap-panel-tfp410.h>
 #include <plat/onenand.h>
+#include <plat/omap_device.h>
 
 #include "mux.h"
 #include "hsmmc.h"
@@ -43,6 +45,7 @@
 #include "common-board-devices.h"
 #include "board-flash.h"
 #include "control.h"
+#include "pm.h"
 
 #define IGEP2_SMSC911X_CS       5
 #define IGEP2_SMSC911X_GPIO     176
@@ -608,6 +611,49 @@ static struct regulator_consumer_supply dummy_supplies[] = {
 	REGULATOR_SUPPLY("vdd33a", "smsc911x.0"),
 };
 
+static void __init igep00x0_opp_init(void)
+{
+	int r = 0;
+
+	/* Initialize the omap3 opp table */
+	if (omap3_opp_init()) {
+		pr_err("IGEP:%s: opp default init failed\n", __func__);
+		return;
+	}
+
+	/* Custom OPP enabled for all versions */
+	if (cpu_is_omap3630()) {
+		struct device *mpu_dev, *iva_dev;
+
+		mpu_dev = omap_device_get_by_hwmod_name("mpu");
+		iva_dev = omap_device_get_by_hwmod_name("iva");
+
+		if (!mpu_dev || !iva_dev) {
+			pr_err("IGEP:%s: Aiee.. no mpu/dsp devices? %p %p\n",
+				__func__, mpu_dev, iva_dev);
+			return;
+		}
+		/* Enable MPU 800MHz and lower opps */
+		r = opp_enable(mpu_dev, 800000000);
+		/* TODO: MPU 1GHz needs SR and ABB */
+
+		/* Enable IVA 660MHz and lower opps */
+		r |= opp_enable(iva_dev, 660000000);
+		/* TODO: DSP 800MHz needs SR and ABB */
+		if (r) {
+			pr_err("IGEP:%s: failed to enable higher opp %d\n",
+				__func__, r);
+			/*
+			 * Cleanup - disable the higher freqs - we dont care
+			 * about the results
+			 */
+			opp_disable(mpu_dev, 800000000);
+			opp_disable(iva_dev, 660000000);
+		}
+	}
+	return;
+}
+
 static void __init igep_init(void)
 {
 	regulator_register_fixed(1, dummy_supplies, ARRAY_SIZE(dummy_supplies));
@@ -642,6 +688,9 @@ static void __init igep_init(void)
 	} else {
 		usbhs_init(&igep3_usbhs_bdata);
 	}
+
+	/* Custom OMAP3 OPP table */
+	igep00x0_opp_init();
 }
 
 MACHINE_START(IGEP0020, "IGEP v2 board")
