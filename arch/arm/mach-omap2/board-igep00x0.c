@@ -364,9 +364,19 @@ static struct omap2_mcspi_device_config tsc2046_mcspi_config = {
 
 static struct ads7846_platform_data tsc2046_pdata;
 
+struct igep00x0_ads7846_filter_data {
+	int			read_cnt;
+	int			read_rep;
+	int			last_read;
+
+	u16			debounce_max;
+	u16			debounce_tol;
+	u16			debounce_rep;
+};
+
 int igep00x0_ads7846_filter(void *ads, int data_idx, int *val)
 {
-	struct ads7846 *ts = ads;
+	struct igep00x0_ads7846_filter_data *ts = (struct igep00x0_ads7846_filter_data*) ads;
 
 	if (!ts->read_cnt || (abs(ts->last_read - *val) > ts->debounce_tol)) {
 		/* Start over collecting consistent readings. */
@@ -415,14 +425,22 @@ int igep00x0_ads7846_filter(void *ads, int data_idx, int *val)
 int igep00x0_ads7846_filter_init(const struct ads7846_platform_data *pdata,
 				 void **f_data)
 {
-	struct ads7846 *ads = container_of(f_data, struct ads7846, filter_data);
+	struct igep00x0_ads7846_filter_data *fd = kzalloc(sizeof(struct igep00x0_ads7846_filter_data), GFP_KERNEL);
+	if(!fd) {
+		return -ENOMEM;
+	}
 
-	ads->debounce_max = pdata->debounce_max;
-	ads->debounce_tol = pdata->debounce_tol;
-	ads->debounce_rep = pdata->debounce_rep;
+	fd->debounce_max = pdata->debounce_max;
+	fd->debounce_tol = pdata->debounce_tol;
+	fd->debounce_rep = pdata->debounce_rep;
 
-	ads->filter_data = (void *) ads;
+	*f_data = fd;
+
 	return 0;
+};
+
+void igep00x0_ads7846_filter_cleanup(void *data) {
+	kfree(data);
 };
 
 static struct ads7846_platform_data tsc2046_pdata = {
@@ -439,6 +457,7 @@ static struct ads7846_platform_data tsc2046_pdata = {
 	.keep_vref_on		= 1,
 	.filter 		= igep00x0_ads7846_filter,
 	.filter_init		= igep00x0_ads7846_filter_init,
+	.filter_cleanup		= igep00x0_ads7846_filter_cleanup,
 };
 
 static struct spi_board_info tsc2046_spi_board_info __initdata = {
