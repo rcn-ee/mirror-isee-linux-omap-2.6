@@ -511,20 +511,17 @@ static void __init igep_i2c_init(void)
 	int ret;
 
 	omap3_pmic_get_config(&igep_twldata, TWL_COMMON_PDATA_USB,
-			      TWL_COMMON_REGULATOR_VPLL2);
+		      TWL_COMMON_REGULATOR_VPLL2);
+
 	igep_twldata.vpll2->constraints.apply_uV = true;
 	igep_twldata.vpll2->constraints.name = "VDVI";
 
-	if (machine_is_igep0020()) {
-		/*
-		 * Bus 3 is attached to the DVI port where devices like the
-		 * pico DLP projector don't work reliably with 400kHz
-		 */
-		ret = omap_register_i2c_bus(3, 100, igep2_i2c3_boardinfo,
-					    ARRAY_SIZE(igep2_i2c3_boardinfo));
-		if (ret)
-			pr_warning("IGEP2: Could not register I2C3 bus (%d)\n", ret);
+	ret = omap_register_i2c_bus(3, 100, igep2_i2c3_boardinfo,
+				    ARRAY_SIZE(igep2_i2c3_boardinfo));
+	if (ret)
+		pr_warning("IGEP2: Could not register I2C3 bus (%d)\n", ret);
 
+	if (machine_is_igep0020()) {
 		igep_twldata.keypad	= &igep2_keypad_pdata;
 		/* Get common pmic data */
 		omap3_pmic_get_config(&igep_twldata, TWL_COMMON_PDATA_AUDIO, 0);
@@ -681,8 +678,9 @@ static void __init igep_init(void)
 	 */
 	igep_wlan_bt_init();
 
+	omap_display_init(&igep2_dss_data);
+
 	if (machine_is_igep0020()) {
-		omap_display_init(&igep2_dss_data);
 		igep2_init_smsc911x();
 		usbhs_init(&igep2_usbhs_bdata);
 	} else {
