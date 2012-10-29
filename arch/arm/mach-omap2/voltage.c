@@ -425,6 +425,7 @@ static struct omap_vdd_dep_volt omap34xx_vdd1_vdd2_data[] = {
 	{.main_vdd_volt = 1200000, .dep_vdd_volt = 1150000},
 	{.main_vdd_volt = 1270000, .dep_vdd_volt = 1150000},
 	{.main_vdd_volt = 1350000, .dep_vdd_volt = 1150000},
+	{.main_vdd_volt = 1350001, .dep_vdd_volt = 1150000},
 	{.main_vdd_volt = 0, .dep_vdd_volt = 0},
 };
 
