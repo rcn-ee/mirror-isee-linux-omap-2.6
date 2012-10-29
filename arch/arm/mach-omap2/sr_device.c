@@ -49,6 +49,9 @@ static void swcalc_opp6_RG(u32 rFuse, u32 gainFuse, u32 deltaNT,
        u32 nAdj;
        u32 g, r;
 
+		if(!rFuse)
+			return;
+
        nAdj = ((1 << (gainFuse + 8))/rFuse) + deltaNT;
 
        for (g = 0; g < GAIN_MAXLIMIT; g++) {
