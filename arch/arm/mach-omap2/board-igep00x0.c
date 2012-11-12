@@ -444,10 +444,10 @@ void igep00x0_ads7846_filter_cleanup(void *data) {
 };
 
 static struct ads7846_platform_data tsc2046_pdata = {
-	.x_max			= 3850,
-	.x_min			= 140,
-	.y_max			= 3850,
-	.y_min			= 140,
+	.x_max			= 3923,
+	.x_min			= 133,
+	.y_max			= 3962,
+	.y_min			= 311,
 	.x_plate_ohms		= 180,
 	.pressure_max		= 255,
 	.debounce_max		= 10,
