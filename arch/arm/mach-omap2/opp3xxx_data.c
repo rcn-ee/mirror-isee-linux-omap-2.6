@@ -46,9 +46,9 @@ static struct omap_opp_def __initdata omap34xx_opp_def_list[] = {
 	 * impact that frequency will do to the MPU and the whole system in
 	 * general.
 	 */
-	OPP_INITIALIZER("l3_main", false, 41500000, 975000),
+	OPP_INITIALIZER("l3_main", false, 166000000, 1150000),
 	/* L3 OPP2 */
-	OPP_INITIALIZER("l3_main", true, 83000000, 1050000),
+	OPP_INITIALIZER("l3_main", true, 166000000, 1150000),
 	/* L3 OPP3 */
 	OPP_INITIALIZER("l3_main", true, 166000000, 1150000),
 
