@@ -904,6 +904,7 @@ void am33xx_mux_dbg_create_entry(struct dentry *mux_dbg_dir)
 						&standby_gpio_pad_conf_fops);
 }
 
+#ifdef CONFIG_SUSPEND
 void am33xx_setup_pinmux_on_suspend(void)
 {
 	u32 reg_off, i;
@@ -954,6 +955,7 @@ void am335x_restore_padconf(void)
 			writel(temp->val, AM33XX_CTRL_REGADDR(temp->offset));
 	}
 }
+#endif
 
 /*
  * Dummy GPIO interrupt Handler
