@@ -25,7 +25,6 @@
  * Suite 330, Boston, MA  02111-1307  USA
  *
  */
-
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/usb/otg.h>
@@ -1233,6 +1232,13 @@ int ti81xx_musb_set_mode(struct musb *musb, u8 musb_mode)
 		if (usbid_sw_ctrl && cpu_is_ti816x())
 			regval |= USBMODE_USBID_MUXSEL;
 
+		/*
+		 * Bypass the ID pin signal via software allowing systems that
+		 * do not use the USB ID pin to work. Force HOST mode.
+		 */
+		if (cpu_is_am335x())
+			regval |= USBMODE_USBID_MUXSEL;
+
 		musb_writel(reg_base, USB_MODE_REG, regval);
 		musb_writel(musb->ctrl_base, USB_PHY_UTMI_REG, 0x02);
 		dev_dbg(musb->controller, "host: value of mode reg=%x regval(%x)\n",
@@ -1244,6 +1250,13 @@ int ti81xx_musb_set_mode(struct musb *musb, u8 musb_mode)
 
 		regval |= USBMODE_USBID_HIGH;
 		if (usbid_sw_ctrl && cpu_is_ti816x())
+			regval |= USBMODE_USBID_MUXSEL;
+
+		/*
+		 * Bypass the ID pin signal via software allowing systems that
+		 * do not use the USB ID pin to work. Force PERIPHERAL mode.
+		 */
+		if (cpu_is_am335x())
 			regval |= USBMODE_USBID_MUXSEL;
 
 		musb_writel(reg_base, USB_MODE_REG, regval);
