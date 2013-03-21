@@ -7,7 +7,7 @@
  * Copyright (C) 2009 Texas Instruments, Inc.
  *
  * Contacts: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -148,7 +148,6 @@ struct isp_csi2_device {
 	u32 output; /* output to CCDC, memory or both? */
 	bool dpcm_decompress;
 	unsigned int frame_skip;
-	bool use_fs_irq;
 
 	struct isp_csiphy *phy;
 	struct isp_csi2_ctx_cfg contexts[ISP_CSI2_MAX_CTX_NUM + 1];
@@ -159,12 +158,11 @@ struct isp_csi2_device {
 	atomic_t stopping;
 };
 
-int isp_csi2_isr(struct isp_csi2_device *csi2);
-int isp_csi2_reset(struct isp_csi2_device *csi2);
-void isp_csi2_regdump(struct isp_csi2_device *csi2);
-int isp_csi2_init(struct isp_device *isp);
-void isp_csi2_cleanup(struct isp_device *isp);
-void isp_csi2_unregister_entities(struct isp_csi2_device *csi2);
-int isp_csi2_register_entities(struct isp_csi2_device *csi2,
+void ispcsi2_isr(struct isp_csi2_device *csi2);
+int ispcsi2_reset(struct isp_csi2_device *csi2);
+int ispcsi2_init(struct isp_device *isp);
+void ispcsi2_cleanup(struct isp_device *isp);
+void ispcsi2_unregister_entities(struct isp_csi2_device *csi2);
+int ispcsi2_register_entities(struct isp_csi2_device *csi2,
 			       struct v4l2_device *vdev);
 #endif	/* OMAP3_ISP_CSI2_H */

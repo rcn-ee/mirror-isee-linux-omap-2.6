@@ -7,7 +7,7 @@
  * Copyright (C) 2009 Texas Instruments, Inc.
  *
  * Contacts: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -27,21 +27,10 @@
 #ifndef OMAP3_ISP_CSI_PHY_H
 #define OMAP3_ISP_CSI_PHY_H
 
+#include <media/omap3isp.h>
+
 struct isp_csi2_device;
 struct regulator;
-
-struct csiphy_lane {
-	u8 pos;
-	u8 pol;
-};
-
-#define ISP_CSIPHY2_NUM_DATA_LANES	2
-#define ISP_CSIPHY1_NUM_DATA_LANES	1
-
-struct isp_csiphy_lanes_cfg {
-	struct csiphy_lane data[ISP_CSIPHY2_NUM_DATA_LANES];
-	struct csiphy_lane clk;
-};
 
 struct isp_csiphy_dphy_cfg {
 	u8 ths_term;
@@ -67,8 +56,8 @@ struct isp_csiphy {
 	struct isp_csiphy_dphy_cfg dphy;
 };
 
-int isp_csiphy_acquire(struct isp_csiphy *phy);
-void isp_csiphy_release(struct isp_csiphy *phy);
-int isp_csiphy_init(struct isp_device *isp);
+int ispcsiphy_acquire(struct isp_csiphy *phy);
+void ispcsiphy_release(struct isp_csiphy *phy);
+int ispcsiphy_init(struct isp_device *isp);
 
 #endif	/* OMAP3_ISP_CSI_PHY_H */

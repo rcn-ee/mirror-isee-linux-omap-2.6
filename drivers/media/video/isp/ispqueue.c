@@ -6,7 +6,7 @@
  * Copyright (C) 2010 Nokia Corporation
  *
  * Contacts: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -66,6 +66,9 @@
 
 static void isp_video_buffer_cache_sync(struct isp_video_buffer *buf)
 {
+	if (buf->skip_cache)
+		return;
+
 	if (buf->vbuf.m.userptr == 0 || buf->npages == 0 ||
 	    buf->npages > ISP_CACHE_FLUSH_PAGES_MAX)
 		flush_cache_all();
@@ -285,6 +288,7 @@ static void isp_video_buffer_cleanup(struct isp_video_buffer *buf)
 	}
 
 	buf->npages = 0;
+	buf->skip_cache = false;
 }
 
 /*
@@ -335,7 +339,7 @@ static int isp_video_buffer_prepare_user(struct isp_video_buffer *buf)
 	up_read(&current->mm->mmap_sem);
 
 	if (ret != buf->npages) {
-		buf->npages = ret;
+		buf->npages = ret < 0 ? 0 : ret;
 		isp_video_buffer_cleanup(buf);
 		return -EFAULT;
 	}
@@ -404,8 +408,8 @@ done:
  * isp_video_buffer_prepare_vm_flags - Get VMA flags for a userspace address
  *
  * This function locates the VMAs for the buffer's userspace address and checks
- * that their flags match. The onlflag that we need to care for at the moment is
- * VM_PFNMAP.
+ * that their flags match. The only flag that we need to care for at the moment
+ * is VM_PFNMAP.
  *
  * The buffer vm_flags field is set to the first VMA flags.
  *
@@ -415,6 +419,7 @@ done:
 static int isp_video_buffer_prepare_vm_flags(struct isp_video_buffer *buf)
 {
 	struct vm_area_struct *vma;
+	pgprot_t vm_page_prot;
 	unsigned long start;
 	unsigned long end;
 	int ret = -EFAULT;
@@ -429,14 +434,26 @@ static int isp_video_buffer_prepare_vm_flags(struct isp_video_buffer *buf)
 		if (vma == NULL)
 			goto done;
 
-		if (start == buf->vbuf.m.userptr)
+		if (start == buf->vbuf.m.userptr) {
 			buf->vm_flags = vma->vm_flags;
+			vm_page_prot = vma->vm_page_prot;
+		}
 
 		if ((buf->vm_flags ^ vma->vm_flags) & VM_PFNMAP)
 			goto done;
 
+		if (vm_page_prot != vma->vm_page_prot)
+			goto done;
+
 		start = vma->vm_end + 1;
 	} while (vma->vm_end < end);
+
+	/* Skip cache management to enhance performances for non-cached or
+	 * write-combining buffers.
+	 */
+	if (vm_page_prot == pgprot_noncached(vm_page_prot) ||
+	    vm_page_prot == pgprot_writecombine(vm_page_prot))
+		buf->skip_cache = true;
 
 	ret = 0;
 
@@ -630,7 +647,7 @@ static int isp_video_queue_alloc(struct isp_video_queue *queue,
 	if (ret < 0)
 		return ret;
 
-	/* Bail out of no buffers should be allocated. */
+	/* Bail out if no buffers should be allocated. */
 	if (nbuffers == 0)
 		return 0;
 
@@ -710,9 +727,10 @@ int isp_video_queue_cleanup(struct isp_video_queue *queue)
  *
  * Return 0 on success.
  */
-int isp_video_queue_init(struct isp_video_queue *queue, enum v4l2_buf_type type,
-			 const struct isp_video_queue_operations *ops,
-			 struct device *dev, unsigned int bufsize)
+int isp_video_queue_init(struct isp_video_queue *queue,
+			      enum v4l2_buf_type type,
+			      const struct isp_video_queue_operations *ops,
+			      struct device *dev, unsigned int bufsize)
 {
 	INIT_LIST_HEAD(&queue->queue);
 	mutex_init(&queue->lock);
@@ -850,6 +868,10 @@ int isp_video_queue_qbuf(struct isp_video_queue *queue,
 		goto done;
 
 	if (vbuf->memory == V4L2_MEMORY_USERPTR &&
+	    vbuf->length < buf->vbuf.length)
+		goto done;
+
+	if (vbuf->memory == V4L2_MEMORY_USERPTR &&
 	    vbuf->m.userptr != buf->vbuf.m.userptr) {
 		isp_video_buffer_cleanup(buf);
 		buf->vbuf.m.userptr = vbuf->m.userptr;
@@ -886,13 +908,14 @@ done:
  *
  * This function is intended to be used as a VIDIOC_DQBUF ioctl handler.
  *
- * The v4l2_buffer structure passed from userspace is first sanity tested. If
- * sane, the buffer is then processed and added to the main queue and, if the
- * queue is streaming, to the IRQ queue.
+ * Wait until a buffer is ready to be dequeued, remove it from the queue and
+ * copy its information to the v4l2_buffer structure.
  *
- * Before being enqueued, USERPTR buffers are checked for address changes. If
- * the buffer has a different userspace address, the old memory area is unlocked
- * and the new memory area is locked.
+ * If the nonblocking argument is not zero and no buffer is ready, return
+ * -EAGAIN immediately instead of waiting.
+ *
+ * If no buffer has been enqueued, or if the requested buffer type doesn't match
+ * the queue type, return -EINVAL.
  */
 int isp_video_queue_dqbuf(struct isp_video_queue *queue,
 			  struct v4l2_buffer *vbuf, int nonblocking)

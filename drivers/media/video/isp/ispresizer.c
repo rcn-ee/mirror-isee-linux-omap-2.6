@@ -7,7 +7,7 @@
  * Copyright (C) 2009 Texas Instruments, Inc
  *
  * Contacts: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -154,7 +154,7 @@ __resizer_get_crop(struct isp_res_device *res, struct v4l2_subdev_fh *fh,
 
 /*
  * ispresizer_set_filters - Set resizer filters
- * @isp_res: Device context.
+ * @res: Device context.
  * @h_coeff: horizontal coefficient
  * @v_coeff: vertical coefficient
  * Return none
@@ -184,7 +184,7 @@ static void ispresizer_set_filters(struct isp_res_device *res,
 
 /*
  * ispresizer_set_bilinear - Chrominance horizontal algorithm select
- * @isp_res: Device context.
+ * @res: Device context.
  * @type: Filtering interpolation type.
  *
  * Filtering that is same as luminance processing is
@@ -206,7 +206,7 @@ static void ispresizer_set_bilinear(struct isp_res_device *res,
 
 /*
  * ispresizer_set_ycpos - Luminance and chrominance order
- * @isp_res: Device context.
+ * @res: Device context.
  * @order: order type.
  */
 static void ispresizer_set_ycpos(struct isp_res_device *res,
@@ -230,7 +230,7 @@ static void ispresizer_set_ycpos(struct isp_res_device *res,
 
 /*
  * ispresizer_set_phase - Setup horizontal and vertical starting phase
- * @isp_res: Device context.
+ * @res: Device context.
  * @h_phase: horizontal phase parameters.
  * @v_phase: vertical phase parameters.
  *
@@ -252,7 +252,7 @@ static void ispresizer_set_phase(struct isp_res_device *res, u32 h_phase,
 
 /*
  * ispresizer_set_luma - Setup luminance enhancer parameters
- * @isp_res: Device context.
+ * @res: Device context.
  * @luma: Structure for luminance enhancer parameters.
  *
  * Algorithm select:
@@ -292,7 +292,7 @@ static void ispresizer_set_luma(struct isp_res_device *res,
 
 /*
  * ispresizer_set_source - Input source select
- * @isp_res: Device context.
+ * @res: Device context.
  * @source: Input source type
  *
  * If this field is set to RESIZER_INPUT_VP, the resizer input is fed from
@@ -313,7 +313,7 @@ static void ispresizer_set_source(struct isp_res_device *res,
 
 /*
  * ispresizer_set_ratio - Setup horizontal and vertical resizing value
- * @isp_res: Device context.
+ * @res: Device context.
  * @ratio: Structure for ratio parameters.
  *
  * Resizing range from 64 to 1024
@@ -350,7 +350,7 @@ static void ispresizer_set_ratio(struct isp_res_device *res,
 
 /*
  * ispresizer_set_dst_size - Setup the output height and width
- * @isp_res: Device context.
+ * @res: Device context.
  * @width: Output width.
  * @height: Output height.
  *
@@ -378,7 +378,7 @@ static void ispresizer_set_output_size(struct isp_res_device *res,
 
 /*
  * ispresizer_set_output_offset - Setup memory offset for the output lines.
- * @isp_res: Device context.
+ * @res: Device context.
  * @offset: Memory offset.
  *
  * The 5 LSBs are forced to be zeros by the hardware to align on a 32-byte
@@ -395,7 +395,7 @@ static void ispresizer_set_output_offset(struct isp_res_device *res,
 
 /*
  * ispresizer_set_start - Setup vertical and horizontal start position
- * @isp_res: Device context.
+ * @res: Device context.
  * @left: Horizontal start position.
  * @top: Vertical start position.
  *
@@ -424,7 +424,7 @@ static void ispresizer_set_start(struct isp_res_device *res, u32 left,
 
 /*
  * ispresizer_set_input_size - Setup the input size
- * @isp_res: Device context.
+ * @res: Device context.
  * @width: The range is 0 to 4095 pixels
  * @height: The range is 0 to 4095 lines
  */
@@ -446,7 +446,7 @@ static void ispresizer_set_input_size(struct isp_res_device *res,
 
 /*
  * ispresizer_set_src_offs - Setup the memory offset for the input lines
- * @isp_res: Device context.
+ * @res: Device context.
  * @offset: Memory offset.
  *
  * The 5 LSBs are forced to be zeros by the hardware to align on a 32-byte
@@ -463,7 +463,7 @@ static void ispresizer_set_input_offset(struct isp_res_device *res,
 
 /*
  * ispresizer_set_intype - Input type select
- * @isp_res: Device context.
+ * @res: Device context.
  * @type: Pixel format type.
  */
 static void ispresizer_set_intype(struct isp_res_device *res,
@@ -693,7 +693,7 @@ static void ispresizer_print_status(struct isp_res_device *res)
 }
 
 /*
- * ispresizer_calc_ratios - Helper function for calculate resizer ratios
+ * ispresizer_calc_ratios - Helper function for calculating resizer ratios
  * @res: pointer to resizer private data structure
  * @input: input frame size
  * @output: output frame size
@@ -717,21 +717,52 @@ static void ispresizer_print_status(struct isp_res_device *res)
  * iw and ih are the input width and height after cropping. Those equations need
  * to be satisfied exactly for the resizer to work correctly.
  *
- * Reverting the equations, we can compute the resizing ratios with
+ * The equations can't be easily reverted, as the >> 8 operation is not linear.
+ * In addition, not all input sizes can be achieved for a given output size. To
+ * get the highest input size lower than or equal to the requested input size,
+ * we need to compute the highest resizing ratio that satisfies the following
+ * inequality (taking the 4-tap mode width equation as an example)
+ *
+ *	iw >= (32 * sph + (ow - 1) * hrsz + 16) >> 8 - 7
+ *
+ * (where iw is the requested input width) which can be rewritten as
+ *
+ *	  iw - 7            >= (32 * sph + (ow - 1) * hrsz + 16) >> 8
+ *	 (iw - 7) << 8      >=  32 * sph + (ow - 1) * hrsz + 16 - b
+ *	((iw - 7) << 8) + b >=  32 * sph + (ow - 1) * hrsz + 16
+ *
+ * where b is the value of the 8 least significant bits of the right hand side
+ * expression of the last inequality. The highest resizing ratio value will be
+ * achieved when b is equal to its maximum value of 255. That resizing ratio
+ * value will still satisfy the original inequality, as b will disappear when
+ * the expression will be shifted right by 8.
+ *
+ * The reverted equations thus become
  *
  * - 8-phase, 4-tap mode
- *	hrsz = ((iw - 7) * 256 - 16 - 32 * sph) / (ow - 1)
- *	vrsz = ((ih - 4) * 256 - 16 - 32 * spv) / (oh - 1)
+ *	hrsz = ((iw - 7) * 256 + 255 - 16 - 32 * sph) / (ow - 1)
+ *	vrsz = ((ih - 4) * 256 + 255 - 16 - 32 * spv) / (oh - 1)
  * - 4-phase, 7-tap mode
- *	hrsz = ((iw - 7) * 256 - 32 - 64 * sph) / (ow - 1)
- *	vrsz = ((ih - 7) * 256 - 32 - 64 * spv) / (oh - 1)
+ *	hrsz = ((iw - 7) * 256 + 255 - 32 - 64 * sph) / (ow - 1)
+ *	vrsz = ((ih - 7) * 256 + 255 - 32 - 64 * spv) / (oh - 1)
  *
- * The ratios are integer values, and must be rounded down to ensure that the
- * cropped input size is not bigger than the uncropped input size. As the ratio
- * in 7-tap mode is always smaller than the ratio in 4-tap mode, we can use the
- * 7-tap mode equations to compute a ratio approximation.
+ * The ratios are integer values, and are rounded down to ensure that the
+ * cropped input size is not bigger than the uncropped input size.
  *
- * We first clamp the output size according to the hardware capabilitie to avoid
+ * As the number of phases/taps, used to select the correct equations to compute
+ * the ratio, depends on the ratio, we start with the 4-tap mode equations to
+ * compute an approximation of the ratio, and switch to the 7-tap mode equations
+ * if the approximation is higher than the ratio threshold.
+ *
+ * As the 7-tap mode equations will return a ratio smaller than or equal to the
+ * 4-tap mode equations, the resulting ratio could become lower than or equal to
+ * the ratio threshold. This 'equations loop' isn't an issue as long as the
+ * correct equations are used to compute the final input size. Starting with the
+ * 4-tap mode equations ensure that, in case of values resulting in a 'ratio
+ * loop', the smallest of the ratio values will be used, never exceeding the
+ * requested input size.
+ *
+ * We first clamp the output size according to the hardware capability to avoid
  * auto-cropping the input more than required to satisfy the TRM equations. The
  * minimum output size is achieved with a scaling factor of 1024. It is thus
  * computed using the 7-tap equations.
@@ -754,7 +785,7 @@ static void ispresizer_print_status(struct isp_res_device *res)
  * ratio will thus result in a resizing factor slightly larger than the
  * requested value.
  *
- * To accomodate that, and make sure the TRM equations are satisfied exactly, we
+ * To accommodate that, and make sure the TRM equations are satisfied exactly, we
  * compute the input crop rectangle as the last step.
  *
  * As if the situation wasn't complex enough, the maximum output width depends
@@ -778,6 +809,8 @@ static void ispresizer_calc_ratios(struct isp_res_device *res,
 	unsigned int max_width;
 	unsigned int max_height;
 	unsigned int width_alignment;
+	unsigned int width;
+	unsigned int height;
 
 	/*
 	 * Clamp the output height based on the hardware capabilities and
@@ -789,19 +822,22 @@ static void ispresizer_calc_ratios(struct isp_res_device *res,
 	max_height = min_t(unsigned int, max_height, MAX_OUT_HEIGHT);
 	output->height = clamp(output->height, min_height, max_height);
 
-	ratio->vert = ((input->height - 7) * 256 - 32 - 64 * spv)
+	ratio->vert = ((input->height - 4) * 256 + 255 - 16 - 32 * spv)
 		    / (output->height - 1);
+	if (ratio->vert > MID_RESIZE_VALUE)
+		ratio->vert = ((input->height - 7) * 256 + 255 - 32 - 64 * spv)
+			    / (output->height - 1);
 	ratio->vert = clamp_t(unsigned int, ratio->vert,
 			      MIN_RESIZE_VALUE, MAX_RESIZE_VALUE);
 
 	if (ratio->vert <= MID_RESIZE_VALUE) {
 		upscaled_height = (output->height - 1) * ratio->vert
 				+ 32 * spv + 16;
-		input->height = (upscaled_height >> 8) + 4;
+		height = (upscaled_height >> 8) + 4;
 	} else {
 		upscaled_height = (output->height - 1) * ratio->vert
 				+ 64 * spv + 32;
-		input->height = (upscaled_height >> 8) + 7;
+		height = (upscaled_height >> 8) + 7;
 	}
 
 	/*
@@ -857,20 +893,29 @@ static void ispresizer_calc_ratios(struct isp_res_device *res,
 			      max_width & ~(width_alignment - 1));
 	output->width = ALIGN(output->width, width_alignment);
 
-	ratio->horz = ((input->width - 7) * 256 - 32 - 64 * sph)
+	ratio->horz = ((input->width - 7) * 256 + 255 - 16 - 32 * sph)
 		    / (output->width - 1);
+	if (ratio->horz > MID_RESIZE_VALUE)
+		ratio->horz = ((input->width - 7) * 256 + 255 - 32 - 64 * sph)
+			    / (output->width - 1);
 	ratio->horz = clamp_t(unsigned int, ratio->horz,
 			      MIN_RESIZE_VALUE, MAX_RESIZE_VALUE);
 
 	if (ratio->horz <= MID_RESIZE_VALUE) {
 		upscaled_width = (output->width - 1) * ratio->horz
 			       + 32 * sph + 16;
-		input->width = (upscaled_width >> 8) + 7;
+		width = (upscaled_width >> 8) + 7;
 	} else {
 		upscaled_width = (output->width - 1) * ratio->horz
 			       + 64 * sph + 32;
-		input->width = (upscaled_width >> 8) + 7;
+		width = (upscaled_width >> 8) + 7;
 	}
+
+	/* Center the new crop rectangle. */
+	input->left += (input->width - width) / 2;
+	input->top += (input->height - height) / 2;
+	input->width = width;
+	input->height = height;
 }
 
 /*
@@ -997,7 +1042,7 @@ static void ispresizer_isr_buffer(struct isp_res_device *res)
 	/* Complete the output buffer and, if reading from memory, the input
 	 * buffer.
 	 */
-	buffer = isp_video_buffer_next(&res->video_out, res->error);
+	buffer = isp_video_buffer_next(&res->video_out);
 	if (buffer != NULL) {
 		ispresizer_set_outaddr(res, buffer->isp_addr);
 		restart = 1;
@@ -1006,7 +1051,7 @@ static void ispresizer_isr_buffer(struct isp_res_device *res)
 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
 
 	if (res->input == RESIZER_INPUT_MEMORY) {
-		buffer = isp_video_buffer_next(&res->video_in, 0);
+		buffer = isp_video_buffer_next(&res->video_in);
 		if (buffer != NULL)
 			ispresizer_set_inaddr(res, buffer->isp_addr);
 		pipe->state |= ISP_PIPELINE_IDLE_INPUT;
@@ -1023,8 +1068,6 @@ static void ispresizer_isr_buffer(struct isp_res_device *res)
 		if (restart)
 			resizer_enable_oneshot(res);
 	}
-
-	res->error = 0;
 }
 
 /*
@@ -1113,7 +1156,6 @@ static int resizer_set_stream(struct v4l2_subdev *sd, int enable)
 
 		isp_subclk_enable(isp, OMAP3_ISP_SUBCLK_RESIZER);
 		resizer_configure(res);
-		res->error = 0;
 		ispresizer_print_status(res);
 	}
 
@@ -1136,7 +1178,7 @@ static int resizer_set_stream(struct v4l2_subdev *sd, int enable)
 
 	case ISP_PIPELINE_STREAM_STOPPED:
 		if (isp_module_sync_idle(&sd->entity, &res->wait,
-					 &res->stopping))
+					      &res->stopping))
 			dev_dbg(dev, "%s: module stop timeout.\n", sd->name);
 		isp_sbl_disable(isp, OMAP3_ISP_SBL_RESIZER_READ |
 				OMAP3_ISP_SBL_RESIZER_WRITE);
@@ -1150,6 +1192,48 @@ static int resizer_set_stream(struct v4l2_subdev *sd, int enable)
 }
 
 /*
+ * resizer_try_crop - mangles crop parameters.
+ */
+static void resizer_try_crop(struct v4l2_mbus_framefmt *sink,
+	         struct v4l2_mbus_framefmt *source,
+	         struct v4l2_rect *crop,
+	         enum isp_pipeline_stream_state state)
+{
+    const unsigned int spv = DEFAULT_PHASE;
+    const unsigned int sph = DEFAULT_PHASE;
+
+    /* Is streaming on? Crop mangling is handled differently */
+    if (state != ISP_PIPELINE_STREAM_STOPPED) {
+        /* Crop rectangle is constrained by the output size so that zoom ratio
+	 * cannot exceed +/-4.0.
+         */
+	unsigned int min_width =
+	    ((32 * sph + (source->width - 1) * 64 + 16) >> 8) + 7;
+        unsigned int min_height =
+    	    ((32 * spv + (source->height - 1) * 64 + 16) >> 8) + 4;
+	unsigned int max_width =
+	    ((64 * sph + (source->width - 1) * 1024 + 32) >> 8) + 7;
+        unsigned int max_height =
+	    ((64 * spv + (source->height - 1) * 1024 + 32) >> 8) + 7;
+
+        crop->width = clamp_t(u32, crop->width, min_width, max_width);
+	crop->height = clamp_t(u32, crop->height, min_height, max_height);
+    } else {
+	/* Setting crop resets the output size to zoom=1.0 */
+	source->width = crop->width;
+	source->height = crop->height;
+    }
+
+    /* Crop can not go beyond of the input rectangle */
+    crop->left = clamp_t(u32, crop->left, 0, sink->width - MIN_IN_WIDTH);
+    crop->width = clamp_t(u32, crop->width, MIN_IN_WIDTH,
+	          sink->width - crop->left);
+    crop->top = clamp_t(u32, crop->top, 0, sink->height - MIN_IN_HEIGHT);
+    crop->height = clamp_t(u32, crop->height, MIN_IN_HEIGHT,
+	           sink->height - crop->top);
+}
+
+/*
  * resizer_g_crop - handle get crop subdev operation
  * @sd : pointer to v4l2 subdev structure
  * @pad : subdev pad
@@ -1158,61 +1242,21 @@ static int resizer_set_stream(struct v4l2_subdev *sd, int enable)
  * return zero
  */
 static int resizer_g_crop(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
-			  struct v4l2_subdev_crop *crop)
+	      struct v4l2_subdev_crop *crop)
 {
-	struct isp_res_device *res = v4l2_get_subdevdata(sd);
-	struct v4l2_mbus_framefmt *format;
-	struct resizer_ratio ratio;
+    struct isp_res_device *res = v4l2_get_subdevdata(sd);
+    struct v4l2_mbus_framefmt *format;
+    struct resizer_ratio ratio;
 
-	/* Only sink pad has crop capability */
-	if (crop->pad != RESZ_PAD_SINK)
-		return -EINVAL;
+    /* Only sink pad has crop capability */
+    if (crop->pad != RESZ_PAD_SINK)
+	return -EINVAL;
 
-	format = __resizer_get_format(res, fh, RESZ_PAD_SOURCE, crop->which);
-	crop->rect = *__resizer_get_crop(res, fh, crop->which);
-	ispresizer_calc_ratios(res, &crop->rect, format, &ratio);
+    format = __resizer_get_format(res, fh, RESZ_PAD_SOURCE, crop->which);
+    crop->rect = *__resizer_get_crop(res, fh, crop->which);
+    ispresizer_calc_ratios(res, &crop->rect, format, &ratio);
 
-	return 0;
-}
-
-/*
- * resizer_try_crop - mangles crop parameters.
- */
-static void resizer_try_crop(struct v4l2_mbus_framefmt *format_sink,
-			     struct v4l2_mbus_framefmt *format_source,
-			     struct v4l2_rect *crop_rect,
-			     enum isp_pipeline_stream_state state)
-{
-	/* Is streaming on? Crop mangling is handled differently */
-	if (state != ISP_PIPELINE_STREAM_STOPPED) {
-		/*
-		 * Crop rectangle is constrained to the output size so
-		 * that zoom ratio cannot exceed +/-4.0.
-		 */
-		int minwidth = (format_source->width + 3) / 4;
-		int minheight = (format_source->height + 3) / 4;
-		int maxwidth = format_source->width * 4;
-		int maxheight = format_source->height * 4;
-
-		crop_rect->width = clamp_t(u32, crop_rect->width,
-					   minwidth, maxwidth);
-		crop_rect->height = clamp_t(u32, crop_rect->height,
-					   minheight, maxheight);
-	} else {
-		/* Setting crop resets the output size to zoom=1.0 */
-		format_source->width = crop_rect->width;
-		format_source->height = crop_rect->height;
-	}
-
-	/* Crop can not go beyond of the input rectangle */
-	crop_rect->left = clamp_t(u32, crop_rect->left, 0,
-				  format_sink->width - MIN_IN_WIDTH);
-	crop_rect->width = clamp_t(u32, crop_rect->width, MIN_IN_WIDTH,
-				   format_sink->width - crop_rect->left);
-	crop_rect->top = clamp_t(u32, crop_rect->top, 0,
-				 format_sink->height - MIN_IN_HEIGHT);
-	crop_rect->height = clamp_t(u32, crop_rect->height, MIN_IN_HEIGHT,
-				    format_sink->height - crop_rect->top);
+    return 0;
 }
 
 /*
@@ -1224,52 +1268,52 @@ static void resizer_try_crop(struct v4l2_mbus_framefmt *format_sink,
  * return -EINVAL or zero when succeed
  */
 static int resizer_s_crop(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
-			  struct v4l2_subdev_crop *crop)
+	      struct v4l2_subdev_crop *crop)
 {
-	struct isp_res_device *res = v4l2_get_subdevdata(sd);
-	struct isp_device *isp = to_isp_device(res);
-	struct v4l2_mbus_framefmt *format_sink, *format_source;
-	struct resizer_ratio ratio;
+    struct isp_res_device *res = v4l2_get_subdevdata(sd);
+    struct isp_device *isp = to_isp_device(res);
+    struct v4l2_mbus_framefmt *format_sink, *format_source;
+    struct resizer_ratio ratio;
 
-	/* Only sink pad has crop capability */
-	if (crop->pad != RESZ_PAD_SINK)
-		return -EINVAL;
+    /* Only sink pad has crop capability */
+    if (crop->pad != RESZ_PAD_SINK)
+	return -EINVAL;
 
-	format_sink = __resizer_get_format(res, fh, RESZ_PAD_SINK,
-					   crop->which);
-	format_source = __resizer_get_format(res, fh, RESZ_PAD_SOURCE,
-					     crop->which);
+    format_sink = __resizer_get_format(res, fh, RESZ_PAD_SINK,
+		       crop->which);
+    format_source = __resizer_get_format(res, fh, RESZ_PAD_SOURCE,
+		         crop->which);
 
-	dev_dbg(isp->dev, "%s: L=%d,T=%d,W=%d,H=%d,which=%d\n", __func__,
-		crop->rect.left, crop->rect.top, crop->rect.width,
-		crop->rect.height, crop->which);
+    dev_dbg(isp->dev, "%s: L=%d,T=%d,W=%d,H=%d,which=%d\n", __func__,
+	crop->rect.left, crop->rect.top, crop->rect.width,
+	crop->rect.height, crop->which);
 
-	dev_dbg(isp->dev, "%s: input=%dx%d, output=%dx%d\n", __func__,
-		format_sink->width, format_sink->height,
-		format_source->width, format_source->height);
+    dev_dbg(isp->dev, "%s: input=%dx%d, output=%dx%d\n", __func__,
+	format_sink->width, format_sink->height,
+	format_source->width, format_source->height);
 
-	resizer_try_crop(format_sink, format_source, &crop->rect, res->state);
-	*__resizer_get_crop(res, fh, crop->which) = crop->rect;
-	ispresizer_calc_ratios(res, &crop->rect, format_source, &ratio);
+    resizer_try_crop(format_sink, format_source, &crop->rect, res->state);
+    *__resizer_get_crop(res, fh, crop->which) = crop->rect;
+    ispresizer_calc_ratios(res, &crop->rect, format_source, &ratio);
 
-	if (crop->which == V4L2_SUBDEV_FORMAT_TRY)
-		return 0;
-
-	res->ratio = ratio;
-	res->crop.active = crop->rect;
-
-	/*
-	 * s_crop can be called while streaming is on. In this case
-	 * the crop values will be set in the next IRQ.
-	 */
-	if (res->state != ISP_PIPELINE_STREAM_STOPPED)
-		res->applycrop = 1;
-
+    if (crop->which == V4L2_SUBDEV_FORMAT_TRY)
 	return 0;
+
+    res->ratio = ratio;
+    res->crop.active = crop->rect;
+
+    /*
+     * s_crop can be called while streaming is on. In this case
+     * the crop values will be set in the next IRQ.
+     */
+    if (res->state != ISP_PIPELINE_STREAM_STOPPED)
+	res->applycrop = 1;
+
+    return 0;
 }
 
 /* resizer pixel formats */
-static const unsigned int resz_fmts[] = {
+static const unsigned int resizer_formats[] = {
 	V4L2_MBUS_FMT_UYVY8_1X16,
 	V4L2_MBUS_FMT_YUYV8_1X16,
 };
@@ -1345,10 +1389,10 @@ static int resizer_enum_mbus_code(struct v4l2_subdev *sd,
 	struct v4l2_mbus_framefmt *format;
 
 	if (code->pad == RESZ_PAD_SINK) {
-		if (code->index >= ARRAY_SIZE(resz_fmts))
+		if (code->index >= ARRAY_SIZE(resizer_formats))
 			return -EINVAL;
 
-		code->code = resz_fmts[code->index];
+		code->code = resizer_formats[code->index];
 	} else {
 		if (code->index != 0)
 			return -EINVAL;
@@ -1396,7 +1440,7 @@ static int resizer_enum_frame_size(struct v4l2_subdev *sd,
  * @sd    : pointer to v4l2 subdev structure
  * @fh    : V4L2 subdev file handle
  * @fmt   : pointer to v4l2 subdev format structure
- * return -EINVAL or zero on sucess
+ * return -EINVAL or zero on success
  */
 static int resizer_get_format(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
 			      struct v4l2_subdev_format *fmt)
@@ -1587,6 +1631,42 @@ static const struct media_entity_operations resizer_media_ops = {
 	.link_setup = resizer_link_setup,
 };
 
+void ispresizer_unregister_entities(struct isp_res_device *res)
+{
+	v4l2_device_unregister_subdev(&res->subdev);
+	isp_video_unregister(&res->video_in);
+	isp_video_unregister(&res->video_out);
+}
+
+int ispresizer_register_entities(struct isp_res_device *res,
+				       struct v4l2_device *vdev)
+{
+	int ret;
+
+	/* Register the subdev and video nodes. */
+	ret = v4l2_device_register_subdev(vdev, &res->subdev);
+	if (ret < 0)
+		goto error;
+
+	ret = isp_video_register(&res->video_in, vdev);
+	if (ret < 0)
+		goto error;
+
+	ret = isp_video_register(&res->video_out, vdev);
+	if (ret < 0)
+		goto error;
+
+	return 0;
+
+error:
+	ispresizer_unregister_entities(res);
+	return ret;
+}
+
+/* -----------------------------------------------------------------------------
+ * ISP resizer initialization and cleanup
+ */
+
 /*
  * ispresizer_init_entities - Initialize resizer subdev and media entity.
  * @res : Pointer to resizer device structure
@@ -1624,76 +1704,43 @@ static int ispresizer_init_entities(struct isp_res_device *res)
 	res->video_in.ops = &resizer_video_ops;
 	res->video_in.isp = to_isp_device(res);
 	res->video_in.capture_mem = PAGE_ALIGN(4096 * 4096) * 2 * 3;
-	res->video_in.alignment = 32;
+	res->video_in.bpl_alignment = 32;
 	res->video_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	res->video_out.ops = &resizer_video_ops;
 	res->video_out.isp = to_isp_device(res);
 	res->video_out.capture_mem = PAGE_ALIGN(4096 * 4096) * 2 * 3;
-	res->video_out.alignment = 32;
+	res->video_out.bpl_alignment = 32;
 
 	ret = isp_video_init(&res->video_in, "resizer");
 	if (ret < 0)
-		return ret;
+		goto error_video_in;
 
 	ret = isp_video_init(&res->video_out, "resizer");
 	if (ret < 0)
-		return ret;
+		goto error_video_out;
+
+	res->video_out.video.entity.flags |= MEDIA_ENTITY_FLAG_DEFAULT;
 
 	/* Connect the video nodes to the resizer subdev. */
 	ret = media_entity_create_link(&res->video_in.video.entity, 0,
 			&res->subdev.entity, RESZ_PAD_SINK, 0);
 	if (ret < 0)
-		return ret;
+		goto error_link;
 
 	ret = media_entity_create_link(&res->subdev.entity, RESZ_PAD_SOURCE,
 			&res->video_out.video.entity, 0, 0);
 	if (ret < 0)
-		return ret;
+		goto error_link;
 
 	return 0;
-}
 
-void isp_resizer_unregister_entities(struct isp_res_device *res)
-{
+error_link:
+	isp_video_cleanup(&res->video_out);
+error_video_out:
+	isp_video_cleanup(&res->video_in);
+error_video_in:
 	media_entity_cleanup(&res->subdev.entity);
-
-	v4l2_device_unregister_subdev(&res->subdev);
-	v4l2_ctrl_handler_free(&res->ctrls);
-	isp_video_unregister(&res->video_in);
-	isp_video_unregister(&res->video_out);
-}
-
-int isp_resizer_register_entities(struct isp_res_device *res,
-				  struct v4l2_device *vdev)
-{
-	int ret;
-
-	/* Register the subdev and video nodes. */
-	ret = v4l2_device_register_subdev(vdev, &res->subdev);
-	if (ret < 0)
-		goto error;
-
-	ret = isp_video_register(&res->video_in, vdev);
-	if (ret < 0)
-		goto error;
-
-	ret = isp_video_register(&res->video_out, vdev);
-	if (ret < 0)
-		goto error;
-
-	return 0;
-
-error:
-	isp_resizer_unregister_entities(res);
 	return ret;
-}
-
-/* -----------------------------------------------------------------------------
- * ISP resizer initialization and cleanup
- */
-
-void isp_resizer_cleanup(struct isp_device *isp)
-{
 }
 
 /*
@@ -1701,20 +1748,20 @@ void isp_resizer_cleanup(struct isp_device *isp)
  * @isp : Pointer to ISP device
  * return -ENOMEM or zero on success
  */
-int isp_resizer_init(struct isp_device *isp)
+int ispresizer_init(struct isp_device *isp)
 {
 	struct isp_res_device *res = &isp->isp_res;
-	int ret;
 
 	init_waitqueue_head(&res->wait);
 	atomic_set(&res->stopping, 0);
-	ret = ispresizer_init_entities(res);
-	if (ret < 0)
-		goto out;
+	return ispresizer_init_entities(res);
+}
 
-out:
-	if (ret)
-		isp_resizer_cleanup(isp);
+void ispresizer_cleanup(struct isp_device *isp)
+{
+	struct isp_res_device *res = &isp->isp_res;
 
-	return ret;
+	isp_video_cleanup(&res->video_in);
+	isp_video_cleanup(&res->video_out);
+	media_entity_cleanup(&res->subdev.entity);
 }

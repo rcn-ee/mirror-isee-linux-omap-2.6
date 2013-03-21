@@ -6,9 +6,9 @@
  * Copyright (C) 2010 Nokia Corporation
  * Copyright (C) 2009 Texas Instruments, Inc.
  *
- * Contacts: David Cohen <david.cohen@nokia.com>
+ * Contacts: David Cohen <dacohen@gmail.com>
  *	     Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -167,13 +167,11 @@ static void isphist_enable(struct ispstat *hist, int enable)
 	if (enable) {
 		isp_reg_set(hist->isp, OMAP3_ISP_IOMEM_HIST, ISPHIST_PCR,
 			    ISPHIST_PCR_ENABLE);
-		isp_reg_set(hist->isp, OMAP3_ISP_IOMEM_MAIN, ISP_CTRL,
-			    ISPCTRL_HIST_CLK_EN);
+		isp_subclk_enable(hist->isp, OMAP3_ISP_SUBCLK_HIST);
 	} else {
 		isp_reg_clr(hist->isp, OMAP3_ISP_IOMEM_HIST, ISPHIST_PCR,
 			    ISPHIST_PCR_ENABLE);
-		isp_reg_clr(hist->isp, OMAP3_ISP_IOMEM_MAIN, ISP_CTRL,
-			    ISPCTRL_HIST_CLK_EN);
+		isp_subclk_disable(hist->isp, OMAP3_ISP_SUBCLK_HIST);
 	}
 }
 
@@ -468,7 +466,7 @@ static const struct v4l2_subdev_ops isphist_subdev_ops = {
 /*
  * isphist_init - Module Initialization.
  */
-int isp_hist_init(struct isp_device *isp)
+int isphist_init(struct isp_device *isp)
 {
 	struct ispstat *hist = &isp->isp_hist;
 	struct omap3isp_hist_config *hist_cfg;
@@ -511,10 +509,10 @@ int isp_hist_init(struct isp_device *isp)
 /*
  * isphist_cleanup - Module cleanup.
  */
-void isp_hist_cleanup(struct isp_device *isp)
+void isphist_cleanup(struct isp_device *isp)
 {
 	if (HIST_USING_DMA(&isp->isp_hist))
 		omap_free_dma(isp->isp_hist.dma_ch);
 	kfree(isp->isp_hist.priv);
-	ispstat_free(&isp->isp_hist);
+	ispstat_cleanup(&isp->isp_hist);
 }

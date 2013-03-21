@@ -39,6 +39,8 @@
 #define IGEP2_GPIO_TVP5151_PDN		126
 #define IGEP2_GPIO_TVP5151_RESET	167
 
+/* Disabled due to incompatibilies with IGEP CAM BIRD */
+#if 0
 #if defined(CONFIG_VIDEO_OMAP3) || \
 	defined(CONFIG_VIDEO_OMAP3_MODULE)
 
@@ -61,14 +63,11 @@ static struct isp_v4l2_subdevs_group igep0022_camera_subdevs[] = {
 		.subdevs = igep0022_camera_primary_subdevs,
 		.interface = ISP_INTERFACE_PARALLEL,
 		.bus = { .parallel = {
-				.width			= 8,
 				.data_lane_shift	= 0,
 				.clk_pol		= 0,
-				.hdpol                  = 0,
-				.vdpol                  = 0,
-				.fldmode                = 1,
-				.bridge		= ISPCTRL_PAR_BRIDGE_DISABLE,
-				.is_bt656               = 1,
+				.hs_pol                 = 0,
+				.vs_pol                 = 0,
+				.data_pol               = 0,
 		} },
 	},
 	{ NULL, 0, },
@@ -77,6 +76,7 @@ static struct isp_v4l2_subdevs_group igep0022_camera_subdevs[] = {
 static struct isp_platform_data isp_pdata = {
 	.subdevs = igep0022_camera_subdevs,
 };
+#endif
 #endif
 
 #ifdef CONFIG_OMAP_MUX
@@ -144,11 +144,12 @@ void __init igep0022_init(void)
 	omap_mux_init_signal("mcspi1_cs0", 0);
 	igep00x0_mcp251x_init(1, 0, IGEP2_GPIO_MCP251X_IRQ,
 				IGEP2_GPIO_MCP251X_NRESET);
-
+#if 0
 #if defined(CONFIG_VIDEO_OMAP3) || \
 	defined(CONFIG_VIDEO_OMAP3_MODULE)
 	/* Register OMAP3 camera devices (tvp5151) */
 	igep00x0_camera_init(&isp_pdata, IGEP2_GPIO_TVP5151_RESET,
 			     IGEP2_GPIO_TVP5151_PDN);
+#endif
 #endif
 }

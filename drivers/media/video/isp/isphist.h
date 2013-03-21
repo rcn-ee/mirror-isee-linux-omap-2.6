@@ -6,9 +6,9 @@
  * Copyright (C) 2010 Nokia Corporation
  * Copyright (C) 2009 Texas Instruments, Inc.
  *
- * Contacts: David Cohen <david.cohen@nokia.com>
+ * Contacts: David Cohen <dacohen@gmail.com>
  *	     Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -34,7 +34,7 @@
 
 struct isp_device;
 
-int isp_hist_init(struct isp_device *isp);
-void isp_hist_cleanup(struct isp_device *isp);
+int isphist_init(struct isp_device *isp);
+void isphist_cleanup(struct isp_device *isp);
 
 #endif /* OMAP3_ISP_HIST */

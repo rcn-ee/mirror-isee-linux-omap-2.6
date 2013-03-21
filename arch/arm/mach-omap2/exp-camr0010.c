@@ -65,6 +65,9 @@ static struct isp_v4l2_subdevs_group camera_subdevs[] = {
 		.bus = { .parallel = {
 			.data_lane_shift 	= 0, /* ISP_LANE_SHIFT_0 */
 			.clk_pol 		= 0,
+			.hs_pol                 = 0,
+			.vs_pol                 = 0,
+			.data_pol               = 0,
 		} },
 	},
 	{ NULL, 0 },

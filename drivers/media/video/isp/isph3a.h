@@ -6,9 +6,9 @@
  * Copyright (C) 2010 Nokia Corporation
  * Copyright (C) 2009 Texas Instruments, Inc.
  *
- * Contacts: David Cohen <david.cohen@nokia.com>
+ * Contacts: David Cohen <dacohen@gmail.com>
  *	     Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -108,10 +108,10 @@
 #define AF_COEF_SHIFT			16
 
 /* Init and cleanup functions */
-int isp_h3a_aewb_init(struct isp_device *isp);
-int isp_h3a_af_init(struct isp_device *isp);
+int isph3a_aewb_init(struct isp_device *isp);
+int isph3a_af_init(struct isp_device *isp);
 
-void isp_h3a_aewb_cleanup(struct isp_device *isp);
-void isp_h3a_af_cleanup(struct isp_device *isp);
+void isph3a_aewb_cleanup(struct isp_device *isp);
+void isph3a_af_cleanup(struct isp_device *isp);
 
 #endif /* OMAP3_ISP_H3A_H */

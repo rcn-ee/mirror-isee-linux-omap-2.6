@@ -7,17 +7,17 @@
  * Copyright (C) 2007-2009 Texas Instruments, Inc.
  *
  * Contacts: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * Contributors:
  *	Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	Sakari Ailus <sakari.ailus@nokia.com>
- *	David Cohen <david.cohen@nokia.com>
+ *	Sakari Ailus <sakari.ailus@iki.fi>
+ *	David Cohen <dacohen@gmail.com>
  *	Stanimir Varbanov <svarbanov@mm-sol.com>
- *	Vimarsh Zutshi <vimarsh.zutshi@nokia.com>
- *	Tuukka Toivonen <tuukka.o.toivonen@nokia.com>
+ *	Vimarsh Zutshi <vimarsh.zutshi@gmail.com>
+ *	Tuukka Toivonen <tuukkat76@gmail.com>
  *	Sergio Aguirre <saaguirre@ti.com>
- *	Antti Koskipaa <antti.koskipaa@nokia.com>
+ *	Antti Koskipaa <akoskipa@gmail.com>
  *	Ivan T. Ivanov <iivanov@mm-sol.com>
  *	RaniSuneela <r-m@ti.com>
  *	Atanas Filipov <afilipov@mm-sol.com>
@@ -60,6 +60,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
+#include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
@@ -78,6 +79,10 @@
 #include "ispccp2.h"
 #include "isph3a.h"
 #include "isphist.h"
+
+static unsigned int autoidle;
+module_param(autoidle, int, 0444);
+MODULE_PARM_DESC(autoidle, "Enable OMAP3ISP AUTOIDLE support");
 
 static void isp_save_ctx(struct isp_device *isp);
 
@@ -210,20 +215,21 @@ static u32 isp_set_xclk(struct isp_device *isp, u32 xclk, u8 xclksel)
 	}
 
 	switch (xclksel) {
-	case 0:
+	case ISP_XCLK_A:
 		isp_reg_clr_set(isp, OMAP3_ISP_IOMEM_MAIN, ISP_TCTRL_CTRL,
 				ISPTCTRL_CTRL_DIVA_MASK,
 				divisor << ISPTCTRL_CTRL_DIVA_SHIFT);
 		dev_dbg(isp->dev, "isp_set_xclk(): cam_xclka set to %d Hz\n",
 			currentxclk);
 		break;
-	case 1:
+	case ISP_XCLK_B:
 		isp_reg_clr_set(isp, OMAP3_ISP_IOMEM_MAIN, ISP_TCTRL_CTRL,
 				ISPTCTRL_CTRL_DIVB_MASK,
 				divisor << ISPTCTRL_CTRL_DIVB_SHIFT);
 		dev_dbg(isp->dev, "isp_set_xclk(): cam_xclkb set to %d Hz\n",
 			currentxclk);
 		break;
+	case ISP_XCLK_NONE:
 	default:
 		isp_put(isp);
 		dev_dbg(isp->dev, "ISP_ERR: isp_set_xclk(): Invalid requested "
@@ -232,13 +238,13 @@ static u32 isp_set_xclk(struct isp_device *isp, u32 xclk, u8 xclksel)
 	}
 
 	/* Do we go from stable whatever to clock? */
-	if (divisor >= 2 && isp->xclk_divisor[xclksel] < 2)
+	if (divisor >= 2 && isp->xclk_divisor[xclksel - 1] < 2)
 		isp_get(isp);
 	/* Stopping the clock. */
-	else if (divisor < 2 && isp->xclk_divisor[xclksel] >= 2)
+	else if (divisor < 2 && isp->xclk_divisor[xclksel - 1] >= 2)
 		isp_put(isp);
 
-	isp->xclk_divisor[xclksel] = divisor;
+	isp->xclk_divisor[xclksel - 1] = divisor;
 
 	isp_put(isp);
 
@@ -246,21 +252,31 @@ static u32 isp_set_xclk(struct isp_device *isp, u32 xclk, u8 xclksel)
 }
 
 /*
- * isp_power_settings - Sysconfig settings, for Power Management.
+ * isp_core_init - ISP core settings
  * @isp: OMAP3 ISP device
  * @idle: Consider idle state.
  *
- * Sets the power settings for the ISP, and SBL bus.
+ * Set the power settings for the ISP and SBL bus and cConfigure the HS/VS
+ * interrupt source.
+ *
+ * We need to configure the HS/VS interrupt source before interrupts get
+ * enabled, as the sensor might be free-running and the ISP default setting
+ * (HS edge) would put an unnecessary burden on the CPU.
  */
-static void isp_power_settings(struct isp_device *isp, int idle)
+static void isp_core_init(struct isp_device *isp, int idle)
 {
 	isp_reg_writel(isp,
 		       ((idle ? ISP_SYSCONFIG_MIDLEMODE_SMARTSTANDBY :
 				ISP_SYSCONFIG_MIDLEMODE_FORCESTANDBY) <<
-			ISP_SYSCONFIG_MIDLEMODE_SHIFT),
+			ISP_SYSCONFIG_MIDLEMODE_SHIFT) |
+			((isp->revision == ISP_REVISION_15_0) ?
+			  ISP_SYSCONFIG_AUTOIDLE : 0),
 		       OMAP3_ISP_IOMEM_MAIN, ISP_SYSCONFIG);
-	isp_reg_writel(isp, ISPCTRL_SBL_AUTOIDLE, OMAP3_ISP_IOMEM_MAIN,
-		       ISP_CTRL);
+
+	isp_reg_writel(isp,
+		       (isp->autoidle ? ISPCTRL_SBL_AUTOIDLE : 0) |
+		       ISPCTRL_SYNC_DETECT_VSRISE,
+		       OMAP3_ISP_IOMEM_MAIN, ISP_CTRL);
 }
 
 /*
@@ -274,8 +290,10 @@ static void isp_power_settings(struct isp_device *isp, int idle)
  * The bridge and lane shifter are configured according to the selected input
  * and the ISP platform data.
  */
-void isp_configure_bridge(struct isp_device *isp, enum ccdc_input_entity input,
-			  const struct isp_parallel_platform_data *pdata)
+void isp_configure_bridge(struct isp_device *isp,
+			       enum ccdc_input_entity input,
+			       const struct isp_parallel_platform_data *pdata,
+			       unsigned int shift, unsigned int bridge)
 {
 	u32 ispctrl_val;
 
@@ -284,13 +302,13 @@ void isp_configure_bridge(struct isp_device *isp, enum ccdc_input_entity input,
 	ispctrl_val &= ~ISPCTRL_PAR_CLK_POL_INV;
 	ispctrl_val &= ~ISPCTRL_PAR_SER_CLK_SEL_MASK;
 	ispctrl_val &= ~ISPCTRL_PAR_BRIDGE_MASK;
+	ispctrl_val |= bridge;
 
 	switch (input) {
 	case CCDC_INPUT_PARALLEL:
 		ispctrl_val |= ISPCTRL_PAR_SER_CLK_SEL_PARALLEL;
-		ispctrl_val |= pdata->data_lane_shift << ISPCTRL_SHIFT_SHIFT;
 		ispctrl_val |= pdata->clk_pol << ISPCTRL_PAR_CLK_POL_SHIFT;
-		ispctrl_val |= pdata->bridge << ISPCTRL_PAR_BRIDGE_SHIFT;
+		shift += pdata->data_lane_shift * 2;
 		break;
 
 	case CCDC_INPUT_CSI2A:
@@ -309,23 +327,9 @@ void isp_configure_bridge(struct isp_device *isp, enum ccdc_input_entity input,
 		return;
 	}
 
-	ispctrl_val &= ~ISPCTRL_SYNC_DETECT_MASK;
-	ispctrl_val |= ISPCTRL_SYNC_DETECT_VSRISE;
+	ispctrl_val |= ((shift/2) << ISPCTRL_SHIFT_SHIFT) & ISPCTRL_SHIFT_MASK;
 
 	isp_reg_writel(isp, ispctrl_val, OMAP3_ISP_IOMEM_MAIN, ISP_CTRL);
-}
-
-/**
- * isp_set_pixel_clock - Configures the ISP pixel clock
- * @isp: OMAP3 ISP device
- * @pixelclk: Average pixel clock in Hz
- *
- * Set the average pixel clock required by the sensor. The ISP will use the
- * lowest possible memory bandwidth settings compatible with the clock.
- **/
-static void isp_set_pixel_clock(struct isp_device *isp, unsigned int pixelclk)
-{
-	isp->isp_ccdc.vpcfg.pixelclk = pixelclk;
 }
 
 void isphist_dma_done(struct isp_device *isp)
@@ -376,7 +380,7 @@ static inline void isp_isr_dbg(struct isp_device *isp, u32 irqstatus)
 	};
 	int i;
 
-	dev_dbg(isp->dev, "\n");
+	dev_dbg(isp->dev, "ISP IRQ: ");
 
 	for (i = 0; i < ARRAY_SIZE(name); i++) {
 		if ((1 << i) & irqstatus)
@@ -388,6 +392,7 @@ static inline void isp_isr_dbg(struct isp_device *isp, u32 irqstatus)
 static void isp_isr_sbl(struct isp_device *isp)
 {
 	struct device *dev = isp->dev;
+	struct isp_pipeline *pipe;
 	u32 sbl_pcr;
 
 	/*
@@ -401,27 +406,38 @@ static void isp_isr_sbl(struct isp_device *isp)
 	if (sbl_pcr)
 		dev_dbg(dev, "SBL overflow (PCR = 0x%08x)\n", sbl_pcr);
 
-	if (sbl_pcr & (ISPSBL_PCR_CCDC_WBL_OVF | ISPSBL_PCR_CSIA_WBL_OVF
-		     | ISPSBL_PCR_CSIB_WBL_OVF)) {
-		isp->isp_ccdc.error = 1;
-		if (isp->isp_ccdc.output & CCDC_OUTPUT_PREVIEW)
-			isp->isp_prev.error = 1;
-		if (isp->isp_ccdc.output & CCDC_OUTPUT_RESIZER)
-			isp->isp_res.error = 1;
+	if (sbl_pcr & ISPSBL_PCR_CSIB_WBL_OVF) {
+		pipe = to_isp_pipeline(&isp->isp_ccp2.subdev.entity);
+		if (pipe != NULL)
+			pipe->error = true;
+	}
+
+	if (sbl_pcr & ISPSBL_PCR_CSIA_WBL_OVF) {
+		pipe = to_isp_pipeline(&isp->isp_csi2a.subdev.entity);
+		if (pipe != NULL)
+			pipe->error = true;
+	}
+
+	if (sbl_pcr & ISPSBL_PCR_CCDC_WBL_OVF) {
+		pipe = to_isp_pipeline(&isp->isp_ccdc.subdev.entity);
+		if (pipe != NULL)
+			pipe->error = true;
 	}
 
 	if (sbl_pcr & ISPSBL_PCR_PRV_WBL_OVF) {
-		isp->isp_prev.error = 1;
-		if (isp->isp_res.input == RESIZER_INPUT_VP &&
-		    !(isp->isp_ccdc.output & CCDC_OUTPUT_RESIZER))
-			isp->isp_res.error = 1;
+		pipe = to_isp_pipeline(&isp->isp_prev.subdev.entity);
+		if (pipe != NULL)
+			pipe->error = true;
 	}
 
 	if (sbl_pcr & (ISPSBL_PCR_RSZ1_WBL_OVF
 		       | ISPSBL_PCR_RSZ2_WBL_OVF
 		       | ISPSBL_PCR_RSZ3_WBL_OVF
-		       | ISPSBL_PCR_RSZ4_WBL_OVF))
-		isp->isp_res.error = 1;
+		       | ISPSBL_PCR_RSZ4_WBL_OVF)) {
+		pipe = to_isp_pipeline(&isp->isp_res.subdev.entity);
+		if (pipe != NULL)
+			pipe->error = true;
+	}
 
 	if (sbl_pcr & ISPSBL_PCR_H3A_AF_WBL_OVF)
 		ispstat_sbl_overflow(&isp->isp_af);
@@ -449,24 +465,17 @@ static irqreturn_t isp_isr(int irq, void *_isp)
 				       IRQ0STATUS_HS_VS_IRQ;
 	struct isp_device *isp = _isp;
 	u32 irqstatus;
-	int ret;
 
 	irqstatus = isp_reg_readl(isp, OMAP3_ISP_IOMEM_MAIN, ISP_IRQ0STATUS);
 	isp_reg_writel(isp, irqstatus, OMAP3_ISP_IOMEM_MAIN, ISP_IRQ0STATUS);
 
 	isp_isr_sbl(isp);
 
-	if (irqstatus & IRQ0STATUS_CSIA_IRQ) {
-		ret = isp_csi2_isr(&isp->isp_csi2a);
-		if (ret)
-			isp->isp_ccdc.error = 1;
-	}
+	if (irqstatus & IRQ0STATUS_CSIA_IRQ)
+		ispcsi2_isr(&isp->isp_csi2a);
 
-	if (irqstatus & IRQ0STATUS_CSIB_IRQ) {
-		ret = ispccp2_isr(&isp->isp_ccp2);
-		if (ret)
-			isp->isp_ccdc.error = 1;
-	}
+	if (irqstatus & IRQ0STATUS_CSIB_IRQ)
+		ispccp2_isr(&isp->isp_ccp2);
 
 	if (irqstatus & IRQ0STATUS_CCDC_VD0_IRQ) {
 		if (isp->isp_ccdc.output & CCDC_OUTPUT_PREVIEW)
@@ -647,6 +656,8 @@ int omap3isp_pipeline_pm_use(struct media_entity *entity, int use)
 
 	/* Apply power change to connected non-nodes. */
 	ret = isp_pipeline_pm_power(entity, change);
+	if (ret < 0)
+		entity->use_count -= change;
 
 	mutex_unlock(&entity->parent->graph_mutex);
 
@@ -717,6 +728,17 @@ static int isp_pipeline_enable(struct isp_pipeline *pipe,
 	unsigned long flags;
 	int ret = 0;
 
+	/* If the preview engine crashed it might not respond to read/write
+	 * operations on the L4 bus. This would result in a bus fault and a
+	 * kernel oops. Refuse to start streaming in that case. This check must
+	 * be performed before the loop below to avoid starting entities if the
+	 * pipeline won't start anyway (those entities would then likely fail to
+	 * stop, making the problem worse).
+	 */
+	if ((pipe->entities & isp->crashed) &
+	    (1U << isp->isp_prev.subdev.entity.id))
+		return -EIO;
+
 	spin_lock_irqsave(&pipe->lock, flags);
 	pipe->state &= ~(ISP_PIPELINE_IDLE_INPUT | ISP_PIPELINE_IDLE_OUTPUT);
 	spin_unlock_irqrestore(&pipe->lock, flags);
@@ -740,7 +762,7 @@ static int isp_pipeline_enable(struct isp_pipeline *pipe,
 
 		ret = v4l2_subdev_call(subdev, video, s_stream, mode);
 		if (ret < 0 && ret != -ENOIOCTLCMD)
-			break;
+			return ret;
 
 		if (subdev == &isp->isp_ccdc.subdev) {
 			v4l2_subdev_call(&isp->isp_aewb.subdev, video,
@@ -753,15 +775,7 @@ static int isp_pipeline_enable(struct isp_pipeline *pipe,
 		}
 	}
 
-	/* Frame number propagation. In continuous streaming mode the number
-	 * is incremented in the frame start ISR. In mem-to-mem mode
-	 * singleshot is used and frame start IRQs are not available.
-	 * Thus we have to increment the number here.
-	 */
-	if (pipe->do_propagation && mode == ISP_PIPELINE_STREAM_SINGLESHOT)
-		atomic_inc(&pipe->frame_number);
-
-	return ret;
+	return 0;
 }
 
 static int isp_pipeline_wait_resizer(struct isp_device *isp)
@@ -860,6 +874,11 @@ static int isp_pipeline_disable(struct isp_pipeline *pipe)
 
 		if (ret) {
 			dev_info(isp->dev, "Unable to stop %s\n", subdev->name);
+			/* If the entity failed to stopped, assume it has
+			 * crashed. Mark it as such, the ISP will be reset when
+			 * applications will release it.
+			 */
+			isp->crashed |= 1U << subdev->entity.id;
 			failure = -ETIMEDOUT;
 		}
 	}
@@ -876,7 +895,8 @@ static int isp_pipeline_disable(struct isp_pipeline *pipe)
  * single-shot or continuous mode.
  *
  * Return 0 if successfull, or the return value of the failed video::s_stream
- * operation otherwise.
+ * operation otherwise. The pipeline state is not updated when the operation
+ * fails, except when stopping the pipeline.
  */
 int isp_pipeline_set_stream(struct isp_pipeline *pipe,
 			    enum isp_pipeline_stream_state state)
@@ -887,7 +907,9 @@ int isp_pipeline_set_stream(struct isp_pipeline *pipe,
 		ret = isp_pipeline_disable(pipe);
 	else
 		ret = isp_pipeline_enable(pipe, state);
-	pipe->stream_state = state;
+
+	if (ret == 0 || state == ISP_PIPELINE_STREAM_STOPPED)
+		pipe->stream_state = state;
 
 	return ret;
 }
@@ -920,7 +942,7 @@ static void isp_pipeline_suspend(struct isp_pipeline *pipe)
 }
 
 /*
- * isp_pipeline_is_last - Verify if entity has an enbled link to the output
+ * isp_pipeline_is_last - Verify if entity has an enabled link to the output
  * 			  video node
  * @me: ISP module's media entity
  *
@@ -1044,6 +1066,7 @@ static int isp_reset(struct isp_device *isp)
 		udelay(1);
 	}
 
+	isp->crashed = 0;
 	return 0;
 }
 
@@ -1088,7 +1111,7 @@ static void isp_save_ctx(struct isp_device *isp)
 {
 	isp_save_context(isp, isp_reg_list);
 	if (isp->iommu)
-		iommu_save_ctx(isp->iommu);
+	    iommu_save_ctx(isp->iommu);
 }
 
 /*
@@ -1101,7 +1124,7 @@ static void isp_save_ctx(struct isp_device *isp)
 static void isp_restore_ctx(struct isp_device *isp)
 {
 	isp_restore_context(isp, isp_reg_list);
-	if (isp->iommu)
+        if (isp->iommu)
 		iommu_restore_ctx(isp->iommu);
 	ispccdc_restore_context(isp);
 	isppreview_restore_context(isp);
@@ -1264,7 +1287,9 @@ static void __isp_subclk_update(struct isp_device *isp)
 {
 	u32 clk = 0;
 
-	if (isp->subclk_resources & OMAP3_ISP_SUBCLK_H3A)
+	/* AEWB and AF share the same clock. */
+	if (isp->subclk_resources &
+	    (OMAP3_ISP_SUBCLK_AEWB | OMAP3_ISP_SUBCLK_AF))
 		clk |= ISPCTRL_H3A_CLK_EN;
 
 	if (isp->subclk_resources & OMAP3_ISP_SUBCLK_HIST)
@@ -1274,7 +1299,7 @@ static void __isp_subclk_update(struct isp_device *isp)
 		clk |= ISPCTRL_RSZ_CLK_EN;
 
 	/* NOTE: For CCDC & Preview submodules, we need to affect internal
-	 *       RAM aswell.
+	 *       RAM as well.
 	 */
 	if (isp->subclk_resources & OMAP3_ISP_SUBCLK_CCDC)
 		clk |= ISPCTRL_CCDC_CLK_EN | ISPCTRL_CCDC_RAM_EN;
@@ -1420,9 +1445,9 @@ static int isp_get_clocks(struct isp_device *isp)
  * Increment the reference count on the ISP. If the first reference is taken,
  * enable clocks and power-up all submodules.
  *
- * Return a pointer to the ISP device structure, or NULL if an error occured.
+ * Return a pointer to the ISP device structure, or NULL if an error occurred.
  */
-struct isp_device *isp_get(struct isp_device *isp)
+static struct isp_device *__isp_get(struct isp_device *isp, bool irq)
 {
 	struct isp_device *__isp = isp;
 
@@ -1441,10 +1466,9 @@ struct isp_device *isp_get(struct isp_device *isp)
 	/* We don't want to restore context before saving it! */
 	if (isp->has_context)
 		isp_restore_ctx(isp);
-	else
-		isp->has_context = 1;
 
-	isp_enable_interrupts(isp);
+	if (irq)
+		isp_enable_interrupts(isp);
 
 out:
 	if (__isp != NULL)
@@ -1452,6 +1476,11 @@ out:
 	mutex_unlock(&isp->isp_mutex);
 
 	return __isp;
+}
+
+struct isp_device *isp_get(struct isp_device *isp)
+{
+	return __isp_get(isp, true);
 }
 
 /*
@@ -1470,6 +1499,11 @@ void isp_put(struct isp_device *isp)
 	if (--isp->ref_count == 0) {
 		isp_disable_interrupts(isp);
 		isp_save_ctx(isp);
+		/* Reset the ISP if an entity has failed to stop. This is the
+		 * only way to recover from such conditions.
+		 */
+		if (isp->crashed)
+			isp_reset(isp);
 		isp_disable_clocks(isp);
 	}
 	mutex_unlock(&isp->isp_mutex);
@@ -1599,11 +1633,11 @@ static void isp_pm_complete(struct device *dev)
 
 static void isp_unregister_entities(struct isp_device *isp)
 {
-	isp_csi2_unregister_entities(&isp->isp_csi2a);
-	isp_ccp2_unregister_entities(&isp->isp_ccp2);
-	isp_ccdc_unregister_entities(&isp->isp_ccdc);
-	isp_preview_unregister_entities(&isp->isp_prev);
-	isp_resizer_unregister_entities(&isp->isp_res);
+	ispcsi2_unregister_entities(&isp->isp_csi2a);
+	ispccp2_unregister_entities(&isp->isp_ccp2);
+	ispccdc_unregister_entities(&isp->isp_ccdc);
+	isppreview_unregister_entities(&isp->isp_prev);
+	ispresizer_unregister_entities(&isp->isp_res);
 	ispstat_unregister_entities(&isp->isp_aewb);
 	ispstat_unregister_entities(&isp->isp_af);
 	ispstat_unregister_entities(&isp->isp_hist);
@@ -1670,6 +1704,7 @@ static int isp_register_entities(struct isp_device *isp)
 	isp->media_dev.dev = isp->dev;
 	strlcpy(isp->media_dev.model, "TI OMAP3 ISP",
 		sizeof(isp->media_dev.model));
+	isp->media_dev.hw_revision = isp->revision;
 	isp->media_dev.link_notify = isp_pipeline_link_notify;
 	ret = media_device_register(&isp->media_dev);
 	if (ret < 0) {
@@ -1687,23 +1722,23 @@ static int isp_register_entities(struct isp_device *isp)
 	}
 
 	/* Register internal entities */
-	ret = isp_ccp2_register_entities(&isp->isp_ccp2, &isp->v4l2_dev);
+	ret = ispccp2_register_entities(&isp->isp_ccp2, &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
-	ret = isp_csi2_register_entities(&isp->isp_csi2a, &isp->v4l2_dev);
+	ret = ispcsi2_register_entities(&isp->isp_csi2a, &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
-	ret = isp_ccdc_register_entities(&isp->isp_ccdc, &isp->v4l2_dev);
+	ret = ispccdc_register_entities(&isp->isp_ccdc, &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
-	ret = isp_preview_register_entities(&isp->isp_prev, &isp->v4l2_dev);
+	ret = isppreview_register_entities(&isp->isp_prev, &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
-	ret = isp_resizer_register_entities(&isp->isp_res, &isp->v4l2_dev);
+	ret = ispresizer_register_entities(&isp->isp_res, &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
@@ -1720,7 +1755,7 @@ static int isp_register_entities(struct isp_device *isp)
 		goto done;
 
 	/* Register external entities */
-	for (subdevs = pdata->subdevs; subdevs->subdevs; ++subdevs) {
+	for (subdevs = pdata->subdevs; subdevs && subdevs->subdevs; ++subdevs) {
 		struct v4l2_subdev *sensor;
 		struct media_entity *input;
 		unsigned int flags;
@@ -1778,6 +1813,8 @@ static int isp_register_entities(struct isp_device *isp)
 			goto done;
 	}
 
+//	ret = v4l2_device_register_subdev_nodes(&isp->v4l2_dev);//from 3.6
+
 done:
 	if (ret < 0)
 		isp_unregister_entities(isp);
@@ -1787,69 +1824,69 @@ done:
 
 static void isp_cleanup_modules(struct isp_device *isp)
 {
-	isp_h3a_aewb_cleanup(isp);
-	isp_h3a_af_cleanup(isp);
-	isp_hist_cleanup(isp);
-	isp_resizer_cleanup(isp);
-	isp_preview_cleanup(isp);
-	isp_ccdc_cleanup(isp);
-	isp_ccp2_cleanup(isp);
-	isp_csi2_cleanup(isp);
+	isph3a_aewb_cleanup(isp);
+	isph3a_af_cleanup(isp);
+	isphist_cleanup(isp);
+	ispresizer_cleanup(isp);
+	isppreview_cleanup(isp);
+	ispccdc_cleanup(isp);
+	ispccp2_cleanup(isp);
+	ispcsi2_cleanup(isp);
 }
 
 static int isp_initialize_modules(struct isp_device *isp)
 {
 	int ret;
 
-	ret = isp_csiphy_init(isp);
+	ret = ispcsiphy_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "CSI PHY initialization failed\n");
 		goto error_csiphy;
 	}
 
-	ret = isp_csi2_init(isp);
+	ret = ispcsi2_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "CSI2 initialization failed\n");
 		goto error_csi2;
 	}
 
-	ret = isp_ccp2_init(isp);
+	ret = ispccp2_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "CCP2 initialization failed\n");
 		goto error_ccp2;
 	}
 
-	ret = isp_ccdc_init(isp);
+	ret = ispccdc_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "CCDC initialization failed\n");
 		goto error_ccdc;
 	}
 
-	ret = isp_preview_init(isp);
+	ret = isppreview_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "Preview initialization failed\n");
 		goto error_preview;
 	}
 
-	ret = isp_resizer_init(isp);
+	ret = ispresizer_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "Resizer initialization failed\n");
 		goto error_resizer;
 	}
 
-	ret = isp_hist_init(isp);
+	ret = isphist_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "Histogram initialization failed\n");
 		goto error_hist;
 	}
 
-	ret = isp_h3a_aewb_init(isp);
+	ret = isph3a_aewb_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "H3A AEWB initialization failed\n");
 		goto error_h3a_aewb;
 	}
 
-	ret = isp_h3a_af_init(isp);
+	ret = isph3a_af_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "H3A AF initialization failed\n");
 		goto error_h3a_af;
@@ -1910,21 +1947,21 @@ static int isp_initialize_modules(struct isp_device *isp)
 	return 0;
 
 error_link:
-	isp_h3a_af_cleanup(isp);
+	isph3a_af_cleanup(isp);
 error_h3a_af:
-	isp_h3a_aewb_cleanup(isp);
+	isph3a_aewb_cleanup(isp);
 error_h3a_aewb:
-	isp_hist_cleanup(isp);
+	isphist_cleanup(isp);
 error_hist:
-	isp_resizer_cleanup(isp);
+	ispresizer_cleanup(isp);
 error_resizer:
-	isp_preview_cleanup(isp);
+	isppreview_cleanup(isp);
 error_preview:
-	isp_ccdc_cleanup(isp);
+	ispccdc_cleanup(isp);
 error_ccdc:
-	isp_ccp2_cleanup(isp);
+	ispccp2_cleanup(isp);
 error_ccp2:
-	isp_csi2_cleanup(isp);
+	ispcsi2_cleanup(isp);
 error_csi2:
 error_csiphy:
 	return ret;
@@ -1944,7 +1981,7 @@ static int isp_remove(struct platform_device *pdev)
 	isp_unregister_entities(isp);
 	isp_cleanup_modules(isp);
 
-	isp_get(isp);
+	__isp_get(isp, false);
 	iommu_put(isp->iommu);
 	isp_put(isp);
 
@@ -2031,8 +2068,8 @@ static int isp_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	isp->autoidle = autoidle;
 	isp->platform_cb.set_xclk = isp_set_xclk;
-	isp->platform_cb.set_pixel_clock = isp_set_pixel_clock;
 
 	mutex_init(&isp->isp_mutex);
 	spin_lock_init(&isp->stat_lock);
@@ -2060,7 +2097,7 @@ static int isp_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto error;
 
-	if (isp_get(isp) == NULL)
+	if (__isp_get(isp, false) == NULL)
 		goto error;
 
 	ret = isp_reset(isp);
@@ -2122,7 +2159,7 @@ static int isp_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto error_modules;
 
-	isp_power_settings(isp, 1);
+	isp_core_init(isp, 1);
 	isp_put(isp);
 
 	return 0;
@@ -2132,7 +2169,7 @@ error_modules:
 error_irq:
 	free_irq(isp->irq_num, isp);
 error_isp:
-	iommu_put(isp->iommu);
+        iommu_put(isp->iommu);
 	isp_put(isp);
 error:
 	isp_put_clocks(isp);
@@ -2152,6 +2189,8 @@ error:
 	regulator_put(isp->isp_csiphy2.vdd);
 	regulator_put(isp->isp_csiphy1.vdd);
 	platform_set_drvdata(pdev, NULL);
+
+	mutex_destroy(&isp->isp_mutex);
 	kfree(isp);
 
 	return ret;

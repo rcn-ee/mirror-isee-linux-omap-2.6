@@ -335,6 +335,8 @@ static struct platform_device base0010_gpio_keys_device = {
 	},
 };
 
+/* Disable due incompatibilities with IGEP CAM BIRD */
+#if 0
 #if defined(CONFIG_VIDEO_OMAP3) || \
 	defined(CONFIG_VIDEO_OMAP3_MODULE)
 
@@ -357,14 +359,11 @@ static struct isp_v4l2_subdevs_group base0010_camera_subdevs[] = {
 		.subdevs = base0010_camera_primary_subdevs,
 		.interface = ISP_INTERFACE_PARALLEL,
 		.bus = { .parallel = {
-				.width			= 8,
 				.data_lane_shift	= 0,
 				.clk_pol		= 0,
-				.hdpol                  = 0,
-				.vdpol                  = 0,
-				.fldmode                = 1,
-				.bridge		= ISPCTRL_PAR_BRIDGE_DISABLE,
-				.is_bt656               = 1,
+				.hs_pol                 = 0,
+				.vs_pol                 = 0,
+				.data_pol               = 0,
 		} },
 	},
 	{ NULL, 0, },
@@ -380,9 +379,9 @@ void __init base0010_camera_init(void)
 	igep00x0_camera_init(&isp_pdata, IGEP3_GPIO_TVP5151_RESET,
 			     IGEP3_GPIO_TVP5151_PDN);
 }
-#else
-void __init base0010_camera_init(void) {}
 #endif
+#endif
+void __init base0010_camera_init(void) {}
 
 #ifdef CONFIG_OMAP_MUX
 static struct omap_board_mux base0010_mux[] __initdata = {

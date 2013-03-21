@@ -6,9 +6,9 @@
  * Copyright (C) 2010 Nokia Corporation
  * Copyright (C) 2009 Texas Instruments, Inc
  *
- * Contacts: David Cohen <david.cohen@nokia.com>
+ * Contacts: David Cohen <dacohen@gmail.com>
  *	     Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -141,16 +141,17 @@ struct ispstat_generic_config {
 
 int ispstat_config(struct ispstat *stat, void *new_conf);
 int ispstat_request_statistics(struct ispstat *stat,
-			       struct omap3isp_stat_data *data);
+				     struct omap3isp_stat_data *data);
 int ispstat_init(struct ispstat *stat, const char *name,
-		 const struct v4l2_subdev_ops *sd_ops);
-void ispstat_free(struct ispstat *stat);
-int ispstat_subscribe_event(struct v4l2_subdev *subdev, struct v4l2_fh *fh,
-			    struct v4l2_event_subscription *sub);
-int ispstat_unsubscribe_event(struct v4l2_subdev *subdev, struct v4l2_fh *fh,
-			      struct v4l2_event_subscription *sub);
+		       const struct v4l2_subdev_ops *sd_ops);
+void ispstat_cleanup(struct ispstat *stat);
+int ispstat_subscribe_event(struct v4l2_subdev *subdev,
+				  struct v4l2_fh *fh,
+				  struct v4l2_event_subscription *sub);
+int ispstat_unsubscribe_event(struct v4l2_subdev *subdev,
+				    struct v4l2_fh *fh,
+				    struct v4l2_event_subscription *sub);
 int ispstat_s_stream(struct v4l2_subdev *subdev, int enable);
-void ispstat_pcr_enable(struct ispstat *stat, u8 enable);
 
 int ispstat_busy(struct ispstat *stat);
 int ispstat_pcr_busy(struct ispstat *stat);

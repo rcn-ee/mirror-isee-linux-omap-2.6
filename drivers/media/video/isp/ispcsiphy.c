@@ -7,7 +7,7 @@
  * Copyright (C) 2009 Texas Instruments, Inc.
  *
  * Contacts: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -170,7 +170,7 @@ static int isp_csiphy_config(struct isp_csiphy *phy,
 	return 0;
 }
 
-int isp_csiphy_acquire(struct isp_csiphy *phy)
+int ispcsiphy_acquire(struct isp_csiphy *phy)
 {
 	int rval;
 
@@ -186,7 +186,9 @@ int isp_csiphy_acquire(struct isp_csiphy *phy)
 	if (rval < 0)
 		goto done;
 
-	isp_csi2_reset(phy->csi2);
+	rval = ispcsi2_reset(phy->csi2);
+	if (rval < 0)
+		goto done;
 
 	csiphy_dphy_config(phy);
 	csiphy_lanes_config(phy);
@@ -205,7 +207,7 @@ done:
 	return rval;
 }
 
-void isp_csiphy_release(struct isp_csiphy *phy)
+void ispcsiphy_release(struct isp_csiphy *phy)
 {
 	mutex_lock(&phy->mutex);
 	if (phy->phy_in_use) {
@@ -220,7 +222,7 @@ void isp_csiphy_release(struct isp_csiphy *phy)
 /*
  * isp_csiphy_init - Initialize the CSI PHY frontends
  */
-int isp_csiphy_init(struct isp_device *isp)
+int ispcsiphy_init(struct isp_device *isp)
 {
 	struct isp_csiphy *phy1 = &isp->isp_csiphy1;
 	struct isp_csiphy *phy2 = &isp->isp_csiphy2;

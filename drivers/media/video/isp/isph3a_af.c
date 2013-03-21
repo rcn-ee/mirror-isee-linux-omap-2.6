@@ -6,9 +6,9 @@
  * Copyright (C) 2010 Nokia Corporation
  * Copyright (C) 2009 Texas Instruments, Inc.
  *
- * Contacts: David Cohen <david.cohen@nokia.com>
+ * Contacts: David Cohen <dacohen@gmail.com>
  *	     Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -143,17 +143,11 @@ static void isph3a_af_enable(struct ispstat *af, int enable)
 	if (enable) {
 		isp_reg_set(af->isp, OMAP3_ISP_IOMEM_H3A, ISPH3A_PCR,
 			    ISPH3A_PCR_AF_EN);
-		/* This bit is already set if AEWB is enabled */
-		if (af->isp->isp_aewb.state != ISPSTAT_ENABLED)
-			isp_reg_set(af->isp, OMAP3_ISP_IOMEM_MAIN, ISP_CTRL,
-				    ISPCTRL_H3A_CLK_EN);
+		isp_subclk_enable(af->isp, OMAP3_ISP_SUBCLK_AF);
 	} else {
 		isp_reg_clr(af->isp, OMAP3_ISP_IOMEM_H3A, ISPH3A_PCR,
 			    ISPH3A_PCR_AF_EN);
-		/* This bit can't be cleared if AEWB is enabled */
-		if (af->isp->isp_aewb.state != ISPSTAT_ENABLED)
-			isp_reg_clr(af->isp, OMAP3_ISP_IOMEM_MAIN, ISP_CTRL,
-				    ISPCTRL_H3A_CLK_EN);
+		isp_subclk_disable(af->isp, OMAP3_ISP_SUBCLK_AF);
 	}
 }
 
@@ -364,7 +358,7 @@ static const struct v4l2_subdev_ops isph3a_af_subdev_ops = {
 };
 
 /* Function to register the AF character device driver. */
-int isp_h3a_af_init(struct isp_device *isp)
+int isph3a_af_init(struct isp_device *isp)
 {
 	struct ispstat *af = &isp->isp_af;
 	struct omap3isp_h3a_af_config *af_cfg;
@@ -421,9 +415,9 @@ err_recover_alloc:
 	return ret;
 }
 
-void isp_h3a_af_cleanup(struct isp_device *isp)
+void isph3a_af_cleanup(struct isp_device *isp)
 {
 	kfree(isp->isp_af.priv);
 	kfree(isp->isp_af.recover_priv);
-	ispstat_free(&isp->isp_af);
+	ispstat_cleanup(&isp->isp_af);
 }

@@ -7,7 +7,7 @@
  * Copyright (C) 2010 Texas Instruments, Inc.
  *
  * Contacts: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -84,18 +84,18 @@ struct isp_ccp2_device {
 	struct isp_interface_mem_config mem_cfg;
 	struct isp_video video_in;
 	struct isp_csiphy *phy;
-	unsigned int error;
+	struct regulator *vdds_csib;
 	enum isp_pipeline_stream_state state;
 	wait_queue_head_t wait;
 	atomic_t stopping;
 };
 
 /* Function declarations */
-int isp_ccp2_init(struct isp_device *isp);
-void isp_ccp2_cleanup(struct isp_device *isp);
-int isp_ccp2_register_entities(struct isp_ccp2_device *ccp2,
+int ispccp2_init(struct isp_device *isp);
+void ispccp2_cleanup(struct isp_device *isp);
+int ispccp2_register_entities(struct isp_ccp2_device *ccp2,
 			struct v4l2_device *vdev);
-void isp_ccp2_unregister_entities(struct isp_ccp2_device *ccp2);
-int ispccp2_isr(struct isp_ccp2_device *ccp2);
+void ispccp2_unregister_entities(struct isp_ccp2_device *ccp2);
+void ispccp2_isr(struct isp_ccp2_device *ccp2);
 
 #endif	/* OMAP3_ISP_CCP2_H */

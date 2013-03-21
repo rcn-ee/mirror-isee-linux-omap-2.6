@@ -6,7 +6,7 @@
  * Copyright (C) 2009-2010 Nokia Corporation
  *
  * Contacts: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -35,7 +35,7 @@
 #include "ispqueue.h"
 
 #define ISP_VIDEO_DRIVER_NAME		"ispvideo"
-#define ISP_VIDEO_DRIVER_VERSION	KERNEL_VERSION(0, 0, 1)
+#define ISP_VIDEO_DRIVER_VERSION	KERNEL_VERSION(0, 0, 2)
 
 struct isp_device;
 struct isp_video;
@@ -46,17 +46,22 @@ struct v4l2_pix_format;
  * struct isp_format_info - ISP media bus format information
  * @code: V4L2 media bus format code
  * @truncated: V4L2 media bus format code for the same format truncated to 10
- * 	bits. Identical to @code if the format is 10 bits wide or less.
+ *	bits. Identical to @code if the format is 10 bits wide or less.
  * @uncompressed: V4L2 media bus format code for the corresponding uncompressed
- * 	format. Identical to @code if the format is not DPCM compressed.
+ *	format. Identical to @code if the format is not DPCM compressed.
+ * @flavor: V4L2 media bus format code for the same pixel layout but
+ *	shifted to be 8 bits per pixel. =0 if format is not shiftable.
  * @pixelformat: V4L2 pixel format FCC identifier
- * @bpp: Bits per pixel
+ * @width: Bits per pixel (when transferred over a bus)
+ * @bpp: Bytes per pixel (when stored in memory)
  */
 struct isp_format_info {
 	enum v4l2_mbus_pixelcode code;
 	enum v4l2_mbus_pixelcode truncated;
 	enum v4l2_mbus_pixelcode uncompressed;
+	enum v4l2_mbus_pixelcode flavor;
 	u32 pixelformat;
+	unsigned int width;
 	unsigned int bpp;
 };
 
@@ -83,18 +88,28 @@ enum isp_pipeline_state {
 	ISP_PIPELINE_STREAM = 64,
 };
 
+/*
+ * struct isp_pipeline - An ISP hardware pipeline
+ * @error: A hardware error occurred during capture
+ * @entities: Bitmask of entities in the pipeline (indexed by entity ID)
+ */
 struct isp_pipeline {
 	struct media_pipeline pipe;
-	spinlock_t lock;
+	spinlock_t lock;		/* Pipeline state and queue flags */
 	unsigned int state;
 	enum isp_pipeline_stream_state stream_state;
 	struct isp_video *input;
 	struct isp_video *output;
+	u32 entities;
 	unsigned long l3_ick;
 	unsigned int max_rate;
 	atomic_t frame_number;
 	bool do_propagation; /* of frame number */
+	bool error;
 	struct v4l2_fract max_timeperframe;
+	struct v4l2_subdev *external;
+	unsigned int external_rate;
+	unsigned int external_width;
 };
 
 #define to_isp_pipeline(__e) \
@@ -146,20 +161,24 @@ struct isp_video {
 	enum v4l2_buf_type type;
 	struct media_pad pad;
 
-	struct mutex mutex;
+	struct mutex mutex;		/* format and crop settings */
 	atomic_t active;
 
 	struct isp_device *isp;
 
 	unsigned int capture_mem;
-	unsigned int alignment;
+	unsigned int bpl_alignment;	/* alignment value */
+	unsigned int bpl_zero_padding;	/* whether the alignment is optional */
+	unsigned int bpl_max;		/* maximum bytes per line value */
+	unsigned int bpl_value;		/* bytes per line value */
+	unsigned int bpl_padding;	/* padding at end of line */
 
 	/* Entity video node streaming */
 	unsigned int streaming:1;
 
 	/* Pipeline state */
 	struct isp_pipeline pipe;
-	struct mutex stream_lock;
+	struct mutex stream_lock;	/* pipeline and stream states */
 
 	/* Video buffers queue */
 	struct isp_video_queue *queue;
@@ -176,7 +195,7 @@ struct isp_video_fh {
 	struct isp_video *video;
 	struct isp_video_queue queue;
 	struct v4l2_format format;
-	struct v4l2_standard standard;
+        struct v4l2_standard standard;
 	struct v4l2_fract timeperframe;
 };
 
@@ -184,21 +203,16 @@ struct isp_video_fh {
 #define isp_video_queue_to_isp_video_fh(q) \
 				container_of(q, struct isp_video_fh, queue)
 
-extern int isp_video_init(struct isp_video *video, const char *name);
-extern int isp_video_register(struct isp_video *video,
-			      struct v4l2_device *vdev);
-extern void isp_video_unregister(struct isp_video *video);
-extern struct isp_buffer *isp_video_buffer_next(struct isp_video *video,
-						unsigned int error);
-extern void isp_video_resume(struct isp_video *video, int continuous);
-extern struct media_pad *isp_video_remote_pad(struct isp_video *video);
-extern void isp_video_mbus_to_pix(const struct isp_video *video,
-				  const struct v4l2_mbus_framefmt *mbus,
-				  struct v4l2_pix_format *pix);
-extern void isp_video_pix_to_mbus(const struct v4l2_pix_format *pix,
-				  struct v4l2_mbus_framefmt *mbus);
+int isp_video_init(struct isp_video *video, const char *name);
+void isp_video_cleanup(struct isp_video *video);
+int isp_video_register(struct isp_video *video,
+			    struct v4l2_device *vdev);
+void isp_video_unregister(struct isp_video *video);
+struct isp_buffer *isp_video_buffer_next(struct isp_video *video);
+void isp_video_resume(struct isp_video *video, int continuous);
+struct media_pad *isp_video_remote_pad(struct isp_video *video);
 
-extern const struct isp_format_info *
+const struct isp_format_info *
 isp_video_format_info(enum v4l2_mbus_pixelcode code);
 
 #endif /* OMAP3_ISP_VIDEO_H */

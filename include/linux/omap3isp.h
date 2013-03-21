@@ -7,7 +7,7 @@
  * Copyright (C) 2009 Texas Instruments, Inc.
  *
  * Contacts: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -29,7 +29,17 @@
 
 #include <linux/types.h>
 
-/* Private IOCTLs */
+/*
+ * Private IOCTLs
+ *
+ * VIDIOC_OMAP3ISP_CCDC_CFG: Set CCDC configuration
+ * VIDIOC_OMAP3ISP_PRV_CFG: Set preview engine configuration
+ * VIDIOC_OMAP3ISP_AEWB_CFG: Set AEWB module configuration
+ * VIDIOC_OMAP3ISP_HIST_CFG: Set histogram module configuration
+ * VIDIOC_OMAP3ISP_AF_CFG: Set auto-focus module configuration
+ * VIDIOC_OMAP3ISP_STAT_REQ: Read statistics (AEWB/AF/histogram) data
+ * VIDIOC_OMAP3ISP_STAT_EN: Enable/disable a statistics module
+ */
 
 #define VIDIOC_OMAP3ISP_CCDC_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 1, struct omap3isp_ccdc_update_config)
@@ -46,7 +56,13 @@
 #define VIDIOC_OMAP3ISP_STAT_EN \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 7, unsigned long)
 
-/* Events */
+/*
+ * Events
+ *
+ * V4L2_EVENT_OMAP3ISP_AEWB: AEWB statistics data ready
+ * V4L2_EVENT_OMAP3ISP_AF: AF statistics data ready
+ * V4L2_EVENT_OMAP3ISP_HIST: Histogram statistics data ready
+ */
 
 #define V4L2_EVENT_OMAP3ISP_CLASS	(V4L2_EVENT_PRIVATE_START | 0x100)
 #define V4L2_EVENT_OMAP3ISP_AEWB	(V4L2_EVENT_OMAP3ISP_CLASS | 0x1)
@@ -114,7 +130,6 @@ struct omap3isp_stat_event_status {
  * @subsample_hor_inc: Subsample Horizontal points increment Range 2 - 32, even
  *                     values only.
  * @alaw_enable: AEW ALAW EN flag.
- * @aewb_enable: AE AWB stats generation EN flag.
  */
 struct omap3isp_h3a_aewb_config {
 	/*
@@ -142,11 +157,11 @@ struct omap3isp_h3a_aewb_config {
 
 /**
  * struct omap3isp_stat_data - Statistic data sent to or received from user
+ * @ts: Timestamp of returned framestats.
  * @buf: Pointer to pass to user.
  * @frame_number: Frame number of requested stats.
  * @cur_frame: Current frame number being processed.
- * @buf_size: Buffer size requested and returned.
- * @ts: Timestamp of returned framestats.
+ * @config_counter: Number of the configuration associated with the data.
  */
 struct omap3isp_stat_data {
 	struct timeval ts;
@@ -155,7 +170,6 @@ struct omap3isp_stat_data {
 	__u16 frame_number;
 	__u16 cur_frame;
 	__u16 config_counter;
-	__u16 new_bufs;		/* Deprecated */
 };
 
 
@@ -235,7 +249,7 @@ enum omap3isp_h3a_af_rgbpos {
 /* Contains the information regarding the Horizontal Median Filter */
 struct omap3isp_h3a_af_hmf {
 	__u8 enable;	/* Status of Horizontal Median Filter */
-	__u8 threshold;	/* Threshhold Value for Horizontal Median Filter */
+	__u8 threshold;	/* Threshold Value for Horizontal Median Filter */
 };
 
 /* Contains the information regarding the IIR Filters */
@@ -414,7 +428,7 @@ struct omap3isp_ccdc_update_config {
 #define OMAP3ISP_PREV_COLOR_CONV	(1 << 8)
 #define OMAP3ISP_PREV_YC_LIMIT		(1 << 9)
 #define OMAP3ISP_PREV_DEFECT_COR	(1 << 10)
-#define OMAP3ISP_PREV_GAMMABYPASS	(1 << 11)
+/* Bit 11 was OMAP3ISP_PREV_GAMMABYPASS, now merged with OMAP3ISP_PREV_GAMMA */
 #define OMAP3ISP_PREV_DRK_FRM_CAPTURE	(1 << 12)
 #define OMAP3ISP_PREV_DRK_FRM_SUBTRACT	(1 << 13)
 #define OMAP3ISP_PREV_LENS_SHADING	(1 << 14)
@@ -423,6 +437,7 @@ struct omap3isp_ccdc_update_config {
 
 #define OMAP3ISP_PREV_NF_TBL_SIZE	64
 #define OMAP3ISP_PREV_CFA_TBL_SIZE	576
+#define OMAP3ISP_PREV_CFA_BLK_SIZE	(OMAP3ISP_PREV_CFA_TBL_SIZE / 4)
 #define OMAP3ISP_PREV_GAMMA_TBL_SIZE	1024
 #define OMAP3ISP_PREV_YENH_TBL_SIZE	128
 
@@ -464,7 +479,7 @@ struct omap3isp_prev_cfa {
 	enum omap3isp_cfa_fmt format;
 	__u8 gradthrs_vert;
 	__u8 gradthrs_horz;
-	__u32 table[OMAP3ISP_PREV_CFA_TBL_SIZE];
+	__u32 table[4][OMAP3ISP_PREV_CFA_BLK_SIZE];
 };
 
 /**

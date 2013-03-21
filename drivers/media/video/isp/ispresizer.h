@@ -7,7 +7,7 @@
  * Copyright (C) 2009 Texas Instruments, Inc
  *
  * Contacts: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -110,7 +110,6 @@ struct isp_res_device {
 	enum resizer_input_entity input;
 	struct isp_video video_in;
 	struct isp_video video_out;
-	unsigned int error;
 
 	u32 addr_base;   /* stored source buffer address in memory mode */
 	u32 crop_offset; /* additional offset for crop in memory mode */
@@ -129,16 +128,17 @@ struct isp_res_device {
 
 struct isp_device;
 
-int isp_resizer_init(struct isp_device *isp);
-void isp_resizer_cleanup(struct isp_device *isp);
+int ispresizer_init(struct isp_device *isp);
+void ispresizer_cleanup(struct isp_device *isp);
 
-int isp_resizer_register_entities(struct isp_res_device *res,
-				  struct v4l2_device *vdev);
-void isp_resizer_unregister_entities(struct isp_res_device *res);
+int ispresizer_register_entities(struct isp_res_device *res,
+				       struct v4l2_device *vdev);
+void ispresizer_unregister_entities(struct isp_res_device *res);
 void ispresizer_isr_frame_sync(struct isp_res_device *res);
 void ispresizer_isr(struct isp_res_device *isp_res);
 
-void ispresizer_max_rate(struct isp_res_device *res, unsigned int *max_rate);
+void ispresizer_max_rate(struct isp_res_device *res,
+			       unsigned int *max_rate);
 
 void ispresizer_suspend(struct isp_res_device *isp_res);
 

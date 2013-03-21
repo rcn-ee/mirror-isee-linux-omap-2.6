@@ -7,7 +7,7 @@
  * Copyright (C) 2009 Texas Instruments, Inc.
  *
  * Contacts: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -96,11 +96,12 @@ static const unsigned int csi2_input_fmts[] = {
 	V4L2_MBUS_FMT_SBGGR10_DPCM8_1X8,
 	V4L2_MBUS_FMT_SGBRG10_1X10,
 	V4L2_MBUS_FMT_SGBRG10_DPCM8_1X8,
+	V4L2_MBUS_FMT_YUYV8_2X8,
 };
 
 /* To set the format on the CSI2 requires a mapping function that takes
  * the following inputs:
- * - 2 different formats (at this time)
+ * - 3 different formats (at this time)
  * - 2 destinations (mem, vp+mem) (vp only handled separately)
  * - 2 decompression options (on, off)
  * - 2 isp revisions (certain format must be handled differently on OMAP3630)
@@ -108,7 +109,7 @@ static const unsigned int csi2_input_fmts[] = {
  * Array indices as follows: [format][dest][decompr][is_3630]
  * Not all combinations are valid. 0 means invalid.
  */
-static const u16 __csi2_fmt_map[2][2][2][2] = {
+static const u16 __csi2_fmt_map[3][2][2][2] = {
 	/* RAW10 formats */
 	{
 		/* Output to memory */
@@ -147,6 +148,25 @@ static const u16 __csi2_fmt_map[2][2][2][2] = {
 			  CSI2_USERDEF_8BIT_DATA1_DPCM10_VP },
 		},
 	},
+	/* YUYV8 2X8 formats */
+	{
+		/* Output to memory */
+		{
+			/* No DPCM decompression */
+			{ CSI2_PIX_FMT_YUV422_8BIT,
+			  CSI2_PIX_FMT_YUV422_8BIT },
+			/* DPCM decompression */
+			{ 0, 0 },
+		},
+		/* Output to both */
+		{
+			/* No DPCM decompression */
+			{ CSI2_PIX_FMT_YUV422_8BIT_VP,
+			  CSI2_PIX_FMT_YUV422_8BIT_VP },
+			/* DPCM decompression */
+			{ 0, 0 },
+		},
+	},
 };
 
 /*
@@ -172,6 +192,9 @@ static u16 isp_csi2_ctx_map_format(struct isp_csi2_device *csi2)
 	case V4L2_MBUS_FMT_SBGGR10_DPCM8_1X8:
 	case V4L2_MBUS_FMT_SGBRG10_DPCM8_1X8:
 		fmtidx = 1;
+		break;
+	case V4L2_MBUS_FMT_YUYV8_2X8:
+		fmtidx = 2;
 		break;
 	default:
 		WARN(1, KERN_ERR "CSI2: pixel format %08x unsupported!\n",
@@ -209,7 +232,8 @@ static void csi2_set_outaddr(struct isp_csi2_device *csi2, u32 addr)
 	struct isp_device *isp = csi2->isp;
 	struct isp_csi2_ctx_cfg *ctx = &csi2->contexts[0];
 
-	ctx->ping_addr = ctx->pong_addr = addr;
+	ctx->ping_addr = addr;
+	ctx->pong_addr = addr;
 	isp_reg_writel(isp, ctx->ping_addr,
 		       csi2->regs1, ISPCSI2_CTX_DAT_PING_ADDR(ctx->ctxnum));
 	isp_reg_writel(isp, ctx->pong_addr,
@@ -378,21 +402,17 @@ static void isp_csi2_timing_config(struct isp_device *isp,
 static void isp_csi2_irq_ctx_set(struct isp_device *isp,
 				 struct isp_csi2_device *csi2, int enable)
 {
-	u32 reg = ISPCSI2_CTX_IRQSTATUS_FE_IRQ;
 	int i;
 
-	if (csi2->use_fs_irq)
-		reg |= ISPCSI2_CTX_IRQSTATUS_FS_IRQ;
-
 	for (i = 0; i < 8; i++) {
-		isp_reg_writel(isp, reg, csi2->regs1,
+		isp_reg_writel(isp, ISPCSI2_CTX_IRQSTATUS_FE_IRQ, csi2->regs1,
 			       ISPCSI2_CTX_IRQSTATUS(i));
 		if (enable)
 			isp_reg_set(isp, csi2->regs1, ISPCSI2_CTX_IRQENABLE(i),
-				    reg);
+				    ISPCSI2_CTX_IRQSTATUS_FE_IRQ);
 		else
 			isp_reg_clr(isp, csi2->regs1, ISPCSI2_CTX_IRQENABLE(i),
-				    reg);
+				    ISPCSI2_CTX_IRQSTATUS_FE_IRQ);
 	}
 }
 
@@ -467,13 +487,13 @@ static void isp_csi2_irq_status_set(struct isp_device *isp,
 }
 
 /*
- * isp_csi2_reset - Resets the CSI2 module.
+ * ispcsi2_reset - Resets the CSI2 module.
  *
  * Must be called with the phy lock held.
  *
  * Returns 0 if successful, or -EBUSY if power command didn't respond.
  */
-int isp_csi2_reset(struct isp_csi2_device *csi2)
+int ispcsi2_reset(struct isp_csi2_device *csi2)
 {
 	struct isp_device *isp = csi2->isp;
 	u8 soft_reset_retries = 0;
@@ -523,10 +543,18 @@ int isp_csi2_reset(struct isp_csi2_device *csi2)
 		return -EBUSY;
 	}
 
-	isp_reg_clr_set(isp, csi2->regs1, ISPCSI2_SYSCONFIG,
-			ISPCSI2_SYSCONFIG_MSTANDBY_MODE_MASK |
-			ISPCSI2_SYSCONFIG_AUTO_IDLE,
-			ISPCSI2_SYSCONFIG_MSTANDBY_MODE_NO);
+	if (isp->autoidle)
+		isp_reg_clr_set(isp, csi2->regs1, ISPCSI2_SYSCONFIG,
+				ISPCSI2_SYSCONFIG_MSTANDBY_MODE_MASK |
+				ISPCSI2_SYSCONFIG_AUTO_IDLE,
+				ISPCSI2_SYSCONFIG_MSTANDBY_MODE_SMART |
+				((isp->revision == ISP_REVISION_15_0) ?
+				 ISPCSI2_SYSCONFIG_AUTO_IDLE : 0));
+	else
+		isp_reg_clr_set(isp, csi2->regs1, ISPCSI2_SYSCONFIG,
+				ISPCSI2_SYSCONFIG_MSTANDBY_MODE_MASK |
+				ISPCSI2_SYSCONFIG_AUTO_IDLE,
+				ISPCSI2_SYSCONFIG_MSTANDBY_MODE_NO);
 
 	return 0;
 }
@@ -578,11 +606,20 @@ static int isp_csi2_configure(struct isp_csi2_device *csi2)
 
 	csi2->contexts[0].format_id = isp_csi2_ctx_map_format(csi2);
 
-	/* No padding at the end of lines */
-	csi2->contexts[0].data_offset = 0;
+	if (csi2->video_out.bpl_padding == 0)
+		csi2->contexts[0].data_offset = 0;
+	else
+		csi2->contexts[0].data_offset = csi2->video_out.bpl_value;
 
-	/* Enable end of frame signal generation for context 0 */
+	/*
+	 * Enable end of frame and end of line signals generation for
+	 * context 0. These signals are generated from CSI2 receiver to
+	 * qualify the last pixel of a frame and the last pixel of a line.
+	 * Without enabling the signals CSI2 receiver writes data to memory
+	 * beyond buffer size and/or data line offset is not handled correctly.
+	 */
 	csi2->contexts[0].eof_enabled = 1;
+	csi2->contexts[0].eol_enabled = 1;
 
 	isp_csi2_irq_complexio1_set(isp, csi2, 1);
 	isp_csi2_irq_ctx_set(isp, csi2, 1);
@@ -597,13 +634,13 @@ static int isp_csi2_configure(struct isp_csi2_device *csi2)
 }
 
 /*
- * isp_csi2_regdump - Prints CSI2 debug information.
+ * ispcsi2_regdump - Prints CSI2 debug information.
  */
 #define CSI2_PRINT_REGISTER(isp, regs, name)\
 	dev_dbg(isp->dev, "###CSI2 " #name "=0x%08x\n", \
 		isp_reg_readl(isp, regs, ISPCSI2_##name))
 
-void isp_csi2_regdump(struct isp_csi2_device *csi2)
+void ispcsi2_regdump(struct isp_csi2_device *csi2)
 {
 	struct isp_device *isp = csi2->isp;
 
@@ -652,7 +689,7 @@ static void isp_csi2_isr_buffer(struct isp_csi2_device *csi2)
 
 	isp_csi2_ctx_enable(isp, csi2, 0, 0);
 
-	buffer = isp_video_buffer_next(&csi2->video_out, 0);
+	buffer = isp_video_buffer_next(&csi2->video_out);
 
 	/*
 	 * Let video queue operation restart engine if there is an underrun
@@ -674,14 +711,6 @@ static void isp_csi2_isr_ctx(struct isp_csi2_device *csi2,
 
 	status = isp_reg_readl(isp, csi2->regs1, ISPCSI2_CTX_IRQSTATUS(n));
 	isp_reg_writel(isp, status, csi2->regs1, ISPCSI2_CTX_IRQSTATUS(n));
-
-	/* Propagate frame number */
-	if (status & ISPCSI2_CTX_IRQSTATUS_FS_IRQ) {
-		struct isp_pipeline *pipe =
-				     to_isp_pipeline(&csi2->subdev.entity);
-		if (pipe->do_propagation)
-			atomic_inc(&pipe->frame_number);
-	}
 
 	if (!(status & ISPCSI2_CTX_IRQSTATUS_FE_IRQ))
 		return;
@@ -712,17 +741,15 @@ static void isp_csi2_isr_ctx(struct isp_csi2_device *csi2,
 
 /*
  * isp_csi2_isr - CSI2 interrupt handling.
- *
- * Return -EIO on Transmission error
  */
-int isp_csi2_isr(struct isp_csi2_device *csi2)
+void ispcsi2_isr(struct isp_csi2_device *csi2)
 {
+	struct isp_pipeline *pipe = to_isp_pipeline(&csi2->subdev.entity);
 	u32 csi2_irqstatus, cpxio1_irqstatus;
 	struct isp_device *isp = csi2->isp;
-	int retval = 0;
 
 	if (!csi2->available)
-		return -ENODEV;
+		return;
 
 	csi2_irqstatus = isp_reg_readl(isp, csi2->regs1, ISPCSI2_IRQSTATUS);
 	isp_reg_writel(isp, csi2_irqstatus, csi2->regs1, ISPCSI2_IRQSTATUS);
@@ -735,7 +762,7 @@ int isp_csi2_isr(struct isp_csi2_device *csi2)
 			       csi2->regs1, ISPCSI2_PHY_IRQSTATUS);
 		dev_dbg(isp->dev, "CSI2: ComplexIO Error IRQ "
 			"%x\n", cpxio1_irqstatus);
-		retval = -EIO;
+		pipe->error = true;
 	}
 
 	if (csi2_irqstatus & (ISPCSI2_IRQSTATUS_OCP_ERR_IRQ |
@@ -760,11 +787,11 @@ int isp_csi2_isr(struct isp_csi2_device *csi2)
 			 ISPCSI2_IRQSTATUS_COMPLEXIO2_ERR_IRQ) ? 1 : 0,
 			(csi2_irqstatus &
 			 ISPCSI2_IRQSTATUS_FIFO_OVF_IRQ) ? 1 : 0);
-		retval = -EIO;
+		pipe->error = true;
 	}
 
 	if (isp_module_sync_is_stopping(&csi2->wait, &csi2->stopping))
-		return 0;
+		return;
 
 	/* Successful cases */
 	if (csi2_irqstatus & ISPCSI2_IRQSTATUS_CONTEXT(0))
@@ -772,8 +799,6 @@ int isp_csi2_isr(struct isp_csi2_device *csi2)
 
 	if (csi2_irqstatus & ISPCSI2_IRQSTATUS_ECC_CORRECTION_IRQ)
 		dev_dbg(isp->dev, "CSI2: ECC correction done\n");
-
-	return retval;
 }
 
 /* -----------------------------------------------------------------------------
@@ -954,7 +979,7 @@ static int csi2_enum_frame_size(struct v4l2_subdev *sd,
  * @sd : pointer to v4l2 subdev structure
  * @fh : V4L2 subdev file handle
  * @fmt: pointer to v4l2 subdev format structure
- * return -EINVAL or zero on sucess
+ * return -EINVAL or zero on success
  */
 static int csi2_get_format(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
 			   struct v4l2_subdev_format *fmt)
@@ -1036,15 +1061,17 @@ static int csi2_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct isp_csi2_device *csi2 = v4l2_get_subdevdata(sd);
 	struct isp_device *isp = csi2->isp;
-	struct isp_pipeline *pipe = to_isp_pipeline(&csi2->subdev.entity);
 	struct isp_video *video_out = &csi2->video_out;
 
 	switch (enable) {
 	case ISP_PIPELINE_STREAM_CONTINUOUS:
-		if (isp_csiphy_acquire(csi2->phy) < 0)
+		if (ispcsiphy_acquire(csi2->phy) < 0)
 			return -ENODEV;
-		csi2->use_fs_irq = pipe->do_propagation;
+		if (csi2->output & CSI2_OUTPUT_MEMORY)
+			isp_sbl_enable(isp, OMAP3_ISP_SBL_CSI2A_WRITE);
 		isp_csi2_configure(csi2);
+		ispcsi2_regdump(csi2);
+
 		/*
 		 * When outputting to memory with no buffer available, let the
 		 * buffer queue handler start the hardware. A DMA queue flag
@@ -1071,8 +1098,9 @@ static int csi2_set_stream(struct v4l2_subdev *sd, int enable)
 		isp_csi2_ctx_enable(isp, csi2, 0, 0);
 		isp_csi2_if_enable(isp, csi2, 0);
 		isp_csi2_irq_ctx_set(isp, csi2, 0);
-		isp_csiphy_release(csi2->phy);
+		ispcsiphy_release(csi2->phy);
 		isp_video_dmaqueue_flags_clr(video_out);
+		isp_sbl_disable(isp, OMAP3_ISP_SBL_CSI2A_WRITE);
 		break;
 	}
 
@@ -1215,24 +1243,32 @@ static int isp_csi2_init_entities(struct isp_csi2_device *csi2)
 	/* Video device node */
 	csi2->video_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	csi2->video_out.ops = &csi2_ispvideo_ops;
-	csi2->video_out.alignment = 0;
+	csi2->video_out.bpl_alignment = 32;
+	csi2->video_out.bpl_zero_padding = 1;
+	csi2->video_out.bpl_max = 0x1ffe0;
 	csi2->video_out.isp = csi2->isp;
 	csi2->video_out.capture_mem = PAGE_ALIGN(4096 * 4096) * 3;
 
 	ret = isp_video_init(&csi2->video_out, "CSI2a");
 	if (ret < 0)
-		return ret;
+		goto error_video;
 
 	/* Connect the CSI2 subdev to the video node. */
 	ret = media_entity_create_link(&csi2->subdev.entity, CSI2_PAD_SOURCE,
 				       &csi2->video_out.video.entity, 0, 0);
 	if (ret < 0)
-		return ret;
+		goto error_link;
 
 	return 0;
+
+error_link:
+	isp_video_cleanup(&csi2->video_out);
+error_video:
+	media_entity_cleanup(&csi2->subdev.entity);
+	return ret;
 }
 
-void isp_csi2_unregister_entities(struct isp_csi2_device *csi2)
+void ispcsi2_unregister_entities(struct isp_csi2_device *csi2)
 {
 	media_entity_cleanup(&csi2->subdev.entity);
 
@@ -1241,7 +1277,7 @@ void isp_csi2_unregister_entities(struct isp_csi2_device *csi2)
 	isp_video_unregister(&csi2->video_out);
 }
 
-int isp_csi2_register_entities(struct isp_csi2_device *csi2,
+int ispcsi2_register_entities(struct isp_csi2_device *csi2,
 			       struct v4l2_device *vdev)
 {
 	int ret;
@@ -1258,7 +1294,7 @@ int isp_csi2_register_entities(struct isp_csi2_device *csi2,
 	return 0;
 
 error:
-	isp_csi2_unregister_entities(csi2);
+	ispcsi2_unregister_entities(csi2);
 	return ret;
 }
 
@@ -1267,16 +1303,20 @@ error:
  */
 
 /*
- * isp_csi2_cleanup - Routine for module driver cleanup
+ * ispcsi2_cleanup - Routine for module driver cleanup
  */
-void isp_csi2_cleanup(struct isp_device *isp)
+void ispcsi2_cleanup(struct isp_device *isp)
 {
+	struct isp_csi2_device *csi2a = &isp->isp_csi2a;
+
+	isp_video_cleanup(&csi2a->video_out);
+	media_entity_cleanup(&csi2a->subdev.entity);
 }
 
 /*
- * isp_csi2_init - Routine for module driver init
+ * ispcsi2_init - Routine for module driver init
  */
-int isp_csi2_init(struct isp_device *isp)
+int ispcsi2_init(struct isp_device *isp)
 {
 	struct isp_csi2_device *csi2a = &isp->isp_csi2a;
 	struct isp_csi2_device *csi2c = &isp->isp_csi2c;
@@ -1292,7 +1332,7 @@ int isp_csi2_init(struct isp_device *isp)
 
 	ret = isp_csi2_init_entities(csi2a);
 	if (ret < 0)
-		goto fail;
+		return ret;
 
 	if (isp->revision == ISP_REVISION_15_0) {
 		csi2c->isp = isp;
@@ -1305,7 +1345,4 @@ int isp_csi2_init(struct isp_device *isp)
 	}
 
 	return 0;
-fail:
-	isp_csi2_cleanup(isp);
-	return ret;
 }

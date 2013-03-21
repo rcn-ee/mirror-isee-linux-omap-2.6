@@ -6,9 +6,9 @@
  * Copyright (C) 2010 Nokia Corporation
  * Copyright (C) 2009 Texas Instruments, Inc
  *
- * Contacts: David Cohen <david.cohen@nokia.com>
+ * Contacts: David Cohen <dacohen@gmail.com>
  *	     Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -70,10 +70,9 @@
 #define IS_H3A(stat)		(IS_H3A_AF(stat) || IS_H3A_AEWB(stat))
 
 static void __ispstat_buf_sync_magic(struct ispstat *stat,
-				     struct ispstat_buffer *buf,
-				     u32 buf_size,
-				     enum dma_data_direction dir,
-				     void (*dma_sync)(struct device *,
+				      struct ispstat_buffer *buf,
+				      u32 buf_size, enum dma_data_direction dir,
+				      void (*dma_sync)(struct device *,
 					dma_addr_t, unsigned long, size_t,
 					enum dma_data_direction))
 {
@@ -150,7 +149,8 @@ static int ispstat_buf_check_magic(struct ispstat *stat,
 		}
 	}
 
-	ispstat_buf_sync_magic_for_device(stat, buf, buf_size, DMA_FROM_DEVICE);
+	ispstat_buf_sync_magic_for_device(stat, buf, buf_size,
+					   DMA_FROM_DEVICE);
 
 	return 0;
 }
@@ -275,7 +275,6 @@ static int ispstat_buf_queue(struct ispstat *stat)
 /* Get next free buffer to write the statistics to and mark it active. */
 static void ispstat_buf_next(struct ispstat *stat)
 {
-
 	if (unlikely(stat->active_buf))
 		/* Overwriting unused active buffer */
 		dev_dbg(stat->isp->dev, "%s: new buffer requested without "
@@ -297,7 +296,7 @@ static void ispstat_buf_release(struct ispstat *stat)
 
 /* Get buffer to userspace. */
 static struct ispstat_buffer *ispstat_buf_get(struct ispstat *stat,
-					      struct omap3isp_stat_data *data)
+					       struct omap3isp_stat_data *data)
 {
 	int rval = 0;
 	unsigned long flags;
@@ -401,7 +400,7 @@ static int ispstat_bufs_alloc_iommu(struct ispstat *stat, unsigned int size)
 
 		WARN_ON(buf->dma_addr);
 		buf->iommu_addr = iommu_vmalloc(isp->iommu, 0, size,
-						IOMMU_FLAG);
+				IOMMU_FLAG);
 		if (IS_ERR((void *)buf->iommu_addr)) {
 			dev_err(stat->isp->dev,
 				 "%s: Can't acquire memory for "
@@ -420,7 +419,7 @@ static int ispstat_bufs_alloc_iommu(struct ispstat *stat, unsigned int size)
 		buf->iovm = iovm;
 
 		buf->virt_addr = da_to_va(stat->isp->iommu,
-					  (u32)buf->iommu_addr);
+		    	    (u32)buf->iommu_addr);
 		buf->empty = 1;
 		dev_dbg(stat->isp->dev, "%s: buffer[%d] allocated."
 			"iommu_addr=0x%08lx virt_addr=0x%08lx",
@@ -519,7 +518,7 @@ static void ispstat_queue_event(struct ispstat *stat, int err)
  * Returns 0 if successful.
  */
 int ispstat_request_statistics(struct ispstat *stat,
-			       struct omap3isp_stat_data *data)
+				     struct omap3isp_stat_data *data)
 {
 	struct ispstat_buffer *buf;
 
@@ -540,14 +539,6 @@ int ispstat_request_statistics(struct ispstat *stat,
 	data->config_counter = buf->config_counter;
 	data->frame_number = buf->frame_number;
 	data->buf_size = buf->buf_size;
-
-	/*
-	 * Deprecated. Number of new buffers is always equal to number of
-	 * queued events without error flag. By setting it to 0, userspace
-	 * won't try to request new buffer without receiving new event.
-	 * This field must go away in future.
-	 */
-	data->new_bufs = 0;
 
 	buf->empty = 1;
 	ispstat_buf_release(stat);
@@ -688,7 +679,7 @@ int ispstat_busy(struct ispstat *stat)
  * Must be called from ISP driver when the module is idle and synchronized
  * with CCDC.
  */
-void ispstat_pcr_enable(struct ispstat *stat, u8 pcr_enable)
+static void ispstat_pcr_enable(struct ispstat *stat, u8 pcr_enable)
 {
 	if ((stat->state != ISPSTAT_ENABLING &&
 	     stat->state != ISPSTAT_ENABLED) && pcr_enable)
@@ -789,7 +780,7 @@ void ispstat_sbl_overflow(struct ispstat *stat)
 }
 
 /*
- * ispstat_enable - Disables/Enables statistic engine as soon as it's possible.
+ * ispstat_enable - Disable/Enable statistic engine as soon as possible
  * @enable: 0/1 - Disables/Enables the engine.
  *
  * Client should configure all the module registers before this.
@@ -1031,27 +1022,9 @@ void ispstat_dma_isr(struct ispstat *stat)
 	__ispstat_isr(stat, 1);
 }
 
-static int ispstat_init_entities(struct ispstat *stat, const char *name,
-				 const struct v4l2_subdev_ops *sd_ops)
-{
-	struct v4l2_subdev *subdev = &stat->subdev;
-	struct media_entity *me = &subdev->entity;
-
-	v4l2_subdev_init(subdev, sd_ops);
-	snprintf(subdev->name, V4L2_SUBDEV_NAME_SIZE, "OMAP3 ISP %s", name);
-	subdev->grp_id = 1 << 16;	/* group ID for isp subdevs */
-	subdev->flags |= V4L2_SUBDEV_FL_HAS_EVENTS | V4L2_SUBDEV_FL_HAS_DEVNODE;
-	subdev->nevents = STAT_NEVENTS;
-	v4l2_set_subdevdata(subdev, stat);
-
-	stat->pad.flags = MEDIA_PAD_FLAG_INPUT;
-	me->ops = NULL;
-
-	return media_entity_init(me, 1, &stat->pad, 0);
-}
-
-int ispstat_subscribe_event(struct v4l2_subdev *subdev, struct v4l2_fh *fh,
-			    struct v4l2_event_subscription *sub)
+int ispstat_subscribe_event(struct v4l2_subdev *subdev,
+				  struct v4l2_fh *fh,
+				  struct v4l2_event_subscription *sub)
 {
 	struct ispstat *stat = v4l2_get_subdevdata(subdev);
 
@@ -1061,8 +1034,9 @@ int ispstat_subscribe_event(struct v4l2_subdev *subdev, struct v4l2_fh *fh,
 	return v4l2_event_subscribe(fh, sub);
 }
 
-int ispstat_unsubscribe_event(struct v4l2_subdev *subdev, struct v4l2_fh *fh,
-			      struct v4l2_event_subscription *sub)
+int ispstat_unsubscribe_event(struct v4l2_subdev *subdev,
+				    struct v4l2_fh *fh,
+				    struct v4l2_event_subscription *sub)
 {
 	return v4l2_event_unsubscribe(fh, sub);
 }
@@ -1073,26 +1047,56 @@ void ispstat_unregister_entities(struct ispstat *stat)
 	v4l2_device_unregister_subdev(&stat->subdev);
 }
 
-int ispstat_register_entities(struct ispstat *stat, struct v4l2_device *vdev)
+int ispstat_register_entities(struct ispstat *stat,
+				    struct v4l2_device *vdev)
 {
 	return v4l2_device_register_subdev(vdev, &stat->subdev);
 }
 
-int ispstat_init(struct ispstat *stat, const char *name,
-		 const struct v4l2_subdev_ops *sd_ops)
+static int ispstat_init_entities(struct ispstat *stat, const char *name,
+				  const struct v4l2_subdev_ops *sd_ops)
 {
+	struct v4l2_subdev *subdev = &stat->subdev;
+	struct media_entity *me = &subdev->entity;
+
+	v4l2_subdev_init(subdev, sd_ops);
+	snprintf(subdev->name, V4L2_SUBDEV_NAME_SIZE, "OMAP3 ISP %s", name);
+	subdev->grp_id = 1 << 16;	/* group ID for isp subdevs */
+	subdev->flags |= V4L2_SUBDEV_FL_HAS_EVENTS | V4L2_SUBDEV_FL_HAS_DEVNODE;
+	v4l2_set_subdevdata(subdev, stat);
+
+	stat->pad.flags = MEDIA_PAD_FLAG_INPUT;
+	me->ops = NULL;
+
+	return media_entity_init(me, 1, &stat->pad, 0);
+}
+
+int ispstat_init(struct ispstat *stat, const char *name,
+		       const struct v4l2_subdev_ops *sd_ops)
+{
+	int ret;
+
 	stat->buf = kcalloc(STAT_MAX_BUFS, sizeof(*stat->buf), GFP_KERNEL);
 	if (!stat->buf)
 		return -ENOMEM;
+
 	ispstat_buf_clear(stat);
 	mutex_init(&stat->ioctl_lock);
 	atomic_set(&stat->buf_err, 0);
 
-	return ispstat_init_entities(stat, name, sd_ops);
+	ret = ispstat_init_entities(stat, name, sd_ops);
+	if (ret < 0) {
+		mutex_destroy(&stat->ioctl_lock);
+		kfree(stat->buf);
+	}
+
+	return ret;
 }
 
-void ispstat_free(struct ispstat *stat)
+void ispstat_cleanup(struct ispstat *stat)
 {
+	media_entity_cleanup(&stat->subdev.entity);
+	mutex_destroy(&stat->ioctl_lock);
 	ispstat_bufs_free(stat);
 	kfree(stat->buf);
 }

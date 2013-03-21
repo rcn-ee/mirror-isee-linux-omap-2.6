@@ -6,7 +6,7 @@
  * Copyright (C) 2010 Nokia Corporation
  *
  * Contacts: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
- *	     Sakari Ailus <sakari.ailus@maxwell.research.nokia.com>
+ *	     Sakari Ailus <sakari.ailus@iki.fi>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -46,9 +46,9 @@ struct scatterlist;
  *	device yet.
  * @ISP_BUF_STATE_ACTIVE: The buffer is in use for an active video transfer.
  * @ISP_BUF_STATE_ERROR: The device is done with the buffer and an error
- *	occured. For capture device the buffer likely contains corrupted data or
+ *	occurred. For capture device the buffer likely contains corrupted data or
  *	no data at all.
- * @ISP_BUF_STATE_DONE: The device is done with the buffer and no error occured.
+ * @ISP_BUF_STATE_DONE: The device is done with the buffer and no error occurred.
  *	For capture devices the buffer contains valid data.
  */
 enum isp_video_buffer_state {
@@ -65,6 +65,7 @@ enum isp_video_buffer_state {
  * @stream: List head for insertion into main queue
  * @queue: ISP buffers queue this buffer belongs to
  * @prepared: Whether the buffer has been prepared
+ * @skip_cache: Whether to skip cache management operations for this buffer
  * @vaddr: Memory virtual address (for kernel buffers)
  * @vm_flags: Buffer VMA flags (for userspace buffers)
  * @offset: Offset inside the first page (for userspace buffers)
@@ -83,6 +84,7 @@ struct isp_video_buffer {
 	struct list_head stream;
 	struct isp_video_queue *queue;
 	unsigned int prepared:1;
+	bool skip_cache;
 
 	/* For kernel buffers. */
 	void *vaddr;
@@ -161,9 +163,10 @@ struct isp_video_queue {
 };
 
 int isp_video_queue_cleanup(struct isp_video_queue *queue);
-int isp_video_queue_init(struct isp_video_queue *queue, enum v4l2_buf_type type,
-			 const struct isp_video_queue_operations *ops,
-			 struct device *dev, unsigned int bufsize);
+int isp_video_queue_init(struct isp_video_queue *queue,
+			      enum v4l2_buf_type type,
+			      const struct isp_video_queue_operations *ops,
+			      struct device *dev, unsigned int bufsize);
 
 int isp_video_queue_reqbufs(struct isp_video_queue *queue,
 			    struct v4l2_requestbuffers *rb);
