@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.37 Kernel Configuration
-# Fri Apr  5 13:20:13 2013
+# Mon Jun 10 15:29:11 2013
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -2414,7 +2414,8 @@ CONFIG_QUOTA_TREE=y
 CONFIG_QFMT_V2=y
 CONFIG_QUOTACTL=y
 CONFIG_AUTOFS4_FS=y
-# CONFIG_FUSE_FS is not set
+CONFIG_FUSE_FS=m
+CONFIG_CUSE=m
 
 #
 # Caches
