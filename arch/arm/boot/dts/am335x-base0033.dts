@@ -1,0 +1,149 @@
+/*
+ * am335x-base0033.dtsi - Device Tree file for IGEP AQUILA EXPANSION
+ *
+ * Copyright (C) 2013 ISEE 2007 SL - http://www.isee.biz
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/include/ "am335x-igep0033.dtsi"
+
+/ {
+	model = "IGEP COM AM335x on AQUILA EXPANSION";
+	compatible = "isee,am335x-base0033", "isee,am335x-igep0033", "ti,am33xx";
+
+	ocp: ocp {
+		leds_base {
+			pinctrl-names = "default";
+			pinctrl-0 = <&leds_base_pins>;
+
+			compatible = "gpio-leds";
+
+			led@0 {
+				label = "base:red:user";
+				gpios = <&gpio2 21 0>;
+				default-state = "off";
+			};
+
+			led@1 {
+				label = "base:green:user";
+				gpios = <&gpio3 0 0>;
+				default-state = "off";
+			};
+		};
+
+		nxptda: nxptda@0 {
+		       compatible = "nxp,nxptda";
+		       status = "okay";
+		};
+
+		hdmi {
+			compatible = "tilcdc,slave";
+			i2c = <&i2c0>;
+			pinctrl-names = "default", "off";
+			pinctrl-0 = <&nxp_hdmi_pins>;
+			pinctrl-1 = <&nxp_hdmi_off_pins>;
+
+			modes-blacklisted =
+				"1920x1080@25",
+				"832x624@75";
+
+			panel-info {
+				bpp = <16>;
+				ac-bias = <255>;
+				ac-bias-intrpt = <0>;
+				dma-burst-sz = <16>;
+				fdd = <16>;
+				sync-edge = <1>;
+				sync-ctrl = <1>;
+				raster-order = <0>;
+				fifo-th = <0>;
+				invert-pxl-clk;
+			};
+		};
+
+		fb {
+			compatible = "ti,am33xx-tilcdc";
+			reg = <0x4830e000 0x1000>;
+			interrupt-parent = <&intc>;
+			interrupts = <36>;
+			ti,hwmods = "lcdc";
+			ti,allow-non-reduced-blanking-modes;
+		};
+
+		sound {
+			compatible = "ti,am33xx-beaglebone-black";
+			ti,model = "TI BeagleBone Black";
+			ti,audio-codec = <&nxptda>;
+			ti,mcasp-controller = <&mcasp0>;
+			ti,codec-clock-rate = <2457600>;
+			mcasp_clock_enable = <&gpio2 8 0>; /* CLK enable on GPIO1_8 */
+		};
+	};
+};
+
+&am33xx_pinmux {
+	nxp_hdmi_pins: pinmux_nxp_hdmi_pins {
+		pinctrl-single,pins = <
+			0x1b0 0x03      /* xdma_event_intr0, OMAP_MUX_MODE3 | AM33XX_PIN_OUTPUT */
+			0xa0 0x08       /* lcd_data0.lcd_data0, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xa4 0x08       /* lcd_data1.lcd_data1, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xa8 0x08       /* lcd_data2.lcd_data2, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xac 0x08       /* lcd_data3.lcd_data3, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xb0 0x08       /* lcd_data4.lcd_data4, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xb4 0x08       /* lcd_data5.lcd_data5, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xb8 0x08       /* lcd_data6.lcd_data6, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xbc 0x08       /* lcd_data7.lcd_data7, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xc0 0x08       /* lcd_data8.lcd_data8, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xc4 0x08       /* lcd_data9.lcd_data9, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xc8 0x08       /* lcd_data10.lcd_data10, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xcc 0x08       /* lcd_data11.lcd_data11, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xd0 0x08       /* lcd_data12.lcd_data12, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xd4 0x08       /* lcd_data13.lcd_data13, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xd8 0x08       /* lcd_data14.lcd_data14, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xdc 0x08       /* lcd_data15.lcd_data15, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT | AM33XX_PULL_DISA */
+			0xe0 0x00       /* lcd_vsync.lcd_vsync, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT */
+			0xe4 0x00       /* lcd_hsync.lcd_hsync, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT */
+			0xe8 0x00       /* lcd_pclk.lcd_pclk, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT */
+			0xec 0x00       /* lcd_ac_bias_en.lcd_ac_bias_en, OMAP_MUX_MODE0 | AM33XX_PIN_OUTPUT */
+		>;
+	};
+
+	nxp_hdmi_off_pins: pinmux_nxp_hdmi_off_pins {
+		pinctrl-single,pins = <
+			0x1b0 0x03      /* xdma_event_intr0, OMAP_MUX_MODE3 | AM33XX_PIN_OUTPUT */
+		>;
+	};
+
+	mcasp0_pins: pinmux_mcasp0_pins {
+		pinctrl-single,pins = <
+			0x1ac 0x30      /* mcasp0_ahclkx */
+			0x19c 0x02	/* mcasp0_ahclkr */
+			0x194 0x10      /* mcasp0_fsx */
+			0x60  0x06	/* gpmc_a8.mcasp0_aclkx */
+			0x168 0x1f	/* uart0_ctsn.gpio1_8 */
+		>;
+	};
+};
+
+&mcasp0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&mcasp0_pins>;
+
+	status = "okay";
+
+	op-mode = <0>;          /* MCASP_IIS_MODE */
+	tdm-slots = <2>;
+	num-serializer = <16>;
+	serial-dir = <  /* 0: INACTIVE, 1: TX, 2: RX */
+		0 0 1 0
+		0 0 0 0
+		0 0 0 0
+		0 0 0 0
+	>;
+	tx-num-evt = <1>;
+	rx-num-evt = <1>;
+};
+
