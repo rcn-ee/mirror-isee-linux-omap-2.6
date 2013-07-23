@@ -84,6 +84,10 @@
 	phy_id = <&davinci_mdio>, <1>;
 };
 
+&elm {
+	status = "okay";
+};
+
 &gpmc {
 	status = "okay";
 
@@ -120,7 +124,7 @@
 
 		#address-cells = <1>;
 		#size-cells = <1>;
-		/* elm_id = <&elm>; */
+		elm_id = <&elm>;
 
 		/* MTD partition table */
 		partition@0 {
