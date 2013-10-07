@@ -37,6 +37,9 @@
 		regulator-name = "vmmcsdio_fixed";
 		regulator-min-microvolt = <1800000>;
 		regulator-max-microvolt = <1800000>;
+		gpio = <&gpio5 12 0>;	/* gpio5_140 WLAN_EN */
+		startup-delay-us = <70000>;
+		enable-active-high;
 	};
 
 	/* HS USB Port 2 RESET */
@@ -419,6 +422,8 @@
 
 	vmmc-supply = <&vmmcsdio_fixed>;
 	bus-width = <4>;
+	cap-power-off-card;
+	keep-power-in-suspend;
 	ti,non-removable;
 };
 

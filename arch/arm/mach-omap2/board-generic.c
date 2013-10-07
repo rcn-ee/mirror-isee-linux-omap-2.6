@@ -19,6 +19,9 @@
 #include <linux/string.h>
 #include <linux/slab.h>
 
+#include <linux/gpio.h>
+#include <linux/wl12xx.h>
+
 #include <asm/hardware/gic.h>
 #include <asm/mach/arch.h>
 
@@ -97,6 +100,42 @@ exit:
 	return ret;
 }
 
+#ifdef CONFIG_WILINK_PLATFORM_DATA
+#define IGEP0050_WL12XX_IRQ	14
+
+static struct wl12xx_platform_data wl12xx_pdata __initdata = {
+	.irq = -EINVAL,
+	.board_ref_clock = WL12XX_REFCLOCK_26,
+};
+
+static struct gpio wl12xx_gpios[] __initdata = {
+	{ IGEP0050_WL12XX_IRQ,		GPIOF_IN,	"wl12xx irq"},
+};
+
+static void __init wl12xx_init(void)
+{
+	int err;
+
+	/* Request of wl12xx GPIO lines */
+	err = gpio_request_array(wl12xx_gpios, ARRAY_SIZE(wl12xx_gpios));
+	if (err) {
+		pr_err("Cannot request wl12xx gpios. %d\n", err);
+		return;
+	}
+
+	/* Set platform data */
+	wl12xx_pdata.irq = gpio_to_irq(IGEP0050_WL12XX_IRQ);
+
+	err = wl12xx_set_platform_data(&wl12xx_pdata);
+	if (err) {
+		pr_err("Cannot set wl12xx platform data. %d\n", err);
+		return;
+	}
+}
+#else
+static inline void wl12xx_init(void) { }
+#endif
+
 static void __init omap_generic_init(void)
 {
 	struct device_node *np;
@@ -117,6 +156,9 @@ static void __init omap_generic_init(void)
 		omap_sata_init();
 	else if (of_machine_is_compatible("ti,dra7"))
 		omap_sata_init();
+
+	if (of_machine_is_compatible("isee,omap5-igep0050"))
+		wl12xx_init();
 }
 
 #ifdef CONFIG_SOC_OMAP2420
