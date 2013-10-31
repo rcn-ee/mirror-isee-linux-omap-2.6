@@ -111,6 +111,7 @@ dtb-$(CONFIG_ARCH_OMAP2PLUS) += omap2420-h4.dtb \
 	omap4-panda-es.dtb \
 	omap4-var-som.dtb \
 	omap4-sdp.dtb \
+	omap5-igep0050.dtb \
 	omap5-uevm.dtb \
 	am335x-evm.dtb \
 	am335x-evmsk.dtb \
