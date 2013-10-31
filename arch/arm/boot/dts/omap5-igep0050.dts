@@ -1,0 +1,559 @@
+/*
+ * Copyright (C) 2013 ISEE 2007 SL - http://www.isee.biz/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+/dts-v1/;
+
+/include/ "omap5.dtsi"
+/include/ "samsung_k3pe0e000b.dtsi"
+
+/ {
+	model = "IGEPv5";
+	compatible = "isee,omap5-igep0050", "ti,omap5";
+
+	cpus {
+		cpu@0 {
+			cpu0-supply = <&smps123_reg>;
+		};
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0x80000000 0x7F000000>; /* 2032 MB */
+	};
+
+	vmmcsd_fixed: fixedregulator-mmcsd {
+		compatible = "regulator-fixed";
+		regulator-name = "vmmcsd_fixed";
+		regulator-min-microvolt = <3000000>;
+		regulator-max-microvolt = <3000000>;
+	};
+
+	vmmcsdio_fixed: fixedregulator-mmcsdio {
+		compatible = "regulator-fixed";
+		regulator-name = "vmmcsdio_fixed";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+	};
+
+	/* HS USB Port 2 RESET */
+	hsusb2_reset: hsusb2_reset_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "hsusb2_reset";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio3 16 0>;	/* gpio3_80 HUB_NRESET */
+		startup-delay-us = <70000>;
+		enable-active-high;
+	};
+
+	/* HS USB Host PHY on PORT 2 */
+	hsusb2_phy: hsusb2_phy {
+		compatible = "usb-nop-xceiv";
+		reset-supply = <&hsusb2_reset>;
+	};
+
+	/* HS USB Port 3 RESET */
+	hsusb3_reset: hsusb3_reset_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "hsusb3_reset";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio3 15 0>;	/* gpio3_79 ETH_NRESET */
+		startup-delay-us = <70000>;
+		enable-active-high;
+	};
+
+	/* HS USB Host PHY on PORT 3 */
+	hsusb3_phy: hsusb3_phy {
+		compatible = "usb-nop-xceiv";
+		reset-supply = <&hsusb3_reset>;
+	};
+
+	/* hsusb2_phy is clocked by FREF_CLK1 i.e. auxclk1 */
+	clock_alias {
+		clock-name = "auxclk1_ck";
+		clock-alias = "main_clk";
+		device = <&hsusb2_phy>;
+		clock-frequency = <19200000>; /* 19.2 MHz */
+	};
+
+	sound {
+		compatible = "ti,abe-twl6040";
+		ti,model = "PandaBoard5";
+
+		ti,jack-detection = <1>;
+		ti,mclk-freq = <19200000>;
+
+		ti,mcpdm = <&mcpdm>;
+		ti,mcbsp1 = <&mcbsp1>;
+		ti,mcbsp2 = <&mcbsp2>;
+
+		ti,aess = <&aess>;
+
+		ti,twl6040 = <&twl6040>;
+
+		/* Audio routing */
+		ti,audio-routing =
+			"Headset Stereophone", "HSOL",
+			"Headset Stereophone", "HSOR",
+			"Line Out", "AUXL",
+			"Line Out", "AUXR",
+			"HSMIC", "Headset Mic",
+			"Headset Mic", "Headset Mic Bias",
+			"AFML", "Line In",
+			"AFMR", "Line In",
+			"Headset Playback", "PDM_DL1",
+			"PDM_UL1", "Capture",
+			"40122000.mcbsp Playback", "BT_VX_DL",
+			"BT_VX_UL", "40122000.mcbsp Capture",
+			"40124000.mcbsp Playback", "MM_EXT_DL",
+			"MM_EXT_UL", "40124000.mcbsp Capture";
+	};
+
+	sound_hdmi {
+		compatible = "ti,omap-hdmi-tpd12s015-audio";
+		ti,model = "OMAP5HDMI";
+
+		ti,hdmi_audio = <&hdmi>;
+		ti,level_shifter = <&tpd12s015>;
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		button@1 {
+			debounce_interval = <50>;
+			wakeup = <1>;
+			linux,code = <276>; /* BTN_EXTRA */
+			label = "user";
+			gpios = <&gpio4 22 0>; /* gpio4_118 */
+
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		led@1 {
+			label = "board:green:usr0";
+			gpios = <&tca6416 1 0>;
+			default-state = "off";
+		};
+		led@2 {
+			label = "board:blue:usr1";
+			gpios = <&tca6416 2 0>;
+			default-state = "off";
+		};
+		led@3 {
+			label = "board:red:usr1";
+			gpios = <&tca6416 3 0>;
+			default-state = "off";
+		};
+	};
+
+	ocp {
+		gpu: gpu@0x56000000 {
+			gpu-supply = <&smps45_reg>;
+		};
+	};
+};
+
+&omap5_pmx_core {
+	pinctrl-names = "default";
+	pinctrl-0 = <
+			&twl6040_pins
+			&mcpdm_pins
+			&dmic_pins
+			&mcbsp1_pins
+			&mcbsp2_pins
+			&usbhost_pins
+			&usbotg_pins
+			&dss_hdmi_pins
+			&tpd12s015_pins
+			&tca6416_pins
+			&palmas_pins
+			&gpio_keys_pins
+			&wlan_pins
+			&i2c2_pins
+	>;
+
+	mmc1_pins: pinmux_mmc1_pins {
+		pinctrl-single,pins = <
+			0x1a2	0x118	/* sdcard_clk INPUT | MODE0 */
+			0x1a4	0x118	/* sdcard_cmd INPUT | MODE0 */
+			0x1a6	0x118	/* sdcard_data2 INPUT | MODE0 */
+			0x1a8	0x118	/* sdcard_data3 INPUT | MODE0 */
+			0x1aa	0x118	/* sdcard_data0 INPUT | MODE0 */
+			0x1ac	0x118	/* sdcard_data1 INPUT | MODE0 */
+		>;
+	};
+
+	mmc2_pins: pinmux_mmc2_pins {
+		pinctrl-single,pins = <
+			0x0	0x118	/* emmc_clk INPUT | MODE0 */
+			0x2	0x118	/* emmc_cmd INPUT | MODE0 */
+			0x4	0x118	/* emmc_data0 INPUT | MODE0 */
+			0x6	0x118	/* emmc_data1 INPUT | MODE0 */
+			0x8	0x118	/* emmc_data2 INPUT | MODE0 */
+			0xa	0x118	/* emmc_data3 INPUT | MODE0 */
+			0xc	0x118	/* emmc_data4 INPUT | MODE0 */
+			0xe	0x118	/* emmc_data5 INPUT | MODE0 */
+			0x10	0x118	/* emmc_data6 INPUT | MODE0 */
+			0x12	0x118	/* emmc_data7 INPUT | MODE0 */
+		>;
+	};
+
+	mmc3_pins: pinmux_mmc3_pins {
+		pinctrl-single,pins = <
+			0x164 0x118	/* wlsdio_clk INPUT | MODE0 */
+			0x166 0x118	/* wlsdio_cmd INPUT | MODE0 */
+			0x168 0x118	/* wlsdio_data0 INPUT | MODE0 */
+			0x16a 0x118	/* wlsdio_data1 INPUT | MODE0 */
+			0x16c 0x118	/* wlsdio_data2 INPUT | MODE0 */
+			0x16e 0x118	/* wlsdio_data3 INPUT | MODE0 */
+		>;
+	};
+
+	wlan_pins: pinmux_wlan_pins {
+		pinctrl-single,pins = <
+			0x17c 0x6	/* mcspi1_clk.gpio5_140 OUTPUT | MODE6  WLAN_EN */
+			/*0x17e 0x6	   mcspi1_somi.gpio5_141 OUTPUT | MODE6 HOST_WU */
+			/*		   WL_mINT_WK14 */
+			0x180 0x6	/* mcspi1_simo.gpio5_142 OUTPUT | MODE 6 BT_EN */
+		>;
+	};
+
+	twl6040_pins: pinmux_twl6040_pins {
+		pinctrl-single,pins = <
+			0x184 0x6	/* mcspi1_cs1.gpio5_144 OUTPUT | MODE6 */
+			0x18a 0x6	/* perslimbus2_clock.gpio5_145 OUTPUT | MODE6 */
+		>;
+	};
+
+	mcpdm_pins: pinmux_mcpdm_pins {
+		pinctrl-single,pins = <
+			0x142 0x108	/* abe_clks.abe_clks INPUT PULLDOWN | MODE0 */
+			0x15c 0x108	/* abemcpdm_ul_data.abemcpdm_ul_data INPUT PULLDOWN | MODE0 */
+			0x15e 0x108	/* abemcpdm_dl_data.abemcpdm_dl_data INPUT PULLDOWN | MODE0 */
+			0x160 0x118	/* abemcpdm_frame.abemcpdm_frame INPUT PULLUP | MODE0 */
+			0x162 0x108	/* abemcpdm_lb_clk.abemcpdm_lb_clk INPUT PULLDOWN | MODE0 */
+		>;
+	};
+
+	dmic_pins: pinmux_dmic_pins {
+		pinctrl-single,pins = <
+			0x144 0x100	/* abedmic_din1.abedmic_din1 INPUT | MODE0 */
+			0x146 0x100	/* abedmic_din2.abedmic_din2 INPUT | MODE0 */
+			0x148 0x100	/* abedmic_din3.abedmic_din3 INPUT | MODE0 */
+			0x14a 0		/* abedmic_clk1.abedmic_clk1 OUTPUT | MODE0 */
+		>;
+	};
+
+	mcbsp1_pins: pinmux_mcbsp1_pins {
+		pinctrl-single,pins = <
+			0x14c 0x101	/* abedmic_clk2.abemcbsp1_fsx INPUT | MODE1 */
+			0x14e 0x9	/* abedmic_clk3.abemcbsp1_dx OUTPUT PULLDOWN | MODE1 */
+			0x150 0x101	/* abeslimbus1_clock.abemcbsp1_clkx INPUT | MODE0 */
+			0x152 0x109	/* abeslimbus1_data.abemcbsp1_dr INPUT PULLDOWN | MODE1 */
+		>;
+	};
+
+	mcbsp2_pins: pinmux_mcbsp2_pins {
+		pinctrl-single,pins = <
+			0x154 0x108	/* abemcbsp2_dr.abemcbsp2_dr INPUT PULLDOWN | MODE0 */
+			0x156 0x8	/* abemcbsp2_dx.abemcbsp2_dx OUTPUT PULLDOWN | MODE0 */
+			0x158 0x100	/* abemcbsp2_fsx.abemcbsp2_fsx INPUT | MODE0 */
+			0x15a 0x100	/* abemcbsp2_clkx.abemcbsp2_clkx INPUT | MODE0 */
+		>;
+	};
+
+	usbotg_pins: pinmux_usbotg_pins {
+		pinctrl-single,pins = <
+			0x1ae 0x100	/* usbd0_hs_dp INPUT | MODE0 */
+			0x1b0 0x100	/* usbd0_hs_dm INPUT | MODE0 */
+		>;
+	};
+
+	usbhost_pins: pinmux_usbhost_pins {
+		pinctrl-single,pins = <
+			0x84 0x100	/* usbb2_hsic_strobe INPUT | MODE 0 */
+			0x86 0x100	/* usbb2_hsic_data INPUT | MODE 0 */
+
+			0x19e 0x100	/* usbb3_hsic_strobe INPUT | MODE 0 */
+			0x1a0 0x100	/* usbb3_hsic_data INPUT | MODE 0 */
+
+			0x70 0x6	/* gpio3_80 OUTPUT | MODE 6 HUB_NRESET */
+			0x6e 0x6	/* gpio3_79 OUTPUT | MODE 6 ETH_NRESET */
+		>;
+	};
+
+	dss_hdmi_pins: pinmux_dss_hdmi_pins {
+		pinctrl-single,pins = <
+			0x0fc 0x118	/* hdmi_cec.hdmi_cec INPUT PULLUP | MODE 0 */
+			0x100 0x106	/* GPIO7_194, DDC-SCL */
+			0x102 0x106	/* GPIO7_195, DDC-SDA */
+		>;
+	};
+
+	tpd12s015_pins: pinmux_tpd12s015_pins {
+		pinctrl-single,pins = <
+			0x0fe 0x116	/* hdmi_hpd.gpio7_193 INPUT PULLDOWN | MODE6 */
+		>;
+	};
+
+	i2c2_pins: pinmux_i2c2_pins {
+		pinctrl-single,pins = <
+			0x178 0x100	/* i2c2_scl INPUT | MODE0 */
+			0x17a 0x100	/* i2c2_sda INPUT | MODE0 */
+		>;
+	};
+
+	tca6416_pins: pinmux_tca6414_pins {
+		pinctrl-single,pins = <
+			0xb8 0x100	/* i2c4_scl INPUT | MODE0 */
+			0xba 0x100	/* i2c4_sda INPUT | MODE0 */
+		>;
+	};
+
+	uart1_pins: pinmux_uart1_pins {
+		pinctrl-single,pins = <
+			0x60 0x0	/* uart1_tx.uart1_cts MODE0 */
+			0x62 0x118	/* uart1_tx.uart1_cts INPUT | PULLUP | MODE0 */
+			0x64 0x118	/* uart1_rx.uart1_rts INPUT | PULLUP | MODE0 */
+			0x66 0		/* uart1_rx.uart1_rts MODE0 */
+		>;
+	};
+
+	uart3_pins: pinmux_uart3_pins {
+		pinctrl-single,pins = <
+			0x19a 0x0	/* uart3_rts_irsd.uart3_tx_irtx MODE0 */
+			0x19c 0x118	/* uart3_rx_irrx.uart3_usbb3_hsic INPUT | PULLUP | MODE0 */
+		>;
+	};
+
+	uart5_pins: pinmux_uart5_pins {
+		pinctrl-single,pins = <
+			0x170 0x118	/* uart5_rx.uart5_rx INPUT | PULLUP | MODE0 */
+			0x172 0x0	/* uart5_tx.uart5_tx MODE0 */
+			0x174 0x118	/* uart5_cts.uart5_rts INPUT | PULLUP | MODE0 */
+			0x176 0x0	/* uart5_cts.uart5_rts MODE0 */
+		>;
+	};
+
+	mcspi2_pins: pinmux_mcspi2_pins {
+		pinctrl-single,pins = <
+			0xbc 0x100      /*  MCSPI2_CLK INPUTENABLE | MODE0 */
+			0xbe 0x100      /*  MCSPI2_SIMO INPUTENABLE | MODE0 */
+			0xc0 0x118      /*  MCSPI2_SOMI PULLUP | INPUTENABLE | MODE0*/
+			0xc2 0x0        /*  MCSPI2_CS MODE0*/
+		>;
+	};
+
+	mcspi3_pins: pinmux_mcspi3_pins {
+		pinctrl-single,pins = <
+			0x78 0x101      /*  MCSPI2_SOMI INPUTENABLE | MODE1 */
+			0x7a 0x101      /*  MCSPI2_CS INPUTENABLE | MODE1 */
+			0x7c 0x101      /*  MCSPI2_SIMO INPUTENABLE | MODE1 */
+			0x7e 0x101      /*  MCSPI2_CLK INPUTENABLE | MODE1 */
+		>;
+	};
+	
+	palmas_pins: pinmux_palmas_pins {
+		pinctrl-single,pins = <
+			0x140 0x11f	/* MSLEEP INPUT | PULLUP | MODE7 */
+		>;
+	};
+
+	gpio_keys_pins: pinmux_gpio_keys_pins {
+		pinctrl-single,pins = <
+			0x46 0x106	/* c2c_data13.gpio4_118 INPUT | MODE6 */
+		>;
+	};
+};
+
+&omap5_pmx_wkup {
+	pinctrl-names = "default";
+	pinctrl-0 = <
+			&usbhost_wkup_pins
+			&wlan_wkup_pins
+	>;
+
+	usbhost_wkup_pins: pinmux_usbhost_wkup_pins {
+		pinctrl-single,pins = <
+			0x1A 0x0	/* fref_clk1_out OUTPUT | MODE 7 for USB hub clk */
+		>;
+	};
+
+	wlan_wkup_pins: pinmux_wlan_wkup_pins {
+		pinctrl-single,pins = <
+			0x0 0x106	/* llia_wakereqin.gpio1_14 INPUT | MODE6 WL_mINT_WK14 */
+		>;
+	};
+};
+
+&mmc1 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&mmc1_pins>;
+
+	vmmc-supply = <&ldo9_reg>;
+	bus-width = <4>;
+};
+
+&mmc2 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&mmc2_pins>;
+
+	vmmc-supply = <&vmmcsd_fixed>;
+	bus-width = <8>;
+	ti,non-removable;
+};
+
+&mmc3 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&mmc3_pins>;
+
+	vmmc-supply = <&vmmcsdio_fixed>;
+	bus-width = <4>;
+	ti,non-removable;
+};
+
+&mmc4 {
+	status = "disabled";
+};
+
+&mmc5 {
+	status = "disabled";
+};
+
+&mcbsp3 {
+	status = "disabled";
+};
+
+&emif1 {
+	cs1-used;
+	device-handle = <&samsung_K3PE0E000B>;
+};
+
+&emif2 {
+	cs1-used;
+	device-handle = <&samsung_K3PE0E000B>;
+};
+
+&i2c1 {
+	clock-frequency = <400000>;
+
+	palmas: palmas@48 {
+		reg = <0x48>;
+		/* SPI = 0, IRQ# = 7, 4 = active high level-sensitive */
+		interrupts = <0 7 4>; /* IRQ_SYS_1N cascaded to gic */
+		interrupt-parent = <&gic>;
+	};
+
+	twl6040: twl@4b {
+		compatible = "ti,twl6040";
+
+		interrupts = <0 119 4>;  /* IRQ_SYS_2N cascaded to gic */
+		interrupt-parent = <&gic>;
+		ti,audpwron-gpio = <&gpio5 16 0>;   /* gpio line 144 */
+
+		vio-supply = <&smps7_reg>;
+		v2v1-supply = <&smps9_reg>;
+		enable-active-high;
+	};
+
+};
+
+&i2c2 { 
+	clock-frequency = <400000>;
+
+	/* Temperature Sensor */
+	tmp102: tmp102@24 {
+		compatible = "ti,tmp102";
+		reg = <0x48>;
+	};
+
+};
+
+&i2c4 {
+	tca6416: tca6416@21 {
+		compatible = "ti,tca6416";
+		reg = <0x21>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+};
+
+&usbhshost {
+	port2-mode = "ehci-hsic";
+	port3-mode = "ehci-hsic";
+};
+
+&usbhsehci {
+	phys = <0 &hsusb2_phy &hsusb3_phy>;
+};
+
+/include/ "palmas.dtsi"
+/include/ "twl6040.dtsi"
+
+&hdmi {
+	vdda_hdmi_dac-supply = <&ldo7_reg>;
+
+	tpd12s015: tpd12s015 {
+		compatible = "ti,tpd12s015";
+
+		gpios = <&tca6416 11 0>,	/* TCA6416 P01, CT_CP_HDP */
+			<&tca6416 12 0>,	/* TCA6416 P00, LS_OE*/
+			<&gpio7 1 0>,		/* 193, HPD */
+			<&gpio7 2 0>,		/* 194, SCL */
+			<&gpio7 3 0>;		/* 195, SDA */
+
+
+		hdmi-monitor {
+			compatible = "ti,hdmi_panel";
+		};
+
+	};
+};
+
+&dsi1 {
+	vdds_dsi-supply = <&ldo7_reg>;
+};
+
+&dsi2 {
+	vdds_dsi-supply = <&ldo7_reg>;
+};
+
+&uart1 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&uart1_pins>;
+};
+
+&uart3 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&uart3_pins>;
+};
+
+&uart5 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&uart5_pins>;
+};
+
+&mcspi2 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&mcspi2_pins>;
+};
+
+&mcspi3 {
+        pinctrl-names = "default";
+        pinctrl-0 = <&mcspi3_pins>;
+};
+
+&mcspi4 {
+	/* used for wlsdio */
+	status = "disabled";
+};
