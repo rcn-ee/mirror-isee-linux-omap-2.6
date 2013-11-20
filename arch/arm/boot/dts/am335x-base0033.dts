@@ -147,3 +147,10 @@
 	rx-num-evt = <1>;
 };
 
+&i2c0 {
+	baseboard_eeprom: baseboard_eeprom@50 {
+		compatible = "at,24c256";
+		reg = <0x50>;
+	};
+};
+
