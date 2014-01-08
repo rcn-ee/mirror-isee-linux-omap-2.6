@@ -432,8 +432,10 @@ static int sata_phy_init(struct device *dev)
 	clk_enable(spdata->ref_clk);
 
 	omap_ocp2scp_init(dev, spdata->ocp2scp3);
+/*
 	sata_dpll_config(dev, spdata->pll);
 	sata_dpll_wait_lock(dev, spdata->pll);
+*/
 	omap_sataphyrx_init(dev, spdata->phyrx);
 	sataphy_pwr_init();
 	sataphy_pwr_on();
