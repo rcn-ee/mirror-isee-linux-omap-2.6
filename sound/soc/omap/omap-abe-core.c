@@ -303,6 +303,12 @@ static int abe_probe(struct snd_soc_platform *platform)
 	pm_runtime_enable(abe->dev);
 	pm_runtime_irq_safe(abe->dev);
 
+	if(abe->fw == NULL){
+		dev_err(platform->dev, "request for ABE FW failed abe->fw = NULL\n");
+		ret = -1;
+		goto err_fw;		
+	}	
+
 	ret = snd_soc_fw_load_platform(platform, &soc_fw_ops, abe->fw, 0);
 	if (ret < 0) {
 		dev_err(platform->dev, "request for ABE FW failed %d\n", ret);
@@ -471,8 +477,9 @@ static int abe_engine_probe(struct platform_device *pdev)
 
 	get_device(abe->dev);
 	abe->dev->dma_mask = &omap_abe_dmamask;
-	abe->dev->coherent_dma_mask = omap_abe_dmamask;
+	abe->dev->coherent_dma_mask = DMA_BIT_MASK(64);
 	put_device(abe->dev);
+	abe->fw = NULL;
 
 	ret = request_firmware_nowait(THIS_MODULE, 1, "omap4_abe_new", abe->dev,
 				      GFP_KERNEL, pdev, abe_fw_ready);

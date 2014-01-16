@@ -110,7 +110,7 @@ static const struct ehci_driver_overrides ehci_omap_overrides __initdata = {
 	.extra_priv_size = sizeof(struct omap_hcd),
 };
 
-static u64 omap_ehci_dma_mask = DMA_BIT_MASK(32);
+static u64 omap_ehci_dma_mask = DMA_BIT_MASK(64);
 
 /**
  * ehci_hcd_omap_probe - initialize TI-based HCDs

@@ -1152,7 +1152,7 @@ static const struct musb_platform_ops tusb_ops = {
 	.set_vbus	= tusb_musb_set_vbus,
 };
 
-static u64 tusb_dmamask = DMA_BIT_MASK(32);
+static u64 tusb_dmamask = DMA_BIT_MASK(64);
 
 static int tusb_probe(struct platform_device *pdev)
 {

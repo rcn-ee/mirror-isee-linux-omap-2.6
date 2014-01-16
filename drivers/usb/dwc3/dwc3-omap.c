@@ -310,7 +310,7 @@ static int dwc3_omap_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	omap->dma_mask = DMA_BIT_MASK(32);
+	omap->dma_mask = DMA_BIT_MASK(64);
 	platform_set_drvdata(pdev, omap);
 
 	irq = platform_get_irq(pdev, 0);

@@ -30,8 +30,9 @@
 #include <linux/stat.h>
 #include <linux/dmar.h>
 #include <linux/iommu.h>
+#ifdef CONFIG_X86
 #include <linux/intel-iommu.h>
-
+#endif
 static bool allow_unsafe_assigned_interrupts;
 module_param_named(allow_unsafe_assigned_interrupts,
 		   allow_unsafe_assigned_interrupts, bool, S_IRUGO | S_IWUSR);

@@ -114,7 +114,7 @@ static const struct hc_driver ohci_omap3_hc_driver = {
 
 /*-------------------------------------------------------------------------*/
 
-static u64 omap_ohci_dma_mask = DMA_BIT_MASK(32);
+static u64 omap_ohci_dma_mask = DMA_BIT_MASK(64);
 
 /*
  * configure so an HC device and id are always provided

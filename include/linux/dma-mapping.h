@@ -60,6 +60,12 @@ struct dma_map_ops {
 
 #define DMA_MASK_NONE	0x0ULL
 
+#ifdef CONFIG_ARCH_PHYS_ADDR_T_64BIT
+#define DMA_BIT_MASK_FULL DMA_BIT_MASK(64)
+#else
+#define DMA_BIT_MASK_FULL DMA_BIT_MASK(32)
+#endif
+
 static inline int valid_dma_direction(int dma_direction)
 {
 	return ((dma_direction == DMA_BIDIRECTIONAL) ||
