@@ -128,7 +128,7 @@ struct omap_sata_platdata {
 
 static struct omap_sata_platdata	omap_sata_data;
 static struct ahci_platform_data	sata_pdata;
-static u64				sata_dmamask = DMA_BIT_MASK(32);
+static u64				sata_dmamask = DMA_BIT_MASK(64);
 
 
 static void __iomem			*sataphy_pwr;
@@ -425,8 +425,9 @@ static int sata_phy_init(struct device *dev)
 	clk_enable(spdata->ref_clk);
 
 	omap_ocp2scp_init(dev, spdata->ocp2scp3);
-	sata_dpll_config(dev, spdata->pll);
-	sata_dpll_wait_lock(dev, spdata->pll);
+	/* Workarround: if u-boot enable the SATA the dpll_config fails */
+/*	sata_dpll_config(dev, spdata->pll);
+	sata_dpll_wait_lock(dev, spdata->pll); */
 	omap_sataphyrx_init(dev, spdata->phyrx);
 	sataphy_pwr_init();
 	sataphy_pwr_on();
@@ -628,6 +629,6 @@ void __init omap_sata_init(void)
 	dev = &pdev->dev;
 	get_device(dev);
 	dev->dma_mask = &sata_dmamask;
-	dev->coherent_dma_mask = DMA_BIT_MASK(32);
+	dev->coherent_dma_mask = DMA_BIT_MASK(64);
 	put_device(dev);
 }
