@@ -33,7 +33,7 @@
 				/* Only for Nominal Samples */
 				500000	880000
 				1000000	1060000
-				1500000	1250000
+				/*1500000	1250000*/
 			>;
 			clocks = <&dpll_mpu_ck>;
 			clock-names = "cpu";
