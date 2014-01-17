@@ -471,6 +471,10 @@
 		enable-active-high;
 	};
 
+	eeprom: eeprom@50 {
+		compatible = "at,24c256";
+		reg = <0x50>;
+	};
 };
 
 &i2c2 { 
