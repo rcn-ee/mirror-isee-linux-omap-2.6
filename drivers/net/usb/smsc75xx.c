@@ -84,6 +84,10 @@ static bool turbo_mode = true;
 module_param(turbo_mode, bool, 0644);
 MODULE_PARM_DESC(turbo_mode, "Enable multiple frames per Rx transaction");
 
+static u8 smsc_9xxx_mac_addr[6] = { 0, 0, 0, 0, 0, 0};
+module_param_array_named(mac, smsc_9xxx_mac_addr, byte, NULL, 0);
+MODULE_PARM_DESC(mac, "six hex digits, ie. 0x1,0x2,0xc0,0x01,0xba,0xbe");
+
 static int __must_check __smsc75xx_read_reg(struct usbnet *dev, u32 index,
 					    u32 *data, int in_pm)
 {
@@ -764,6 +768,11 @@ static int smsc75xx_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 
 static void smsc75xx_init_mac_address(struct usbnet *dev)
 {
+	/* pass the mac address using cmd line */
+	if(!is_zero_ether_addr(smsc_9xxx_mac_addr)){
+		memcpy(dev->net->dev_addr, smsc_9xxx_mac_addr, 6);
+		return;
+	}
 	/* try reading mac address from EEPROM */
 	if (smsc75xx_read_eeprom(dev, EEPROM_MAC_OFFSET, ETH_ALEN,
 			dev->net->dev_addr) == 0) {
@@ -774,7 +783,6 @@ static void smsc75xx_init_mac_address(struct usbnet *dev)
 			return;
 		}
 	}
-
 	/* no eeprom, or eeprom values are invalid. generate random MAC */
 	eth_hw_addr_random(dev->net);
 	netif_dbg(dev, ifup, dev->net, "MAC address set to eth_random_addr\n");
