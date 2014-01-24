@@ -248,7 +248,7 @@ static int omap_gem_attach_pages(struct drm_gem_object *obj)
 	 * mapping_gfp_mask(mapping) which conflicts w/ GFP_DMA32.. probably
 	 * we actually want CMA memory for it all anyways..
 	 */
-	pages = _drm_gem_get_pages(obj, GFP_KERNEL);
+	pages = _drm_gem_get_pages(obj, GFP_KERNEL | __GFP_DMA32);
 	if (IS_ERR(pages)) {
 		dev_err(obj->dev->dev, "could not get pages: %ld\n", PTR_ERR(pages));
 		return PTR_ERR(pages);
@@ -1447,7 +1447,6 @@ struct drm_gem_object *omap_gem_new(struct drm_device *dev,
 				&omap_obj->paddr, GFP_KERNEL);
 		if (omap_obj->vaddr)
 			flags |= OMAP_BO_DMA;
-
 	}
 
 	omap_obj->flags = flags;
