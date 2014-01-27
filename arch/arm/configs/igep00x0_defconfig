@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.37 Kernel Configuration
-# Mon Jan 27 16:24:24 2014
+# Mon Jan 27 16:44:37 2014
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -964,7 +964,11 @@ CONFIG_LIBERTAS_MESH=y
 # CONFIG_P54_COMMON is not set
 # CONFIG_RT2X00 is not set
 # CONFIG_WL1251 is not set
-# CONFIG_WL12XX is not set
+CONFIG_WL12XX=m
+CONFIG_WL1271=m
+CONFIG_WL1271_SPI=m
+CONFIG_WL1271_SDIO=m
+CONFIG_WL12XX_PLATFORM_DATA=y
 # CONFIG_ZD1211RW is not set
 
 #
