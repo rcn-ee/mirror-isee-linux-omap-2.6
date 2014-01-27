@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.37 Kernel Configuration
-# Mon Jun 10 15:29:11 2013
+# Mon Jan 27 16:24:24 2014
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -2365,7 +2365,58 @@ CONFIG_RTC_DRV_TWL4030=y
 CONFIG_UIO=y
 CONFIG_UIO_PDRV=m
 CONFIG_UIO_PDRV_GENIRQ=m
-# CONFIG_STAGING is not set
+CONFIG_STAGING=y
+# CONFIG_STAGING_EXCLUDE_BUILD is not set
+# CONFIG_VIDEO_CPIA is not set
+# CONFIG_USB_IP_COMMON is not set
+# CONFIG_W35UND is not set
+# CONFIG_PRISM2_USB is not set
+# CONFIG_ECHO is not set
+# CONFIG_BRCM80211 is not set
+# CONFIG_RT2870 is not set
+# CONFIG_COMEDI is not set
+# CONFIG_ASUS_OLED is not set
+# CONFIG_R8712U is not set
+# CONFIG_TRANZPORT is not set
+# CONFIG_POHMELFS is not set
+# CONFIG_AUTOFS_FS is not set
+# CONFIG_LINE6_USB is not set
+# CONFIG_USB_SERIAL_QUATECH2 is not set
+# CONFIG_USB_SERIAL_QUATECH_USB2 is not set
+# CONFIG_VT6656 is not set
+# CONFIG_FB_UDL is not set
+# CONFIG_IIO is not set
+# CONFIG_ZRAM is not set
+# CONFIG_BATMAN_ADV is not set
+# CONFIG_FB_SM7XX is not set
+
+#
+# Texas Instruments shared transport line discipline
+#
+# CONFIG_ADIS16255 is not set
+# CONFIG_SMB_FS is not set
+# CONFIG_EASYCAP is not set
+# CONFIG_TIDSPBRIDGE is not set
+# CONFIG_WESTBRIDGE is not set
+CONFIG_WESTBRIDGE_HAL_SELECTED=y
+CONFIG_MACH_OMAP3_WESTBRIDGE_AST_PNAND_HAL=y
+# CONFIG_MACH_NO_WESTBRIDGE is not set
+# CONFIG_ATH6K_LEGACY is not set
+# CONFIG_USB_ENESTORAGE is not set
+# CONFIG_BCM_WIMAX is not set
+# CONFIG_FT1000 is not set
+
+#
+# Speakup console speech
+#
+# CONFIG_SPEAKUP is not set
+
+#
+# EDREDAQ support
+#
+CONFIG_EDREDAQ=m
+CONFIG_EDREDAQ_CLASS=m
+CONFIG_EDREDAQ_UDAQLITE=m
 
 #
 # File systems
