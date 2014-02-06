@@ -23,15 +23,16 @@
 #include "mux.h"
 #include "../../../drivers/media/video/omap3isp/isp.h"
 
-static bool camr0010_enable __initdata = false;
+static bool camr00x0_enable __initdata = false;
 static bool mt9v032_type __initdata = false;
+static bool mt9p031_type __initdata = false;
 
 #define MT9P031_RESET_GPIO	98
 #define MT9P031_STANDBY_GPIO	111
 
 #if defined(CONFIG_VIDEO_OMAP3) || defined(CONFIG_VIDEO_OMAP3_MODULE)
 
-static void camr0010_set_clock(struct v4l2_subdev *subdev, unsigned int rate)
+static void camr00x0_set_clock(struct v4l2_subdev *subdev, unsigned int rate)
 {
 	struct isp_device *isp = v4l2_dev_to_isp_device(subdev->v4l2_dev);
 
@@ -62,14 +63,14 @@ static const s64 mt9v032_link_freqs[] = {
 
 static struct mt9v034_platform_data mt9v034_pdata = {
 	.clk_pol	= 0,
-	.set_clock	= camr0010_set_clock,
+	.set_clock	= camr00x0_set_clock,
 	.link_freqs	= mt9v034_link_freqs,
 	.link_def_freq	= 27000000,
 };
 
 static struct mt9v032_platform_data mt9v032_pdata = {
 	.clk_pol	= 0,
-	.set_clock	= camr0010_set_clock,
+	.set_clock	= camr00x0_set_clock,
 	.link_freqs	= mt9v032_link_freqs,
 	.link_def_freq	= 26600000,
 };
@@ -120,10 +121,10 @@ static struct isp_subdev_i2c_board_info mt9p031_board_info[] = {
 	{ NULL, 0, },
 };
 
-static struct isp_v4l2_subdevs_group camr0010_subdevs[] = {
+static struct isp_v4l2_subdevs_group camr00x0_subdevs[] = {
 	{
 		/* default sensor is mt9v034 */
-		.subdevs = mt9p031_board_info,
+		.subdevs = mt9v034_board_info,
 		.interface = ISP_INTERFACE_PARALLEL,
 		.bus = { .parallel = {
 			.data_lane_shift 	= ISP_LANE_SHIFT_0,
@@ -133,8 +134,8 @@ static struct isp_v4l2_subdevs_group camr0010_subdevs[] = {
 	{ NULL, 0 },
 };
 
-static struct isp_platform_data camr0010_isp_platform_data = {
-	.subdevs = camr0010_subdevs,
+static struct isp_platform_data camr00x0_isp_platform_data = {
+	.subdevs = camr00x0_subdevs,
 };
 
 static struct omap_board_mux camr0010_board_mux[] __initdata = {
@@ -154,10 +155,8 @@ static struct omap_board_mux camr0010_board_mux[] __initdata = {
 	OMAP3_MUX(CAM_D8, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 	OMAP3_MUX(CAM_D9, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
 	/* 10 bit cam sensor */
-	//OMAP3_MUX(CAM_D10, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),
-	//OMAP3_MUX(CAM_D11, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),
-	OMAP3_MUX(CAM_D10, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
-	OMAP3_MUX(CAM_D11, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D10, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),
+	OMAP3_MUX(CAM_D11, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),
 	/* CAM_STANDBYN (CAM_XCLKB.GPIO111) */
 	OMAP3_MUX(CAM_XCLKB, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
 	/* CAM_NRESET (CAM_FLD.GPIO_98) */
@@ -168,17 +167,22 @@ static struct omap_board_mux camr0010_board_mux[] __initdata = {
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 
-static int __init camr0010_init(void)
+static struct omap_board_mux camr0020_board_mux[] __initdata = {
+	/* 12 bit cam sensor */
+	OMAP3_MUX(CAM_D10, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	OMAP3_MUX(CAM_D11, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	{ .reg_offset = OMAP_MUX_TERMINATOR },
+};
+
+static int __init camr00x0_init(void)
 {
 	int ret;
 
 	/* Check for compatibility */
-	if (!camr0010_enable)
+	if (!camr00x0_enable)
 		return 0;
 
-	pr_info("BUDDY: IGEP CAM BIRD\n");
-
-	/* Write camr0010 mux */
+	/* Write camr00x0 mux */
 	omap_mux_write_array(omap_mux_get("core"), camr0010_board_mux);
 
 	/* Register I2C bus (if is not registered) */
@@ -192,24 +196,35 @@ static int __init camr0010_init(void)
 		mt9p031_board_info[0].i2c_adapter_id = 3;
 	}
 
-	if (mt9v032_type)
-		camr0010_subdevs[0].subdevs = mt9v032_board_info;
+	if (mt9v032_type) {
+		pr_info("BUDDY: IGEP CAM (mt9v032)\n");
+		camr00x0_subdevs[0].subdevs = mt9v032_board_info;
+	}
+	else if (mt9p031_type) {
+		pr_info("BUDDY: IGEP CAM (mt9p031)\n");
 
-	if (gpio_request_one(MT9P031_STANDBY_GPIO,
-		GPIOF_OUT_INIT_HIGH, "mt9p031 standby")) {
-		pr_warning("Could not obtain gpio cam standby\n");
+		camr00x0_subdevs[0].subdevs = mt9p031_board_info;
+		/* 12-bit sensor type */
+		omap_mux_write_array(omap_mux_get("core"), camr0020_board_mux);
+
+		if (gpio_request_one(MT9P031_STANDBY_GPIO,
+		    GPIOF_OUT_INIT_HIGH, "mt9p031 standby"))
+			pr_warning("Could not obtain gpio cam standby\n");
+
+	} else {
+		pr_info("BUDDY: IGEP CAM (mt9v034)\n");
 	}
 
-	omap3_init_camera(&camr0010_isp_platform_data);
+	omap3_init_camera(&camr00x0_isp_platform_data);
 
 	return 0;
 }
 
 #else
-static inline void camr0010_init(void) {}
+static inline void camr00x0_init(void) {}
 #endif
 
-late_initcall(camr0010_init);
+late_initcall(camr00x0_init);
 
 static int __init buddy_early_param(char* str)
 {
@@ -220,8 +235,8 @@ static int __init buddy_early_param(char* str)
 
 	strncpy(opt, str, 16);
 
-	if (!strcmp(opt, "camr0010"))
-		camr0010_enable = true;
+	if (!strcmp(opt, "camr00x0"))
+		camr00x0_enable = true;
 
 	return 0;
 }
@@ -237,10 +252,12 @@ static int __init sensor_early_param(char* str)
 
 	if (!strcmp(opt, "mt9v032"))
 		mt9v032_type = true;
+	else if (!strcmp(opt, "mt9p031"))
+		mt9p031_type = true;
 
 	return 0;	
 }
 
 early_param("buddy", buddy_early_param);
-early_param("camr0010.sensor", sensor_early_param);
+early_param("camr00x0.sensor", sensor_early_param);
 
