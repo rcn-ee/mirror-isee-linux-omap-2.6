@@ -40,6 +40,7 @@
 #include <plat/mcspi.h>
 #include <plat/onenand.h>
 #include <plat/usb.h>
+#include <plat/nand.h>
 
 #include "board-flash.h"
 #include "board-igep00x0.h"
@@ -47,6 +48,8 @@
 #include "devices.h"
 #include "mux.h"
 #include "sdram-numonyx-m65kxxxxam.h"
+
+#define NAND_BLOCK_SIZE			SZ_128K
 
 struct omap_mux_partition *mux_partition = NULL;
 
@@ -317,18 +320,55 @@ static struct mtd_partition igep00x0_flash_partitions[] = {
 	{
 		.name           = "X-Loader",
 		.offset         = 0,
-		.size           = 2 * (64*(2*2048))
+		.size           = 4 * NAND_BLOCK_SIZE,
 	},
 	{
 		.name           = "Boot",
 		.offset         = MTDPART_OFS_APPEND,
-		.size           = 48 * (64*(2*2048)),
+		.size           = 12 * 8 * NAND_BLOCK_SIZE, // (128 * 8) 1 MiB
 	},
 	{
 		.name           = "File System",
 		.offset         = MTDPART_OFS_APPEND,
 		.size           = MTDPART_SIZ_FULL,
 	},
+};
+
+static struct gpmc_timings igep00x0_nand_timings = {
+
+	.sync_clk = 0,
+
+	.cs_on = 0,
+	.cs_rd_off = 36,
+	.cs_wr_off = 36,
+
+	.adv_on = 6,
+	.adv_rd_off = 24,
+	.adv_wr_off = 36,
+
+	.we_off = 30,
+	.oe_off = 48,
+
+	.access = 35,
+	.rd_cycle = 45,
+	.wr_cycle = 45,
+
+	.wr_access = 35,
+	.wr_data_mux_bus = 0,
+};
+
+
+static struct omap_nand_platform_data igep00x0_nand_data = {
+	.cs		    = 0,
+	.devsize	= 1,	/* '0' for 8-bit, '1' for 16-bit device */
+	.parts		= igep00x0_flash_partitions,
+	.nr_parts	= ARRAY_SIZE(igep00x0_flash_partitions),
+	.xfer_type  = NAND_OMAP_PREFETCH_POLLED,
+	/* .dev_ready  = 1, */
+	.gpmc_t     = &igep00x0_nand_timings,
+	.nand_setup = NULL,
+	/* .gpmc_irq   = OMAP_GPMC_IRQ_BASE + 0, */
+	.dma_channel	= -1,
 };
 
 static inline u32 get_sysboot_value(void)
@@ -343,9 +383,10 @@ void __init igep00x0_flash_init(void)
 
 	if (mux == IGEP00X0_SYSBOOT_NAND) {
 		pr_info("IGEP: initializing NAND memory device\n");
-		board_nand_init(igep00x0_flash_partitions,
+		/*board_nand_init(igep00x0_flash_partitions,
 			ARRAY_SIZE(igep00x0_flash_partitions),
-			0, NAND_BUSWIDTH_16);
+			0, NAND_BUSWIDTH_16);*/
+		gpmc_nand_init(&igep00x0_nand_data);
 	} else if (mux == IGEP00X0_SYSBOOT_ONENAND) {
 		pr_info("IGEP: initializing OneNAND memory device\n");
 		board_onenand_init(igep00x0_flash_partitions,
