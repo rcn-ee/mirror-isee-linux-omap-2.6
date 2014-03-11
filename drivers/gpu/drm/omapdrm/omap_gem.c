@@ -1088,10 +1088,10 @@ static LIST_HEAD(waiters);
 static inline bool is_waiting(struct omap_gem_sync_waiter *waiter)
 {
 	struct omap_gem_object *omap_obj = waiter->omap_obj;
-	if ((waiter->op & OMAP_GEM_WRITE) &&
+	if ((waiter->op & OMAP_GEM_READ) &&
 			(omap_obj->sync->read_complete < waiter->read_target))
 		return true;
-	if ((waiter->op & (OMAP_GEM_READ|OMAP_GEM_WRITE)) &&
+	if ((waiter->op & (OMAP_GEM_WRITE)) &&
 			(omap_obj->sync->write_complete < waiter->write_target))
 		return true;
 	return false;
@@ -1124,22 +1124,24 @@ static void sync_op_update(void)
 				 * 'notified' list, once the sync_lock is released..
 				 * There *must* be a less ugly way to do this..
 				 */
-				SYNC("notify", waiter);
+				SYNC("notify1", waiter);
+				// spin_unlock(&sync_lock);
 				waiter->notify(waiter->arg);
+				// spin_lock(&sync_lock);
 			} else {
 				list_add_tail(&waiter->list, &notified);
 			}
 		}
 	}
-	spin_unlock(&sync_lock);
 	list_for_each_entry_safe(waiter, n, &notified, list) {
 		list_del(&waiter->list);
-		SYNC("notify", waiter);
-		waiter->notify(waiter->arg);
+		SYNC("notify2", waiter);
+		spin_unlock(&sync_lock);
+		waiter->notify(waiter->arg);		
 		drm_gem_object_unreference_unlocked(&waiter->omap_obj->base);
-		kfree(waiter);
-	}
-	spin_lock(&sync_lock);
+		spin_lock(&sync_lock);
+		kfree(waiter);		
+	}	
 }
 
 static inline int sync_op(struct drm_gem_object *obj,
@@ -1218,12 +1220,15 @@ int omap_gem_op_sync(struct drm_gem_object *obj, enum omap_gem_op op)
 {
 	struct omap_gem_object *omap_obj = to_omap_bo(obj);
 	int ret = 0;
+	
+	spin_lock(&sync_lock);
 	if (omap_obj->sync) {
 		struct task_struct *waiter_task = current;
 		struct omap_gem_sync_waiter *waiter =
 				kzalloc(sizeof(*waiter), GFP_KERNEL);
 
 		if (!waiter){
+			spin_unlock(&sync_lock);
 			WARN_ON(!waiter);
 			dump_stack();
 			return -ENOMEM;
@@ -1236,7 +1241,7 @@ int omap_gem_op_sync(struct drm_gem_object *obj, enum omap_gem_op op)
 		waiter->notify = sync_notify;
 		waiter->arg = &waiter_task;
 
-		spin_lock(&sync_lock);
+		// spin_lock(&sync_lock);
 		if (is_waiting(waiter)) {
 			SYNC("waited", waiter);
 			list_add_tail(&waiter->list, &waiters);
@@ -1257,11 +1262,12 @@ int omap_gem_op_sync(struct drm_gem_object *obj, enum omap_gem_op op)
 				}
 			}
 		}
-		spin_unlock(&sync_lock);
+		// spin_unlock(&sync_lock);
 
 		if (waiter)
 			kfree(waiter);
 	}
+	spin_unlock(&sync_lock);
 	return ret;
 }
 EXPORT_SYMBOL(omap_gem_op_sync);
@@ -1279,11 +1285,14 @@ int omap_gem_op_async(struct drm_gem_object *obj, enum omap_gem_op op,
 		void (*fxn)(void *arg), void *arg)
 {
 	struct omap_gem_object *omap_obj = to_omap_bo(obj);
+	
+	spin_lock(&sync_lock);
 	if (omap_obj->sync) {
 		struct omap_gem_sync_waiter *waiter =
 				kzalloc(sizeof(*waiter), GFP_ATOMIC);
 
 		if (!waiter){
+			spin_unlock(&sync_lock);
 			WARN_ON(!waiter);
 			dump_stack();
 			return -ENOMEM;
@@ -1295,8 +1304,7 @@ int omap_gem_op_async(struct drm_gem_object *obj, enum omap_gem_op op,
 		waiter->write_target = omap_obj->sync->write_pending;
 		waiter->notify = fxn;
 		waiter->arg = arg;
-
-		spin_lock(&sync_lock);
+		// spin_lock(&sync_lock);
 		if (is_waiting(waiter)) {
 			drm_gem_object_reference(obj);
 			SYNC("waited", waiter);
@@ -1304,10 +1312,10 @@ int omap_gem_op_async(struct drm_gem_object *obj, enum omap_gem_op op,
 			spin_unlock(&sync_lock);
 			return 0;
 		}
-		spin_unlock(&sync_lock);
+		// spin_unlock(&sync_lock);
 		kfree(waiter);
 	}
-
+	spin_unlock(&sync_lock);
 	/* no waiting.. */
 	fxn(arg);
 
@@ -1325,7 +1333,7 @@ int omap_gem_set_sync_object(struct drm_gem_object *obj, void *syncobj)
 	struct omap_gem_object *omap_obj = to_omap_bo(obj);
 	int ret = 0;
 
-	spin_lock(&sync_lock);
+	// spin_lock(&sync_lock);
 
 	if ((omap_obj->flags & OMAP_BO_EXT_SYNC) && !syncobj) {
 		/* clearing a previously set syncobj */
@@ -1348,7 +1356,7 @@ int omap_gem_set_sync_object(struct drm_gem_object *obj, void *syncobj)
 	}
 
 unlock:
-	spin_unlock(&sync_lock);
+	// spin_unlock(&sync_lock);
 	return ret;
 }
 EXPORT_SYMBOL(omap_gem_set_sync_object);
@@ -1394,8 +1402,10 @@ void omap_gem_free_object(struct drm_gem_object *obj)
 	}
 
 	/* don't free externally allocated syncobj */
-	if (!(omap_obj->flags & OMAP_BO_EXT_SYNC))
+	if (!(omap_obj->flags & OMAP_BO_EXT_SYNC)){
 		kfree(omap_obj->sync);
+		omap_obj->sync = NULL;
+	}
 
 	drm_gem_object_release(obj);
 
