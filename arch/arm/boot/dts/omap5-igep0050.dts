@@ -193,6 +193,7 @@
 			0x1a8	0x118	/* sdcard_data3 INPUT | MODE0 */
 			0x1aa	0x118	/* sdcard_data0 INPUT | MODE0 */
 			0x1ac	0x118	/* sdcard_data1 INPUT | MODE0 */
+			0x194	0x11e	/* UART6_RTS INPUT | PULLUP  | MODE 6 | GPIO 152 */
 		>;
 	};
 
@@ -405,6 +406,7 @@
 
 	vmmc-supply = <&ldo9_reg>;
 	bus-width = <4>;
+	cd-gpios = <&gpio5 24 0>;
 };
 
 &mmc2 {
