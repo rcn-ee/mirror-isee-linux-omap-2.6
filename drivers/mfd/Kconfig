@@ -180,6 +180,15 @@ config TWL4030_POWER
 	  and load scripts controling which resources are switched off/on
 	  or reset when a sleep, wakeup or warm reset event occurs.
 
+config TWL4030_PWM
+	tristate "TWL4030 PWM (Pulse Width Modulator) Support"
+	depends on TWL4030_CORE
+	select HAVE_PWM
+	default n
+	help
+	  Say yes here if you want support for TWL4030 PWM. This PWM
+	  can be used to control the brightness of an LCD backlight.
+
 config TWL4030_SCRIPT
 	tristate "Support TWL4030 script for OMAP3 boards"
 	depends on TWL4030_CORE && TWL4030_POWER
