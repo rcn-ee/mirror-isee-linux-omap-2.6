@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux/arm 2.6.37 Kernel Configuration
-# Thu May 22 11:09:23 2014
+# Tue Jul  8 09:33:57 2014
 #
 CONFIG_ARM=y
 CONFIG_HAVE_PWM=y
@@ -681,7 +681,8 @@ CONFIG_MAC80211_DEBUGFS=y
 # Generic Driver Options
 #
 CONFIG_UEVENT_HELPER_PATH="/sbin/hotplug"
-# CONFIG_DEVTMPFS is not set
+CONFIG_DEVTMPFS=y
+CONFIG_DEVTMPFS_MOUNT=y
 CONFIG_STANDALONE=y
 CONFIG_PREVENT_FIRMWARE_BUILD=y
 CONFIG_FW_LOADER=y
