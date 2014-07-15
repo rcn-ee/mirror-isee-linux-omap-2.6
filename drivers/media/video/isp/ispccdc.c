@@ -49,11 +49,8 @@ __ccdc_get_format(struct isp_ccdc_device *ccdc, struct v4l2_subdev_fh *fh,
 static const unsigned int ccdc_fmts[] = {
 	V4L2_MBUS_FMT_Y8_1X8,
 	V4L2_MBUS_FMT_Y10_1X10,
-//	V4L2_MBUS_FMT_Y12_1X12,
 	V4L2_MBUS_FMT_SGRBG8_1X8,
-//	V4L2_MBUS_FMT_SRGGB8_1X8,
 	V4L2_MBUS_FMT_SBGGR8_1X8,
-//	V4L2_MBUS_FMT_SGBRG8_1X8,
 	V4L2_MBUS_FMT_SGRBG10_1X10,
 	V4L2_MBUS_FMT_SRGGB10_1X10,
 	V4L2_MBUS_FMT_SBGGR10_1X10,
@@ -67,7 +64,7 @@ static const unsigned int ccdc_fmts[] = {
 };
 
 /*
- * ispccdc_print_status - Print current CCDC Module register values.
+ * ccdc_print_status - Print current CCDC Module register values.
  * @ccdc: Pointer to ISP CCDC device.
  *
  * Also prints other debug information stored in the CCDC module.
@@ -76,7 +73,7 @@ static const unsigned int ccdc_fmts[] = {
 	dev_dbg(isp->dev, "###CCDC " #name "=0x%08x\n", \
 		isp_reg_readl(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_##name))
 
-static void ispccdc_print_status(struct isp_ccdc_device *ccdc)
+static void ccdc_print_status(struct isp_ccdc_device *ccdc)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 
@@ -120,10 +117,10 @@ static void ispccdc_print_status(struct isp_ccdc_device *ccdc)
 }
 
 /*
- * ispccdc_busy - Get busy state of the CCDC.
+ * omap3isp_ccdc_busy - Get busy state of the CCDC.
  * @ccdc: Pointer to ISP CCDC device.
  */
-int ispccdc_busy(struct isp_ccdc_device *ccdc)
+int omap3isp_ccdc_busy(struct isp_ccdc_device *ccdc)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 
@@ -136,14 +133,14 @@ int ispccdc_busy(struct isp_ccdc_device *ccdc)
  */
 
 /*
- * ispccdc_lsc_validate_config - Check that LSC configuration is valid.
+ * ccdc_lsc_validate_config - Check that LSC configuration is valid.
  * @ccdc: Pointer to ISP CCDC device.
  * @lsc_cfg: the LSC configuration to check.
  *
  * Returns 0 if the LSC configuration is valid, or -EINVAL if invalid.
  */
-static int ispccdc_lsc_validate_config(struct isp_ccdc_device *ccdc,
-				       struct omap3isp_ccdc_lsc_config *lsc_cfg)
+static int ccdc_lsc_validate_config(struct isp_ccdc_device *ccdc,
+				    struct omap3isp_ccdc_lsc_config *lsc_cfg)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 	struct v4l2_mbus_framefmt *format;
@@ -203,21 +200,21 @@ static int ispccdc_lsc_validate_config(struct isp_ccdc_device *ccdc,
 }
 
 /*
- * ispccdc_lsc_program_table - Program Lens Shading Compensation table address.
+ * ccdc_lsc_program_table - Program Lens Shading Compensation table address.
  * @ccdc: Pointer to ISP CCDC device.
  */
-static void ispccdc_lsc_program_table(struct isp_ccdc_device *ccdc, u32 addr)
+static void ccdc_lsc_program_table(struct isp_ccdc_device *ccdc, u32 addr)
 {
 	isp_reg_writel(to_isp_device(ccdc), addr,
 		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_LSC_TABLE_BASE);
 }
 
 /*
- * ispccdc_lsc_setup_regs - Configures the lens shading compensation module
+ * ccdc_lsc_setup_regs - Configures the lens shading compensation module
  * @ccdc: Pointer to ISP CCDC device.
  */
-static void ispccdc_lsc_setup_regs(struct isp_ccdc_device *ccdc,
-				   struct omap3isp_ccdc_lsc_config *cfg)
+static void ccdc_lsc_setup_regs(struct isp_ccdc_device *ccdc,
+				struct omap3isp_ccdc_lsc_config *cfg)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 	int reg;
@@ -240,7 +237,7 @@ static void ispccdc_lsc_setup_regs(struct isp_ccdc_device *ccdc,
 		       ISPCCDC_LSC_INITIAL);
 }
 
-static int ispccdc_lsc_wait_prefetch(struct isp_ccdc_device *ccdc)
+static int ccdc_lsc_wait_prefetch(struct isp_ccdc_device *ccdc)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 	unsigned int wait;
@@ -265,11 +262,11 @@ static int ispccdc_lsc_wait_prefetch(struct isp_ccdc_device *ccdc)
 }
 
 /*
- * __ispccdc_lsc_enable - Enables/Disables the Lens Shading Compensation module.
+ * __ccdc_lsc_enable - Enables/Disables the Lens Shading Compensation module.
  * @ccdc: Pointer to ISP CCDC device.
  * @enable: 0 Disables LSC, 1 Enables LSC.
  */
-static int __ispccdc_lsc_enable(struct isp_ccdc_device *ccdc, int enable)
+static int __ccdc_lsc_enable(struct isp_ccdc_device *ccdc, int enable)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 	const struct v4l2_mbus_framefmt *format =
@@ -283,17 +280,17 @@ static int __ispccdc_lsc_enable(struct isp_ccdc_device *ccdc, int enable)
 		return -EINVAL;
 
 	if (enable)
-		isp_sbl_enable(isp, OMAP3_ISP_SBL_CCDC_LSC_READ);
+		omap3isp_sbl_enable(isp, OMAP3_ISP_SBL_CCDC_LSC_READ);
 
 	isp_reg_clr_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_LSC_CONFIG,
 			ISPCCDC_LSC_ENABLE, enable ? ISPCCDC_LSC_ENABLE : 0);
 
 	if (enable) {
-		if (ispccdc_lsc_wait_prefetch(ccdc) < 0) {
+		if (ccdc_lsc_wait_prefetch(ccdc) < 0) {
 			isp_reg_clr(isp, OMAP3_ISP_IOMEM_CCDC,
 				    ISPCCDC_LSC_CONFIG, ISPCCDC_LSC_ENABLE);
 			ccdc->lsc.state = LSC_STATE_STOPPED;
-			dev_warn(to_device(ccdc), "LSC prefecth timeout\n");
+			dev_warn(to_device(ccdc), "LSC prefetch timeout\n");
 			return -ETIMEDOUT;
 		}
 		ccdc->lsc.state = LSC_STATE_RUNNING;
@@ -304,7 +301,7 @@ static int __ispccdc_lsc_enable(struct isp_ccdc_device *ccdc, int enable)
 	return 0;
 }
 
-static int ispccdc_lsc_busy(struct isp_ccdc_device *ccdc)
+static int ccdc_lsc_busy(struct isp_ccdc_device *ccdc)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 
@@ -312,38 +309,38 @@ static int ispccdc_lsc_busy(struct isp_ccdc_device *ccdc)
 			     ISPCCDC_LSC_BUSY;
 }
 
-/* __ispccdc_lsc_configure - Apply a new configuration to the LSC engine
+/* __ccdc_lsc_configure - Apply a new configuration to the LSC engine
  * @ccdc: Pointer to ISP CCDC device
  * @req: New configuration request
  *
  * context: in_interrupt()
  */
-static int __ispccdc_lsc_configure(struct isp_ccdc_device *ccdc,
-				   struct ispccdc_lsc_config_req *req)
+static int __ccdc_lsc_configure(struct isp_ccdc_device *ccdc,
+				struct ispccdc_lsc_config_req *req)
 {
 	if (!req->enable)
 		return -EINVAL;
 
-	if (ispccdc_lsc_validate_config(ccdc, &req->config) < 0) {
+	if (ccdc_lsc_validate_config(ccdc, &req->config) < 0) {
 		dev_dbg(to_device(ccdc), "Discard LSC configuration\n");
 		return -EINVAL;
 	}
 
-	if (ispccdc_lsc_busy(ccdc))
+	if (ccdc_lsc_busy(ccdc))
 		return -EBUSY;
 
-	ispccdc_lsc_setup_regs(ccdc, &req->config);
-	ispccdc_lsc_program_table(ccdc, req->table);
+	ccdc_lsc_setup_regs(ccdc, &req->config);
+	ccdc_lsc_program_table(ccdc, req->table);
 	return 0;
 }
 
 /*
- * ispccdc_lsc_error_handler - Handle LSC prefetch error scenario.
+ * ccdc_lsc_error_handler - Handle LSC prefetch error scenario.
  * @ccdc: Pointer to ISP CCDC device.
  *
  * Disables LSC, and defers enablement to shadow registers update time.
  */
-static void ispccdc_lsc_error_handler(struct isp_ccdc_device *ccdc)
+static void ccdc_lsc_error_handler(struct isp_ccdc_device *ccdc)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 	/*
@@ -360,8 +357,8 @@ static void ispccdc_lsc_error_handler(struct isp_ccdc_device *ccdc)
 	ccdc->lsc.state = LSC_STATE_STOPPED;
 }
 
-static void ispccdc_lsc_free_request(struct isp_ccdc_device *ccdc,
-				     struct ispccdc_lsc_config_req *req)
+static void ccdc_lsc_free_request(struct isp_ccdc_device *ccdc,
+				  struct ispccdc_lsc_config_req *req)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 
@@ -376,8 +373,8 @@ static void ispccdc_lsc_free_request(struct isp_ccdc_device *ccdc,
 	kfree(req);
 }
 
-static void ispccdc_lsc_free_queue(struct isp_ccdc_device *ccdc,
-				   struct list_head *queue)
+static void ccdc_lsc_free_queue(struct isp_ccdc_device *ccdc,
+				struct list_head *queue)
 {
 	struct ispccdc_lsc_config_req *req, *n;
 	unsigned long flags;
@@ -386,13 +383,13 @@ static void ispccdc_lsc_free_queue(struct isp_ccdc_device *ccdc,
 	list_for_each_entry_safe(req, n, queue, list) {
 		list_del(&req->list);
 		spin_unlock_irqrestore(&ccdc->lsc.req_lock, flags);
-		ispccdc_lsc_free_request(ccdc, req);
+		ccdc_lsc_free_request(ccdc, req);
 		spin_lock_irqsave(&ccdc->lsc.req_lock, flags);
 	}
 	spin_unlock_irqrestore(&ccdc->lsc.req_lock, flags);
 }
 
-static void ispccdc_lsc_free_table_work(struct work_struct *work)
+static void ccdc_lsc_free_table_work(struct work_struct *work)
 {
 	struct isp_ccdc_device *ccdc;
 	struct ispccdc_lsc *lsc;
@@ -400,18 +397,18 @@ static void ispccdc_lsc_free_table_work(struct work_struct *work)
 	lsc = container_of(work, struct ispccdc_lsc, table_work);
 	ccdc = container_of(lsc, struct isp_ccdc_device, lsc);
 
-	ispccdc_lsc_free_queue(ccdc, &lsc->free_queue);
+	ccdc_lsc_free_queue(ccdc, &lsc->free_queue);
 }
 
 /*
- * ispccdc_lsc_config - Configure the LSC module from a userspace request
+ * ccdc_lsc_config - Configure the LSC module from a userspace request
  *
  * Store the request LSC configuration in the LSC engine request pointer. The
  * configuration will be applied to the hardware when the CCDC will be enabled,
  * or at the next LSC interrupt if the CCDC is already running.
  */
-static int ispccdc_lsc_config(struct isp_ccdc_device *ccdc,
-			      struct omap3isp_ccdc_update_config *config)
+static int ccdc_lsc_config(struct isp_ccdc_device *ccdc,
+			   struct omap3isp_ccdc_update_config *config)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 	struct ispccdc_lsc_config_req *req;
@@ -490,12 +487,12 @@ static int ispccdc_lsc_config(struct isp_ccdc_device *ccdc,
 
 done:
 	if (ret < 0)
-		ispccdc_lsc_free_request(ccdc, req);
+		ccdc_lsc_free_request(ccdc, req);
 
 	return ret;
 }
 
-static inline int ispccdc_lsc_is_configured(struct isp_ccdc_device *ccdc)
+static inline int ccdc_lsc_is_configured(struct isp_ccdc_device *ccdc)
 {
 	unsigned long flags;
 
@@ -508,7 +505,7 @@ static inline int ispccdc_lsc_is_configured(struct isp_ccdc_device *ccdc)
 	return 0;
 }
 
-static int ispccdc_lsc_enable(struct isp_ccdc_device *ccdc)
+static int ccdc_lsc_enable(struct isp_ccdc_device *ccdc)
 {
 	struct ispccdc_lsc *lsc = &ccdc->lsc;
 
@@ -520,8 +517,8 @@ static int ispccdc_lsc_enable(struct isp_ccdc_device *ccdc)
 		lsc->active = NULL;
 	}
 
-	if (__ispccdc_lsc_configure(ccdc, lsc->request) < 0) {
-		isp_sbl_disable(to_isp_device(ccdc),
+	if (__ccdc_lsc_configure(ccdc, lsc->request) < 0) {
+		omap3isp_sbl_disable(to_isp_device(ccdc),
 				OMAP3_ISP_SBL_CCDC_LSC_READ);
 		list_add_tail(&lsc->request->list, &lsc->free_queue);
 		lsc->request = NULL;
@@ -530,7 +527,7 @@ static int ispccdc_lsc_enable(struct isp_ccdc_device *ccdc)
 
 	lsc->active = lsc->request;
 	lsc->request = NULL;
-	__ispccdc_lsc_enable(ccdc, 1);
+	__ccdc_lsc_enable(ccdc, 1);
 
 done:
 	if (!list_empty(&lsc->free_queue))
@@ -544,13 +541,13 @@ done:
  */
 
 /*
- * ispccdc_configure_clamp - Configure optical-black or digital clamping
+ * ccdc_configure_clamp - Configure optical-black or digital clamping
  * @ccdc: Pointer to ISP CCDC device.
  *
  * The CCDC performs either optical-black or digital clamp. Configure and enable
  * the selected clamp method.
  */
-static void ispccdc_configure_clamp(struct isp_ccdc_device *ccdc)
+static void ccdc_configure_clamp(struct isp_ccdc_device *ccdc)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 	u32 clamp;
@@ -572,10 +569,10 @@ static void ispccdc_configure_clamp(struct isp_ccdc_device *ccdc)
 }
 
 /*
- * ispccdc_configure_fpc - Configure Faulty Pixel Correction
+ * ccdc_configure_fpc - Configure Faulty Pixel Correction
  * @ccdc: Pointer to ISP CCDC device.
  */
-static void ispccdc_configure_fpc(struct isp_ccdc_device *ccdc)
+static void ccdc_configure_fpc(struct isp_ccdc_device *ccdc)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 
@@ -594,10 +591,10 @@ static void ispccdc_configure_fpc(struct isp_ccdc_device *ccdc)
 }
 
 /*
- * ispccdc_configure_black_comp - Configure Black Level Compensation.
+ * ccdc_configure_black_comp - Configure Black Level Compensation.
  * @ccdc: Pointer to ISP CCDC device.
  */
-static void ispccdc_configure_black_comp(struct isp_ccdc_device *ccdc)
+static void ccdc_configure_black_comp(struct isp_ccdc_device *ccdc)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 	u32 blcomp;
@@ -611,10 +608,10 @@ static void ispccdc_configure_black_comp(struct isp_ccdc_device *ccdc)
 }
 
 /*
- * ispccdc_configure_lpf - Configure Low-Pass Filter (LPF).
+ * ccdc_configure_lpf - Configure Low-Pass Filter (LPF).
  * @ccdc: Pointer to ISP CCDC device.
  */
-static void ispccdc_configure_lpf(struct isp_ccdc_device *ccdc)
+static void ccdc_configure_lpf(struct isp_ccdc_device *ccdc)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 
@@ -624,16 +621,16 @@ static void ispccdc_configure_lpf(struct isp_ccdc_device *ccdc)
 }
 
 /*
- * ispccdc_configure_alaw - Configure A-law compression.
+ * ccdc_configure_alaw - Configure A-law compression.
  * @ccdc: Pointer to ISP CCDC device.
  */
-static void ispccdc_configure_alaw(struct isp_ccdc_device *ccdc)
+static void ccdc_configure_alaw(struct isp_ccdc_device *ccdc)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 	const struct isp_format_info *info;
 	u32 alaw = 0;
 
-	info = isp_video_format_info(ccdc->formats[CCDC_PAD_SINK].code);
+	info = omap3isp_video_format_info(ccdc->formats[CCDC_PAD_SINK].code);
 
 	switch (info->width) {
 	case 8:
@@ -660,11 +657,11 @@ static void ispccdc_configure_alaw(struct isp_ccdc_device *ccdc)
 }
 
 /*
- * ispccdc_config_imgattr - Configure sensor image specific attributes.
+ * ccdc_config_imgattr - Configure sensor image specific attributes.
  * @ccdc: Pointer to ISP CCDC device.
  * @colptn: Color pattern of the sensor.
  */
-static void ispccdc_config_imgattr(struct isp_ccdc_device *ccdc, u32 colptn)
+static void ccdc_config_imgattr(struct isp_ccdc_device *ccdc, u32 colptn)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 
@@ -672,16 +669,16 @@ static void ispccdc_config_imgattr(struct isp_ccdc_device *ccdc, u32 colptn)
 }
 
 /*
- * ispccdc_config - Set CCDC configuration from userspace
+ * ccdc_config - Set CCDC configuration from userspace
  * @ccdc: Pointer to ISP CCDC device.
- * @userspace_add: Structure containing CCDC configuration sent from userspace.
+ * @ccdc_struct: Structure containing CCDC configuration sent from userspace.
  *
  * Returns 0 if successful, -EINVAL if the pointer to the configuration
  * structure is null, or the copy_from_user function fails to copy user space
  * memory to kernel space memory.
  */
-static int ispccdc_config(struct isp_ccdc_device *ccdc,
-			  struct omap3isp_ccdc_update_config *ccdc_struct)
+static int ccdc_config(struct isp_ccdc_device *ccdc,
+		       struct omap3isp_ccdc_update_config *ccdc_struct)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 	unsigned long flags;
@@ -759,42 +756,42 @@ static int ispccdc_config(struct isp_ccdc_device *ccdc,
 			ccdc->fpc.fpcaddr = table_new;
 		}
 
-		ispccdc_configure_fpc(ccdc);
+		ccdc_configure_fpc(ccdc);
 		if (table_old != 0)
 			iommu_vfree(isp->iommu, table_old);
 	}
 
-	return ispccdc_lsc_config(ccdc, ccdc_struct);
+	return ccdc_lsc_config(ccdc, ccdc_struct);
 }
 
 static void ccdc_apply_controls(struct isp_ccdc_device *ccdc)
 {
 	if (ccdc->update & OMAP3ISP_CCDC_ALAW) {
-		ispccdc_configure_alaw(ccdc);
+		ccdc_configure_alaw(ccdc);
 		ccdc->update &= ~OMAP3ISP_CCDC_ALAW;
 	}
 
 	if (ccdc->update & OMAP3ISP_CCDC_LPF) {
-		ispccdc_configure_lpf(ccdc);
+		ccdc_configure_lpf(ccdc);
 		ccdc->update &= ~OMAP3ISP_CCDC_LPF;
 	}
 
 	if (ccdc->update & OMAP3ISP_CCDC_BLCLAMP) {
-		ispccdc_configure_clamp(ccdc);
+		ccdc_configure_clamp(ccdc);
 		ccdc->update &= ~OMAP3ISP_CCDC_BLCLAMP;
 	}
 
 	if (ccdc->update & OMAP3ISP_CCDC_BCOMP) {
-		ispccdc_configure_black_comp(ccdc);
+		ccdc_configure_black_comp(ccdc);
 		ccdc->update &= ~OMAP3ISP_CCDC_BCOMP;
 	}
 }
 
 /*
- * ispccdc_restore_context - Restore values of the CCDC module registers
- * @dev: Pointer to ISP device
+ * omap3isp_ccdc_restore_context - Restore values of the CCDC module registers
+ * @isp: Pointer to ISP device
  */
-void ispccdc_restore_context(struct isp_device *isp)
+void omap3isp_ccdc_restore_context(struct isp_device *isp)
 {
 	struct isp_ccdc_device *ccdc = &isp->isp_ccdc;
 
@@ -803,7 +800,7 @@ void ispccdc_restore_context(struct isp_device *isp)
 	ccdc->update = OMAP3ISP_CCDC_ALAW | OMAP3ISP_CCDC_LPF
 		     | OMAP3ISP_CCDC_BLCLAMP | OMAP3ISP_CCDC_BCOMP;
 	ccdc_apply_controls(ccdc);
-	ispccdc_configure_fpc(ccdc);
+	ccdc_configure_fpc(ccdc);
 }
 
 /* -----------------------------------------------------------------------------
@@ -811,10 +808,10 @@ void ispccdc_restore_context(struct isp_device *isp)
  */
 
 /*
- * ispccdc_config_vp - Configure the Video Port.
+ * ccdc_config_vp - Configure the Video Port.
  * @ccdc: Pointer to ISP CCDC device.
  */
-static void ispccdc_config_vp(struct isp_ccdc_device *ccdc)
+static void ccdc_config_vp(struct isp_ccdc_device *ccdc)
 {
 	struct isp_pipeline *pipe = to_isp_pipeline(&ccdc->subdev.entity);
 	struct isp_device *isp = to_isp_device(ccdc);
@@ -827,7 +824,7 @@ static void ispccdc_config_vp(struct isp_ccdc_device *ccdc)
 	fmtcfg_vp = isp_reg_readl(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_FMTCFG)
 		  & ~(ISPCCDC_FMTCFG_VPIN_MASK | ISPCCDC_FMTCFG_VPIF_FRQ_MASK);
 
-	info = isp_video_format_info(ccdc->formats[CCDC_PAD_SINK].code);
+	info = omap3isp_video_format_info(ccdc->formats[CCDC_PAD_SINK].code);
 
 	switch (info->width) {
 	case 8:
@@ -857,13 +854,13 @@ static void ispccdc_config_vp(struct isp_ccdc_device *ccdc)
 }
 
 /*
- * ispccdc_enable_vp - Enable Video Port.
+ * ccdc_enable_vp - Enable Video Port.
  * @ccdc: Pointer to ISP CCDC device.
  * @enable: 0 Disables VP, 1 Enables VP
  *
  * This is needed for outputting image to Preview, H3A and HIST ISP submodules.
  */
-static void ispccdc_enable_vp(struct isp_ccdc_device *ccdc, u8 enable)
+static void ccdc_enable_vp(struct isp_ccdc_device *ccdc, u8 enable)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 
@@ -872,7 +869,7 @@ static void ispccdc_enable_vp(struct isp_ccdc_device *ccdc, u8 enable)
 }
 
 /*
- * ispccdc_config_outlineoffset - Configure memory saving output line offset
+ * ccdc_config_outlineoffset - Configure memory saving output line offset
  * @ccdc: Pointer to ISP CCDC device.
  * @offset: Address offset to start a new line. Must be twice the
  *          Output width and aligned on 32 byte boundary
@@ -886,7 +883,7 @@ static void ispccdc_enable_vp(struct isp_ccdc_device *ccdc, u8 enable)
  * - Configures the number of even and odd line fields in case of rearranging
  * the lines.
  */
-static void ispccdc_config_outlineoffset(struct isp_ccdc_device *ccdc,
+static void ccdc_config_outlineoffset(struct isp_ccdc_device *ccdc,
 					u32 offset, u8 oddeven, u8 numlines)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
@@ -923,13 +920,13 @@ static void ispccdc_config_outlineoffset(struct isp_ccdc_device *ccdc,
 }
 
 /*
- * ispccdc_set_outaddr - Set memory address to save output image
+ * ccdc_set_outaddr - Set memory address to save output image
  * @ccdc: Pointer to ISP CCDC device.
  * @addr: ISP MMU Mapped 32-bit memory address aligned on 32 byte boundary.
  *
  * Sets the memory address where the output will be saved.
  */
-static void ispccdc_set_outaddr(struct isp_ccdc_device *ccdc, u32 addr)
+static void ccdc_set_outaddr(struct isp_ccdc_device *ccdc, u32 addr)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 
@@ -937,13 +934,14 @@ static void ispccdc_set_outaddr(struct isp_ccdc_device *ccdc, u32 addr)
 }
 
 /*
- * ispccdc_max_rate - Calculate maximum input data rate based on the input
+ * omap3isp_ccdc_max_rate - Calculate maximum input data rate based on the input
  * @ccdc: Pointer to ISP CCDC device.
  * @max_rate: Maximum calculated data rate.
  *
  * Returns in *max_rate less value between calculated and passed
  */
-void ispccdc_max_rate(struct isp_ccdc_device *ccdc, unsigned int *max_rate)
+void omap3isp_ccdc_max_rate(struct isp_ccdc_device *ccdc,
+			    unsigned int *max_rate)
 {
 	struct isp_pipeline *pipe = to_isp_pipeline(&ccdc->subdev.entity);
 	unsigned int rate;
@@ -964,12 +962,12 @@ void ispccdc_max_rate(struct isp_ccdc_device *ccdc, unsigned int *max_rate)
 }
 
 /*
- * ispccdc_config_sync_if - Set CCDC sync interface configuration
+ * ccdc_config_sync_if - Set CCDC sync interface configuration
  * @ccdc: Pointer to ISP CCDC device.
  * @pdata: Parallel interface platform data (may be NULL)
  * @data_size: Data size
  */
-static void ispccdc_config_sync_if(struct isp_ccdc_device *ccdc,
+static void ccdc_config_sync_if(struct isp_ccdc_device *ccdc,
 				struct isp_parallel_platform_data *pdata,
 				unsigned int data_size)
 {
@@ -1130,11 +1128,11 @@ static void ccdc_configure(struct isp_ccdc_device *ccdc)
 	fmt_src.pad = pad->index;
 	fmt_src.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 	if (!v4l2_subdev_call(sensor, pad, get_fmt, NULL, &fmt_src)) {
-		fmt_info = isp_video_format_info(fmt_src.format.code);
+		fmt_info = omap3isp_video_format_info(fmt_src.format.code);
 		depth_in = fmt_info->width;
 	}
 
-	fmt_info = isp_video_format_info
+	fmt_info = omap3isp_video_format_info
 		(isp->isp_ccdc.formats[CCDC_PAD_SINK].code);
 	depth_out = fmt_info->width;
 	shift = depth_in - depth_out;
@@ -1146,9 +1144,9 @@ static void ccdc_configure(struct isp_ccdc_device *ccdc)
 	else
 		bridge = ISPCTRL_PAR_BRIDGE_DISABLE;
 
-	isp_configure_bridge(isp, ccdc->input, pdata, shift, bridge);
+	omap3isp_configure_bridge(isp, ccdc->input, pdata, shift, bridge);
 
-	ispccdc_config_sync_if(ccdc, pdata, depth_out);
+	ccdc_config_sync_if(ccdc, pdata, depth_out);
 
 	syn_mode = isp_reg_readl(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_SYN_MODE);
 
@@ -1189,7 +1187,7 @@ static void ccdc_configure(struct isp_ccdc_device *ccdc)
 		ccdc_pattern = ccdc_sgrbg_pattern;
 		break;
 	}
-	ispccdc_config_imgattr(ccdc, ccdc_pattern);
+	ccdc_config_imgattr(ccdc, ccdc_pattern);
 
 	/* Generate VD0 on the last line of the image and VD1 on the
 	 * 2/3 height line.
@@ -1211,7 +1209,7 @@ static void ccdc_configure(struct isp_ccdc_device *ccdc)
 			<< ISPCCDC_VERT_LINES_NLV_SHIFT,
 		       OMAP3_ISP_IOMEM_CCDC, ISPCCDC_VERT_LINES);
 
-	ispccdc_config_outlineoffset(ccdc, ccdc->video_out.bpl_value, 0, 0);
+	ccdc_config_outlineoffset(ccdc, ccdc->video_out.bpl_value, 0, 0);
 
 	/* The CCDC outputs data in UYVY order by default. Swap bytes to get
 	 * YUYV.
@@ -1224,7 +1222,7 @@ static void ccdc_configure(struct isp_ccdc_device *ccdc)
 			    ISPCCDC_CFG_BSWD);
 
 	/* Use PACK8 mode for 1byte per pixel formats. */
-	if (isp_video_format_info(format->code)->width <= 8)
+	if (omap3isp_video_format_info(format->code)->width <= 8)
 		syn_mode |= ISPCCDC_SYN_MODE_PACK8;
 	else
 		syn_mode &= ~ISPCCDC_SYN_MODE_PACK8;
@@ -1256,7 +1254,7 @@ static void ccdc_configure(struct isp_ccdc_device *ccdc)
 	 * the current active resolution discard it.
 	 */
 	if (ccdc->lsc.active == NULL &&
-	    __ispccdc_lsc_configure(ccdc, ccdc->lsc.request) == 0) {
+	    __ccdc_lsc_configure(ccdc, ccdc->lsc.request) == 0) {
 		ccdc->lsc.active = ccdc->lsc.request;
 	} else {
 		list_add_tail(&ccdc->lsc.request->list, &ccdc->lsc.free_queue);
@@ -1271,7 +1269,7 @@ unlock:
 	ccdc_apply_controls(ccdc);
 }
 
-static void __ispccdc_enable(struct isp_ccdc_device *ccdc, int enable)
+static void __ccdc_enable(struct isp_ccdc_device *ccdc, int enable)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 
@@ -1279,7 +1277,7 @@ static void __ispccdc_enable(struct isp_ccdc_device *ccdc, int enable)
 			ISPCCDC_PCR_EN, enable ? ISPCCDC_PCR_EN : 0);
 }
 
-static int ispccdc_disable(struct isp_ccdc_device *ccdc)
+static int ccdc_disable(struct isp_ccdc_device *ccdc)
 {
 	unsigned long flags;
 	int ret = 0;
@@ -1297,14 +1295,14 @@ static int ispccdc_disable(struct isp_ccdc_device *ccdc)
 		dev_warn(to_device(ccdc), "CCDC stop timeout!\n");
 	}
 
-	isp_sbl_disable(to_isp_device(ccdc), OMAP3_ISP_SBL_CCDC_LSC_READ);
+	omap3isp_sbl_disable(to_isp_device(ccdc), OMAP3_ISP_SBL_CCDC_LSC_READ);
 
 	mutex_lock(&ccdc->ioctl_lock);
-	ispccdc_lsc_free_request(ccdc, ccdc->lsc.request);
+	ccdc_lsc_free_request(ccdc, ccdc->lsc.request);
 	ccdc->lsc.request = ccdc->lsc.active;
 	ccdc->lsc.active = NULL;
 	cancel_work_sync(&ccdc->lsc.table_work);
-	ispccdc_lsc_free_queue(ccdc, &ccdc->lsc.free_queue);
+	ccdc_lsc_free_queue(ccdc, &ccdc->lsc.free_queue);
 	mutex_unlock(&ccdc->ioctl_lock);
 
 	ccdc->stopping = CCDC_STOP_NOT_REQUESTED;
@@ -1312,11 +1310,11 @@ static int ispccdc_disable(struct isp_ccdc_device *ccdc)
 	return ret > 0 ? 0 : ret;
 }
 
-static void ispccdc_enable(struct isp_ccdc_device *ccdc)
+static void ccdc_enable(struct isp_ccdc_device *ccdc)
 {
-	if (ispccdc_lsc_is_configured(ccdc))
-		__ispccdc_lsc_enable(ccdc, 1);
-	__ispccdc_enable(ccdc, 1);
+	if (ccdc_lsc_is_configured(ccdc))
+		__ccdc_lsc_enable(ccdc, 1);
+	__ccdc_enable(ccdc, 1);
 }
 
 /* -----------------------------------------------------------------------------
@@ -1324,17 +1322,17 @@ static void ispccdc_enable(struct isp_ccdc_device *ccdc)
  */
 
 /*
- * ispccdc_sbl_busy - Poll idle state of CCDC and related SBL memory write bits
+ * ccdc_sbl_busy - Poll idle state of CCDC and related SBL memory write bits
  * @ccdc: Pointer to ISP CCDC device.
  *
  * Returns zero if the CCDC is idle and the image has been written to
  * memory, too.
  */
-static int ispccdc_sbl_busy(struct isp_ccdc_device *ccdc)
+static int ccdc_sbl_busy(struct isp_ccdc_device *ccdc)
 {
 	struct isp_device *isp = to_isp_device(ccdc);
 
-	return ispccdc_busy(ccdc)
+	return omap3isp_ccdc_busy(ccdc)
 		| (isp_reg_readl(isp, OMAP3_ISP_IOMEM_SBL, ISPSBL_CCDC_WR_0) &
 		   ISPSBL_CCDC_WR_0_DATA_READY)
 		| (isp_reg_readl(isp, OMAP3_ISP_IOMEM_SBL, ISPSBL_CCDC_WR_1) &
@@ -1346,12 +1344,12 @@ static int ispccdc_sbl_busy(struct isp_ccdc_device *ccdc)
 }
 
 /*
- * ispccdc_sbl_wait_idle - Wait until the CCDC and related SBL are idle
+ * ccdc_sbl_wait_idle - Wait until the CCDC and related SBL are idle
  * @ccdc: Pointer to ISP CCDC device.
  * @max_wait: Max retry count in us for wait for idle/busy transition.
  */
-static int ispccdc_sbl_wait_idle(struct isp_ccdc_device *ccdc,
-				 unsigned int max_wait)
+static int ccdc_sbl_wait_idle(struct isp_ccdc_device *ccdc,
+			      unsigned int max_wait)
 {
 	unsigned int wait = 0;
 
@@ -1359,7 +1357,7 @@ static int ispccdc_sbl_wait_idle(struct isp_ccdc_device *ccdc,
 		max_wait = 10000; /* 10 ms */
 
 	for (wait = 0; wait <= max_wait; wait++) {
-		if (!ispccdc_sbl_busy(ccdc))
+		if (!ccdc_sbl_busy(ccdc))
 			return 0;
 
 		rmb();
@@ -1369,22 +1367,22 @@ static int ispccdc_sbl_wait_idle(struct isp_ccdc_device *ccdc,
 	return -EBUSY;
 }
 
-/* __ispccdc_handle_stopping - Handle CCDC and/or LSC stopping sequence
+/* __ccdc_handle_stopping - Handle CCDC and/or LSC stopping sequence
  * @ccdc: Pointer to ISP CCDC device.
  * @event: Pointing which event trigger handler
  *
  * Return 1 when the event and stopping request combination is satisfied,
  * zero otherwise.
  */
-static int __ispccdc_handle_stopping(struct isp_ccdc_device *ccdc, u32 event)
+static int __ccdc_handle_stopping(struct isp_ccdc_device *ccdc, u32 event)
 {
 	int rval = 0;
 
 	switch ((ccdc->stopping & 3) | event) {
 	case CCDC_STOP_REQUEST | CCDC_EVENT_VD1:
 		if (ccdc->lsc.state != LSC_STATE_STOPPED)
-			__ispccdc_lsc_enable(ccdc, 0);
-		__ispccdc_enable(ccdc, 0);
+			__ccdc_lsc_enable(ccdc, 0);
+		__ccdc_enable(ccdc, 0);
 		ccdc->stopping = CCDC_STOP_EXECUTED;
 		return 1;
 
@@ -1412,7 +1410,7 @@ static int __ispccdc_handle_stopping(struct isp_ccdc_device *ccdc, u32 event)
 	return rval;
 }
 
-static void ispccdc_hs_vs_isr(struct isp_ccdc_device *ccdc)
+static void ccdc_hs_vs_isr(struct isp_ccdc_device *ccdc)
 {
 	struct isp_pipeline *pipe = to_isp_pipeline(&ccdc->subdev.entity);
 	struct video_device *vdev = &ccdc->subdev.devnode;
@@ -1429,11 +1427,11 @@ static void ispccdc_hs_vs_isr(struct isp_ccdc_device *ccdc)
 }
 
 /*
- * ispccdc_lsc_isr - Handle LSC events
+ * ccdc_lsc_isr - Handle LSC events
  * @ccdc: Pointer to ISP CCDC device.
  * @events: LSC events
  */
-static void ispccdc_lsc_isr(struct isp_ccdc_device *ccdc, u32 events)
+static void ccdc_lsc_isr(struct isp_ccdc_device *ccdc, u32 events)
 {
 	unsigned long flags;
 
@@ -1441,7 +1439,7 @@ static void ispccdc_lsc_isr(struct isp_ccdc_device *ccdc, u32 events)
 		struct isp_pipeline *pipe =
 			to_isp_pipeline(&ccdc->subdev.entity);
 
-		ispccdc_lsc_error_handler(ccdc);
+		ccdc_lsc_error_handler(ccdc);
 		pipe->error = true;
 		dev_dbg(to_device(ccdc), "lsc prefetch error\n");
 	}
@@ -1458,7 +1456,7 @@ static void ispccdc_lsc_isr(struct isp_ccdc_device *ccdc, u32 events)
 	if (ccdc->lsc.state == LSC_STATE_STOPPING)
 		ccdc->lsc.state = LSC_STATE_STOPPED;
 
-	if (__ispccdc_handle_stopping(ccdc, CCDC_EVENT_LSC_DONE))
+	if (__ccdc_handle_stopping(ccdc, CCDC_EVENT_LSC_DONE))
 		goto done;
 
 	if (ccdc->lsc.state != LSC_STATE_RECONFIG)
@@ -1480,13 +1478,13 @@ static void ispccdc_lsc_isr(struct isp_ccdc_device *ccdc, u32 events)
 	if (ccdc->lsc.request == NULL)
 		goto done;
 
-	ispccdc_lsc_enable(ccdc);
+	ccdc_lsc_enable(ccdc);
 
 done:
 	spin_unlock_irqrestore(&ccdc->lsc.req_lock, flags);
 }
 
-static int ispccdc_isr_buffer(struct isp_ccdc_device *ccdc)
+static int ccdc_isr_buffer(struct isp_ccdc_device *ccdc)
 {
 	struct isp_pipeline *pipe = to_isp_pipeline(&ccdc->subdev.entity);
 	struct isp_device *isp = to_isp_device(ccdc);
@@ -1512,14 +1510,14 @@ static int ispccdc_isr_buffer(struct isp_ccdc_device *ccdc)
 		goto done;
 	}
 
-	if (ispccdc_sbl_wait_idle(ccdc, 1000)) {
+	if (ccdc_sbl_wait_idle(ccdc, 1000)) {
 		dev_info(isp->dev, "CCDC won't become idle!\n");
 		goto done;
 	}
 
-	buffer = isp_video_buffer_next(&ccdc->video_out);
+	buffer = omap3isp_video_buffer_next(&ccdc->video_out);
 	if (buffer != NULL) {
-		ispccdc_set_outaddr(ccdc, buffer->isp_addr);
+		ccdc_set_outaddr(ccdc, buffer->isp_addr);
 		restart = 1;
 	}
 
@@ -1527,7 +1525,7 @@ static int ispccdc_isr_buffer(struct isp_ccdc_device *ccdc)
 
 	if (ccdc->state == ISP_PIPELINE_STREAM_SINGLESHOT &&
 	    isp_pipeline_ready(pipe))
-		isp_pipeline_set_stream(pipe,
+		omap3isp_pipeline_set_stream(pipe,
 					ISP_PIPELINE_STREAM_SINGLESHOT);
 
 done:
@@ -1535,21 +1533,21 @@ done:
 }
 
 /*
- * ispccdc_vd0_isr - Handle VD0 event
+ * ccdc_vd0_isr - Handle VD0 event
  * @ccdc: Pointer to ISP CCDC device.
  *
  * Executes LSC deferred enablement before next frame starts.
  */
-static void ispccdc_vd0_isr(struct isp_ccdc_device *ccdc)
+static void ccdc_vd0_isr(struct isp_ccdc_device *ccdc)
 {
 	unsigned long flags;
 	int restart = 0;
 
 	if (ccdc->output & CCDC_OUTPUT_MEMORY)
-		restart = ispccdc_isr_buffer(ccdc);
+		restart = ccdc_isr_buffer(ccdc);
 
 	spin_lock_irqsave(&ccdc->lock, flags);
-	if (__ispccdc_handle_stopping(ccdc, CCDC_EVENT_VD0)) {
+	if (__ccdc_handle_stopping(ccdc, CCDC_EVENT_VD0)) {
 		spin_unlock_irqrestore(&ccdc->lock, flags);
 		return;
 	}
@@ -1559,14 +1557,14 @@ static void ispccdc_vd0_isr(struct isp_ccdc_device *ccdc)
 	spin_unlock_irqrestore(&ccdc->lock, flags);
 
 	if (restart)
-		ispccdc_enable(ccdc);
+		ccdc_enable(ccdc);
 }
 
 /*
- * ispccdc_vd1_isr - Handle VD1 event
+ * ccdc_vd1_isr - Handle VD1 event
  * @ccdc: Pointer to ISP CCDC device.
  */
-static void ispccdc_vd1_isr(struct isp_ccdc_device *ccdc)
+static void ccdc_vd1_isr(struct isp_ccdc_device *ccdc)
 {
 	unsigned long flags;
 
@@ -1590,8 +1588,8 @@ static void ispccdc_vd1_isr(struct isp_ccdc_device *ccdc)
 	case ISP_PIPELINE_STREAM_CONTINUOUS:
 		if (ccdc->output & CCDC_OUTPUT_MEMORY) {
 			if (ccdc->lsc.state != LSC_STATE_STOPPED)
-				__ispccdc_lsc_enable(ccdc, 0);
-			__ispccdc_enable(ccdc, 0);
+				__ccdc_lsc_enable(ccdc, 0);
+			__ccdc_enable(ccdc, 0);
 		}
 		break;
 
@@ -1599,7 +1597,7 @@ static void ispccdc_vd1_isr(struct isp_ccdc_device *ccdc)
 		break;
 	}
 
-	if (__ispccdc_handle_stopping(ccdc, CCDC_EVENT_VD1))
+	if (__ccdc_handle_stopping(ccdc, CCDC_EVENT_VD1))
 		goto done;
 
 	if (ccdc->lsc.request == NULL)
@@ -1610,39 +1608,39 @@ static void ispccdc_vd1_isr(struct isp_ccdc_device *ccdc)
 	 * do the appropriate changes in registers
 	 */
 	if (ccdc->lsc.state == LSC_STATE_RUNNING) {
-		__ispccdc_lsc_enable(ccdc, 0);
+		__ccdc_lsc_enable(ccdc, 0);
 		ccdc->lsc.state = LSC_STATE_RECONFIG;
 		goto done;
 	}
 
 	/* LSC has been in STOPPED state, enable it */
 	if (ccdc->lsc.state == LSC_STATE_STOPPED)
-		ispccdc_lsc_enable(ccdc);
+		ccdc_lsc_enable(ccdc);
 
 done:
 	spin_unlock_irqrestore(&ccdc->lsc.req_lock, flags);
 }
 
 /*
- * ispccdc_isr - Configure CCDC during interframe time.
+ * omap3isp_ccdc_isr - Configure CCDC during interframe time.
  * @ccdc: Pointer to ISP CCDC device.
  * @events: CCDC events
  */
-int ispccdc_isr(struct isp_ccdc_device *ccdc, u32 events)
+int omap3isp_ccdc_isr(struct isp_ccdc_device *ccdc, u32 events)
 {
 	if (ccdc->state == ISP_PIPELINE_STREAM_STOPPED)
 		return 0;
 
 	if (events & IRQ0STATUS_CCDC_VD1_IRQ)
-		ispccdc_vd1_isr(ccdc);
+		ccdc_vd1_isr(ccdc);
 
-	ispccdc_lsc_isr(ccdc, events);
+	ccdc_lsc_isr(ccdc, events);
 
 	if (events & IRQ0STATUS_CCDC_VD0_IRQ)
-		ispccdc_vd0_isr(ccdc);
+		ccdc_vd0_isr(ccdc);
 
 	if (events & IRQ0STATUS_HS_VS_IRQ)
-		ispccdc_hs_vs_isr(ccdc);
+		ccdc_hs_vs_isr(ccdc);
 
 	return 0;
 }
@@ -1658,7 +1656,7 @@ static int ccdc_video_queue(struct isp_video *video, struct isp_buffer *buffer)
 	if (!(ccdc->output & CCDC_OUTPUT_MEMORY))
 		return -ENODEV;
 
-	ispccdc_set_outaddr(ccdc, buffer->isp_addr);
+	ccdc_set_outaddr(ccdc, buffer->isp_addr);
 
 	/* We now have a buffer queued on the output, restart the pipeline
 	 * on the next CCDC interrupt if running in continuous mode (or when
@@ -1693,7 +1691,7 @@ static long ccdc_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	switch (cmd) {
 	case VIDIOC_OMAP3ISP_CCDC_CFG:
 		mutex_lock(&ccdc->ioctl_lock);
-		ret = ispccdc_config(ccdc, arg);
+		ret = ccdc_config(ccdc, arg);
 		mutex_unlock(&ccdc->ioctl_lock);
 		break;
 
@@ -1741,7 +1739,7 @@ static int ccdc_set_stream(struct v4l2_subdev *sd, int enable)
 		if (enable == ISP_PIPELINE_STREAM_STOPPED)
 			return 0;
 
-		isp_subclk_enable(isp, OMAP3_ISP_SUBCLK_CCDC);
+		omap3isp_subclk_enable(isp, OMAP3_ISP_SUBCLK_CCDC);
 		isp_reg_set(isp, OMAP3_ISP_IOMEM_CCDC, ISPCCDC_CFG,
 			    ISPCCDC_CFG_VDLC);
 
@@ -1750,18 +1748,18 @@ static int ccdc_set_stream(struct v4l2_subdev *sd, int enable)
 		/* TODO: Don't configure the video port if all of its output
 		 * links are inactive.
 		 */
-		ispccdc_config_vp(ccdc);
-		ispccdc_enable_vp(ccdc, 1);
-		ispccdc_print_status(ccdc);
+		ccdc_config_vp(ccdc);
+		ccdc_enable_vp(ccdc, 1);
+		ccdc_print_status(ccdc);
 	}
 
 	switch (enable) {
 	case ISP_PIPELINE_STREAM_CONTINUOUS:
 		if (ccdc->output & CCDC_OUTPUT_MEMORY)
-			isp_sbl_enable(isp, OMAP3_ISP_SBL_CCDC_WRITE);
+			omap3isp_sbl_enable(isp, OMAP3_ISP_SBL_CCDC_WRITE);
 
 		if (ccdc->underrun || !(ccdc->output & CCDC_OUTPUT_MEMORY))
-			ispccdc_enable(ccdc);
+			ccdc_enable(ccdc);
 
 		ccdc->underrun = 0;
 		break;
@@ -1769,16 +1767,16 @@ static int ccdc_set_stream(struct v4l2_subdev *sd, int enable)
 	case ISP_PIPELINE_STREAM_SINGLESHOT:
 		if (ccdc->output & CCDC_OUTPUT_MEMORY &&
 		    ccdc->state != ISP_PIPELINE_STREAM_SINGLESHOT)
-			isp_sbl_enable(isp, OMAP3_ISP_SBL_CCDC_WRITE);
+			omap3isp_sbl_enable(isp, OMAP3_ISP_SBL_CCDC_WRITE);
 
-		ispccdc_enable(ccdc);
+		ccdc_enable(ccdc);
 		break;
 
 	case ISP_PIPELINE_STREAM_STOPPED:
-		ret = ispccdc_disable(ccdc);
+		ret = ccdc_disable(ccdc);
 		if (ccdc->output & CCDC_OUTPUT_MEMORY)
-			isp_sbl_disable(isp, OMAP3_ISP_SBL_CCDC_WRITE);
-		isp_subclk_disable(isp, OMAP3_ISP_SUBCLK_CCDC);
+			omap3isp_sbl_disable(isp, OMAP3_ISP_SBL_CCDC_WRITE);
+		omap3isp_subclk_disable(isp, OMAP3_ISP_SUBCLK_CCDC);
 		ccdc->underrun = 0;
 		break;
 	}
@@ -1874,7 +1872,7 @@ ccdc_try_format(struct isp_ccdc_device *ccdc, struct v4l2_subdev_fh *fh,
 		*fmt = *__ccdc_get_format(ccdc, fh, CCDC_PAD_SINK, which);
 
 		/* The video port interface truncates the data to 10 bits. */
-		info = isp_video_format_info(fmt->code);
+		info = omap3isp_video_format_info(fmt->code);
 		fmt->code = info->truncated;
 
 		/* YUV formats are not supported by the video port. */
@@ -1914,7 +1912,7 @@ static void ccdc_try_crop(struct isp_ccdc_device *ccdc,
 	/* For Bayer formats, restrict left/top and width/height to even values
 	 * to keep the Bayer pattern.
 	 */
-	info = isp_video_format_info(sink->code);
+	info = omap3isp_video_format_info(sink->code);
 	if (info->flavor != V4L2_MBUS_FMT_Y8_1X8) {
 		crop->left &= ~1;
 		crop->top &= ~1;
@@ -2281,12 +2279,12 @@ static const struct media_entity_operations ccdc_media_ops = {
 
 
 /*
- * ispccdc_init_entities - Initialize V4L2 subdev and media entity
+ * ccdc_init_entities - Initialize V4L2 subdev and media entity
  * @ccdc: ISP CCDC module
  *
  * Return 0 on success and a negative error code on failure.
  */
-static int ispccdc_init_entities(struct isp_ccdc_device *ccdc)
+static int ccdc_init_entities(struct isp_ccdc_device *ccdc)
 {
 	struct v4l2_subdev *sd = &ccdc->subdev;
 	struct media_pad *pads = ccdc->pads;
@@ -2322,7 +2320,7 @@ static int ispccdc_init_entities(struct isp_ccdc_device *ccdc)
 	ccdc->video_out.capture_mem = PAGE_ALIGN(4096 * 4096) * 3;
 	ccdc->video_out.bpl_alignment = 32;
 
-	ret = isp_video_init(&ccdc->video_out, "CCDC");
+	ret = omap3isp_video_init(&ccdc->video_out, "CCDC");
 	if (ret < 0)
 		goto error_video;
 
@@ -2335,22 +2333,22 @@ static int ispccdc_init_entities(struct isp_ccdc_device *ccdc)
 	return 0;
 
 error_link:
-	isp_video_cleanup(&ccdc->video_out);
+	omap3isp_video_cleanup(&ccdc->video_out);
 error_video:
 	media_entity_cleanup(me);
 	return ret;
 }
 
-void ispccdc_unregister_entities(struct isp_ccdc_device *ccdc)
+void omap3isp_ccdc_unregister_entities(struct isp_ccdc_device *ccdc)
 {
 	media_entity_cleanup(&ccdc->subdev.entity);
 
 	v4l2_device_unregister_subdev(&ccdc->subdev);
 	v4l2_ctrl_handler_free(&ccdc->ctrls);
-	isp_video_unregister(&ccdc->video_out);
+	omap3isp_video_unregister(&ccdc->video_out);
 }
 
-int ispccdc_register_entities(struct isp_ccdc_device *ccdc,
+int omap3isp_ccdc_register_entities(struct isp_ccdc_device *ccdc,
 	struct v4l2_device *vdev)
 {
 	int ret;
@@ -2360,14 +2358,14 @@ int ispccdc_register_entities(struct isp_ccdc_device *ccdc,
 	if (ret < 0)
 		goto error;
 
-	ret = isp_video_register(&ccdc->video_out, vdev);
+	ret = omap3isp_video_register(&ccdc->video_out, vdev);
 	if (ret < 0)
 		goto error;
 
 	return 0;
 
 error:
-	ispccdc_unregister_entities(ccdc);
+	omap3isp_ccdc_unregister_entities(ccdc);
 	return ret;
 }
 
@@ -2376,14 +2374,14 @@ error:
  */
 
 /*
- * ispccdc_init - CCDC module initialization.
- * @dev: Device pointer specific to the OMAP3 ISP.
+ * omap3isp_ccdc_init - CCDC module initialization.
+ * @isp: Device pointer specific to the OMAP3 ISP.
  *
  * TODO: Get the initialisation values from platform data.
  *
  * Return 0 on success or a negative error code otherwise.
  */
-int ispccdc_init(struct isp_device *isp)
+int omap3isp_ccdc_init(struct isp_device *isp)
 {
 	struct isp_ccdc_device *ccdc = &isp->isp_ccdc;
 	int ret;
@@ -2394,7 +2392,7 @@ int ispccdc_init(struct isp_device *isp)
 
 	ccdc->stopping = CCDC_STOP_NOT_REQUESTED;
 
-	INIT_WORK(&ccdc->lsc.table_work, ispccdc_lsc_free_table_work);
+	INIT_WORK(&ccdc->lsc.table_work, ccdc_lsc_free_table_work);
 	ccdc->lsc.state = LSC_STATE_STOPPED;
 	INIT_LIST_HEAD(&ccdc->lsc.free_queue);
 	spin_lock_init(&ccdc->lsc.req_lock);
@@ -2405,7 +2403,7 @@ int ispccdc_init(struct isp_device *isp)
 	ccdc->update = OMAP3ISP_CCDC_BLCLAMP;
 	ccdc_apply_controls(ccdc);
 
-	ret = ispccdc_init_entities(ccdc);
+	ret = ccdc_init_entities(ccdc);
 	if (ret < 0) {
 		mutex_destroy(&ccdc->ioctl_lock);
 		return ret;
@@ -2415,22 +2413,22 @@ int ispccdc_init(struct isp_device *isp)
 }
 
 /*
- * ispccdc_cleanup - CCDC module cleanup.
- * @dev: Device pointer specific to the OMAP3 ISP.
+ * omap3isp_ccdc_cleanup - CCDC module cleanup.
+ * @isp: Device pointer specific to the OMAP3 ISP.
  */
-void ispccdc_cleanup(struct isp_device *isp)
+void omap3isp_ccdc_cleanup(struct isp_device *isp)
 {
 	struct isp_ccdc_device *ccdc = &isp->isp_ccdc;
 
-	isp_video_cleanup(&ccdc->video_out);
+	omap3isp_video_cleanup(&ccdc->video_out);
 	media_entity_cleanup(&ccdc->subdev.entity);
 
 	/* Free LSC requests. As the CCDC is stopped there's no active request,
 	 * so only the pending request and the free queue need to be handled.
 	 */
-	ispccdc_lsc_free_request(ccdc, ccdc->lsc.request);
+	ccdc_lsc_free_request(ccdc, ccdc->lsc.request);
 	cancel_work_sync(&ccdc->lsc.table_work);
-	ispccdc_lsc_free_queue(ccdc, &ccdc->lsc.free_queue);
+	ccdc_lsc_free_queue(ccdc, &ccdc->lsc.free_queue);
 
 	if (ccdc->fpc.fpcaddr != 0)
 		iommu_vfree(isp->iommu, ccdc->fpc.fpcaddr);

@@ -130,7 +130,7 @@ static struct isp_reg isp_reg_list[] = {
 };
 
 /*
- * isp_flush - Post pending L3 bus writes by doing a register readback
+ * omap3isp_flush - Post pending L3 bus writes by doing a register readback
  * @isp: OMAP3 ISP device
  *
  * In order to force posting of pending writes, we need to write and
@@ -139,7 +139,7 @@ static struct isp_reg isp_reg_list[] = {
  * See this link for reference:
  *   http://www.mail-archive.com/linux-omap@vger.kernel.org/msg08149.html
  */
-void isp_flush(struct isp_device *isp)
+void omap3isp_flush(struct isp_device *isp)
 {
 	isp_reg_writel(isp, 0, OMAP3_ISP_IOMEM_MAIN, ISP_REVISION);
 	isp_reg_readl(isp, OMAP3_ISP_IOMEM_MAIN, ISP_REVISION);
@@ -196,7 +196,7 @@ static u32 isp_set_xclk(struct isp_device *isp, u32 xclk, u8 xclksel)
 	u32 currentxclk;
 	unsigned long mclk_hz;
 
-	if (!isp_get(isp))
+	if (!omap3isp_get(isp))
 		return 0;
 
 	mclk_hz = clk_get_rate(isp->clock[ISP_CLK_CAM_MCLK]);
@@ -231,7 +231,7 @@ static u32 isp_set_xclk(struct isp_device *isp, u32 xclk, u8 xclksel)
 		break;
 	case ISP_XCLK_NONE:
 	default:
-		isp_put(isp);
+		omap3isp_put(isp);
 		dev_dbg(isp->dev, "ISP_ERR: isp_set_xclk(): Invalid requested "
 			"xclk. Must be 0 (A) or 1 (B).\n");
 		return -EINVAL;
@@ -239,14 +239,14 @@ static u32 isp_set_xclk(struct isp_device *isp, u32 xclk, u8 xclksel)
 
 	/* Do we go from stable whatever to clock? */
 	if (divisor >= 2 && isp->xclk_divisor[xclksel - 1] < 2)
-		isp_get(isp);
+		omap3isp_get(isp);
 	/* Stopping the clock. */
 	else if (divisor < 2 && isp->xclk_divisor[xclksel - 1] >= 2)
-		isp_put(isp);
+		omap3isp_put(isp);
 
 	isp->xclk_divisor[xclksel - 1] = divisor;
 
-	isp_put(isp);
+	omap3isp_put(isp);
 
 	return currentxclk;
 }
@@ -256,7 +256,7 @@ static u32 isp_set_xclk(struct isp_device *isp, u32 xclk, u8 xclksel)
  * @isp: OMAP3 ISP device
  * @idle: Consider idle state.
  *
- * Set the power settings for the ISP and SBL bus and cConfigure the HS/VS
+ * Set the power settings for the ISP and SBL bus and configure the HS/VS
  * interrupt source.
  *
  * We need to configure the HS/VS interrupt source before interrupts get
@@ -290,7 +290,7 @@ static void isp_core_init(struct isp_device *isp, int idle)
  * The bridge and lane shifter are configured according to the selected input
  * and the ISP platform data.
  */
-void isp_configure_bridge(struct isp_device *isp,
+void omap3isp_configure_bridge(struct isp_device *isp,
 			       enum ccdc_input_entity input,
 			       const struct isp_parallel_platform_data *pdata,
 			       unsigned int shift, unsigned int bridge)
@@ -332,9 +332,10 @@ void isp_configure_bridge(struct isp_device *isp,
 	isp_reg_writel(isp, ispctrl_val, OMAP3_ISP_IOMEM_MAIN, ISP_CTRL);
 }
 
-void isphist_dma_done(struct isp_device *isp)
+void omap3isp_hist_dma_done(struct isp_device *isp)
 {
-	if (ispccdc_busy(&isp->isp_ccdc) || ispstat_pcr_busy(&isp->isp_hist)) {
+	if (omap3isp_ccdc_busy(&isp->isp_ccdc) ||
+	    omap3isp_stat_pcr_busy(&isp->isp_hist)) {
 		/* Histogram cannot be enabled in this frame anymore */
 		atomic_set(&isp->isp_hist.buf_err, 1);
 		dev_dbg(isp->dev, "hist: Out of synchronization with "
@@ -440,10 +441,10 @@ static void isp_isr_sbl(struct isp_device *isp)
 	}
 
 	if (sbl_pcr & ISPSBL_PCR_H3A_AF_WBL_OVF)
-		ispstat_sbl_overflow(&isp->isp_af);
+		omap3isp_stat_sbl_overflow(&isp->isp_af);
 
 	if (sbl_pcr & ISPSBL_PCR_H3A_AEAWB_WBL_OVF)
-		ispstat_sbl_overflow(&isp->isp_aewb);
+		omap3isp_stat_sbl_overflow(&isp->isp_aewb);
 }
 
 /*
@@ -452,9 +453,6 @@ static void isp_isr_sbl(struct isp_device *isp)
  * @_isp: Pointer to the OMAP3 ISP device
  *
  * Handles the corresponding callback if plugged in.
- *
- * Returns IRQ_HANDLED when IRQ was correctly handled, or IRQ_NONE when the
- * IRQ wasn't handled.
  */
 static irqreturn_t isp_isr(int irq, void *_isp)
 {
@@ -472,43 +470,43 @@ static irqreturn_t isp_isr(int irq, void *_isp)
 	isp_isr_sbl(isp);
 
 	if (irqstatus & IRQ0STATUS_CSIA_IRQ)
-		ispcsi2_isr(&isp->isp_csi2a);
+		omap3isp_csi2_isr(&isp->isp_csi2a);
 
 	if (irqstatus & IRQ0STATUS_CSIB_IRQ)
-		ispccp2_isr(&isp->isp_ccp2);
+		omap3isp_ccp2_isr(&isp->isp_ccp2);
 
 	if (irqstatus & IRQ0STATUS_CCDC_VD0_IRQ) {
 		if (isp->isp_ccdc.output & CCDC_OUTPUT_PREVIEW)
-			isppreview_isr_frame_sync(&isp->isp_prev);
+			omap3isp_preview_isr_frame_sync(&isp->isp_prev);
 		if (isp->isp_ccdc.output & CCDC_OUTPUT_RESIZER)
-			ispresizer_isr_frame_sync(&isp->isp_res);
-		ispstat_isr_frame_sync(&isp->isp_aewb);
-		ispstat_isr_frame_sync(&isp->isp_af);
-		ispstat_isr_frame_sync(&isp->isp_hist);
+			omap3isp_resizer_isr_frame_sync(&isp->isp_res);
+		omap3isp_stat_isr_frame_sync(&isp->isp_aewb);
+		omap3isp_stat_isr_frame_sync(&isp->isp_af);
+		omap3isp_stat_isr_frame_sync(&isp->isp_hist);
 	}
 
 	if (irqstatus & ccdc_events)
-		ispccdc_isr(&isp->isp_ccdc, irqstatus & ccdc_events);
+		omap3isp_ccdc_isr(&isp->isp_ccdc, irqstatus & ccdc_events);
 
 	if (irqstatus & IRQ0STATUS_PRV_DONE_IRQ) {
 		if (isp->isp_prev.output & PREVIEW_OUTPUT_RESIZER)
-			ispresizer_isr_frame_sync(&isp->isp_res);
-		isppreview_isr(&isp->isp_prev);
+			omap3isp_resizer_isr_frame_sync(&isp->isp_res);
+		omap3isp_preview_isr(&isp->isp_prev);
 	}
 
 	if (irqstatus & IRQ0STATUS_RSZ_DONE_IRQ)
-		ispresizer_isr(&isp->isp_res);
+		omap3isp_resizer_isr(&isp->isp_res);
 
 	if (irqstatus & IRQ0STATUS_H3A_AWB_DONE_IRQ)
-		ispstat_isr(&isp->isp_aewb);
+		omap3isp_stat_isr(&isp->isp_aewb);
 
 	if (irqstatus & IRQ0STATUS_H3A_AF_DONE_IRQ)
-		ispstat_isr(&isp->isp_af);
+		omap3isp_stat_isr(&isp->isp_af);
 
 	if (irqstatus & IRQ0STATUS_HIST_DONE_IRQ)
-		ispstat_isr(&isp->isp_hist);
+		omap3isp_stat_isr(&isp->isp_hist);
 
-	isp_flush(isp);
+	omap3isp_flush(isp);
 
 #if defined(DEBUG) && defined(ISP_ISR_DEBUG)
 	isp_isr_dbg(isp, irqstatus);
@@ -715,7 +713,7 @@ static int isp_pipeline_link_notify(struct media_pad *source,
  * Walk the entities chain starting at the pipeline output video node and start
  * all modules in the chain in the given mode.
  *
- * Return 0 if successfull, or the return value of the failed video::s_stream
+ * Return 0 if successful, or the return value of the failed video::s_stream
  * operation otherwise.
  */
 static int isp_pipeline_enable(struct isp_pipeline *pipe,
@@ -780,20 +778,20 @@ static int isp_pipeline_enable(struct isp_pipeline *pipe,
 
 static int isp_pipeline_wait_resizer(struct isp_device *isp)
 {
-	return ispresizer_busy(&isp->isp_res);
+	return omap3isp_resizer_busy(&isp->isp_res);
 }
 
 static int isp_pipeline_wait_preview(struct isp_device *isp)
 {
-	return isppreview_busy(&isp->isp_prev);
+	return omap3isp_preview_busy(&isp->isp_prev);
 }
 
 static int isp_pipeline_wait_ccdc(struct isp_device *isp)
 {
-	return ispstat_busy(&isp->isp_af)
-	    || ispstat_busy(&isp->isp_aewb)
-	    || ispstat_busy(&isp->isp_hist)
-	    || ispccdc_busy(&isp->isp_ccdc);
+	return omap3isp_stat_busy(&isp->isp_af)
+	    || omap3isp_stat_busy(&isp->isp_aewb)
+	    || omap3isp_stat_busy(&isp->isp_hist)
+	    || omap3isp_ccdc_busy(&isp->isp_ccdc);
 }
 
 #define ISP_STOP_TIMEOUT	msecs_to_jiffies(1000)
@@ -887,19 +885,19 @@ static int isp_pipeline_disable(struct isp_pipeline *pipe)
 }
 
 /*
- * isp_pipeline_set_stream - Enable/disable streaming on a pipeline
+ * omap3isp_pipeline_set_stream - Enable/disable streaming on a pipeline
  * @pipe: ISP pipeline
  * @state: Stream state (stopped, single shot or continuous)
  *
  * Set the pipeline to the given stream state. Pipelines can be started in
  * single-shot or continuous mode.
  *
- * Return 0 if successfull, or the return value of the failed video::s_stream
+ * Return 0 if successful, or the return value of the failed video::s_stream
  * operation otherwise. The pipeline state is not updated when the operation
  * fails, except when stopping the pipeline.
  */
-int isp_pipeline_set_stream(struct isp_pipeline *pipe,
-			    enum isp_pipeline_stream_state state)
+int omap3isp_pipeline_set_stream(struct isp_pipeline *pipe,
+				 enum isp_pipeline_stream_state state)
 {
 	int ret;
 
@@ -924,9 +922,9 @@ static void isp_pipeline_resume(struct isp_pipeline *pipe)
 {
 	int singleshot = pipe->stream_state == ISP_PIPELINE_STREAM_SINGLESHOT;
 
-	isp_video_resume(pipe->output, !singleshot);
+	omap3isp_video_resume(pipe->output, !singleshot);
 	if (singleshot)
-		isp_video_resume(pipe->input, 0);
+		omap3isp_video_resume(pipe->input, 0);
 	isp_pipeline_enable(pipe, pipe->stream_state);
 }
 
@@ -1003,9 +1001,9 @@ static int isp_suspend_modules(struct isp_device *isp)
 {
 	unsigned long timeout;
 
-	ispstat_suspend(&isp->isp_aewb);
-	ispstat_suspend(&isp->isp_af);
-	ispstat_suspend(&isp->isp_hist);
+	omap3isp_stat_suspend(&isp->isp_aewb);
+	omap3isp_stat_suspend(&isp->isp_af);
+	omap3isp_stat_suspend(&isp->isp_hist);
 	isp_suspend_module_pipeline(&isp->isp_res.subdev.entity);
 	isp_suspend_module_pipeline(&isp->isp_prev.subdev.entity);
 	isp_suspend_module_pipeline(&isp->isp_ccdc.subdev.entity);
@@ -1013,12 +1011,12 @@ static int isp_suspend_modules(struct isp_device *isp)
 	isp_suspend_module_pipeline(&isp->isp_ccp2.subdev.entity);
 
 	timeout = jiffies + ISP_STOP_TIMEOUT;
-	while (ispstat_busy(&isp->isp_af)
-		|| ispstat_busy(&isp->isp_aewb)
-		|| ispstat_busy(&isp->isp_hist)
-		|| isppreview_busy(&isp->isp_prev)
-		|| ispresizer_busy(&isp->isp_res)
-		|| ispccdc_busy(&isp->isp_ccdc)) {
+	while (omap3isp_stat_busy(&isp->isp_af)
+	    || omap3isp_stat_busy(&isp->isp_aewb)
+	    || omap3isp_stat_busy(&isp->isp_hist)
+	    || omap3isp_preview_busy(&isp->isp_prev)
+	    || omap3isp_resizer_busy(&isp->isp_res)
+	    || omap3isp_ccdc_busy(&isp->isp_ccdc)) {
 		if (time_after(jiffies, timeout)) {
 			dev_info(isp->dev, "can't stop modules.\n");
 			return 1;
@@ -1035,9 +1033,9 @@ static int isp_suspend_modules(struct isp_device *isp)
  */
 static void isp_resume_modules(struct isp_device *isp)
 {
-	ispstat_resume(&isp->isp_aewb);
-	ispstat_resume(&isp->isp_af);
-	ispstat_resume(&isp->isp_hist);
+	omap3isp_stat_resume(&isp->isp_aewb);
+	omap3isp_stat_resume(&isp->isp_af);
+	omap3isp_stat_resume(&isp->isp_hist);
 	isp_resume_module_pipeline(&isp->isp_res.subdev.entity);
 	isp_resume_module_pipeline(&isp->isp_prev.subdev.entity);
 	isp_resume_module_pipeline(&isp->isp_ccdc.subdev.entity);
@@ -1126,8 +1124,8 @@ static void isp_restore_ctx(struct isp_device *isp)
 	isp_restore_context(isp, isp_reg_list);
         if (isp->iommu)
 		iommu_restore_ctx(isp->iommu);
-	ispccdc_restore_context(isp);
-	isppreview_restore_context(isp);
+	omap3isp_ccdc_restore_context(isp);
+	omap3isp_preview_restore_context(isp);
 }
 
 /* -----------------------------------------------------------------------------
@@ -1143,7 +1141,7 @@ static void isp_restore_ctx(struct isp_device *isp)
 				 OMAP3_ISP_SBL_CCDC_WRITE | \
 				 OMAP3_ISP_SBL_PREVIEW_WRITE)
 
-void isp_sbl_enable(struct isp_device *isp, enum isp_sbl_resource res)
+void omap3isp_sbl_enable(struct isp_device *isp, enum isp_sbl_resource res)
 {
 	u32 sbl = 0;
 
@@ -1170,7 +1168,7 @@ void isp_sbl_enable(struct isp_device *isp, enum isp_sbl_resource res)
 	isp_reg_set(isp, OMAP3_ISP_IOMEM_MAIN, ISP_CTRL, sbl);
 }
 
-void isp_sbl_disable(struct isp_device *isp, enum isp_sbl_resource res)
+void omap3isp_sbl_disable(struct isp_device *isp, enum isp_sbl_resource res)
 {
 	u32 sbl = 0;
 
@@ -1206,8 +1204,8 @@ void isp_sbl_disable(struct isp_device *isp, enum isp_sbl_resource res)
  * This function checks if ISP submodule needs to wait for next interrupt. If
  * yes, makes the caller to sleep while waiting for such event.
  */
-int isp_module_sync_idle(struct media_entity *me, wait_queue_head_t *wait,
-			 atomic_t *stopping)
+int omap3isp_module_sync_idle(struct media_entity *me, wait_queue_head_t *wait,
+			      atomic_t *stopping)
 {
 	struct isp_pipeline *pipe = to_isp_pipeline(me);
 
@@ -1255,7 +1253,7 @@ int isp_module_sync_idle(struct media_entity *me, wait_queue_head_t *wait,
 }
 
 /*
- * isp_module_sync_is_stopped - Helper to verify if module was stopping
+ * omap3isp_module_sync_is_stopping - Helper to verify if module was stopping
  * @wait: ISP submodule's wait queue for streamoff/interrupt synchronization
  * @stopping: flag which tells module wants to stop
  *
@@ -1263,7 +1261,8 @@ int isp_module_sync_idle(struct media_entity *me, wait_queue_head_t *wait,
  * notices the caller by setting stopping to 0 and waking up the wait queue.
  * Returns 1 if it was stopping or 0 otherwise.
  */
-int isp_module_sync_is_stopping(wait_queue_head_t *wait, atomic_t *stopping)
+int omap3isp_module_sync_is_stopping(wait_queue_head_t *wait,
+				     atomic_t *stopping)
 {
 	if (atomic_cmpxchg(stopping, 1, 0)) {
 		wake_up(wait);
@@ -1311,14 +1310,16 @@ static void __isp_subclk_update(struct isp_device *isp)
 			ISPCTRL_CLKS_MASK, clk);
 }
 
-void isp_subclk_enable(struct isp_device *isp, enum isp_subclk_resource res)
+void omap3isp_subclk_enable(struct isp_device *isp,
+			    enum isp_subclk_resource res)
 {
 	isp->subclk_resources |= res;
 
 	__isp_subclk_update(isp);
 }
 
-void isp_subclk_disable(struct isp_device *isp, enum isp_subclk_resource res)
+void omap3isp_subclk_disable(struct isp_device *isp,
+			     enum isp_subclk_resource res)
 {
 	isp->subclk_resources &= ~res;
 
@@ -1438,7 +1439,7 @@ static int isp_get_clocks(struct isp_device *isp)
 }
 
 /*
- * isp_get - Acquire the ISP resource.
+ * omap3isp_get - Acquire the ISP resource.
  *
  * Initializes the clocks for the first acquire.
  *
@@ -1447,7 +1448,7 @@ static int isp_get_clocks(struct isp_device *isp)
  *
  * Return a pointer to the ISP device structure, or NULL if an error occurred.
  */
-static struct isp_device *__isp_get(struct isp_device *isp, bool irq)
+static struct isp_device *__omap3isp_get(struct isp_device *isp, bool irq)
 {
 	struct isp_device *__isp = isp;
 
@@ -1478,18 +1479,18 @@ out:
 	return __isp;
 }
 
-struct isp_device *isp_get(struct isp_device *isp)
+struct isp_device *omap3isp_get(struct isp_device *isp)
 {
-	return __isp_get(isp, true);
+	return __omap3isp_get(isp, true);
 }
 
 /*
- * isp_put - Release the ISP
+ * omap3isp_put - Release the ISP
  *
  * Decrement the reference count on the ISP. If the last reference is released,
  * power-down all submodules, disable clocks and free temporary buffers.
  */
-void isp_put(struct isp_device *isp)
+void omap3isp_put(struct isp_device *isp)
 {
 	if (isp == NULL)
 		return;
@@ -1514,7 +1515,7 @@ void isp_put(struct isp_device *isp)
  */
 
 /*
- * isp_print_status - Prints the values of the ISP Control Module registers
+ * omap3isp_print_status - Prints the values of the ISP Control Module registers
  * @isp: OMAP3 ISP device
  */
 #define ISP_PRINT_REGISTER(isp, name)\
@@ -1524,7 +1525,7 @@ void isp_put(struct isp_device *isp)
 	dev_dbg(isp->dev, "###SBL " #name "=0x%08x\n", \
 		isp_reg_readl(isp, OMAP3_ISP_IOMEM_SBL, ISPSBL_##name))
 
-void isp_print_status(struct isp_device *isp)
+void omap3isp_print_status(struct isp_device *isp)
 {
 	dev_dbg(isp->dev, "-------------ISP Register dump--------------\n");
 
@@ -1566,7 +1567,7 @@ void isp_print_status(struct isp_device *isp)
  * ISP clocks get disabled in suspend(). Similarly, the clocks are reenabled in
  * resume(), and the the pipelines are restarted in complete().
  *
- * TODO: PM dependencies between the ISP and sensors are not modeled explicitly
+ * TODO: PM dependencies between the ISP and sensors are not modelled explicitly
  * yet.
  */
 static int isp_pm_prepare(struct device *dev)
@@ -1633,14 +1634,14 @@ static void isp_pm_complete(struct device *dev)
 
 static void isp_unregister_entities(struct isp_device *isp)
 {
-	ispcsi2_unregister_entities(&isp->isp_csi2a);
-	ispccp2_unregister_entities(&isp->isp_ccp2);
-	ispccdc_unregister_entities(&isp->isp_ccdc);
-	isppreview_unregister_entities(&isp->isp_prev);
-	ispresizer_unregister_entities(&isp->isp_res);
-	ispstat_unregister_entities(&isp->isp_aewb);
-	ispstat_unregister_entities(&isp->isp_af);
-	ispstat_unregister_entities(&isp->isp_hist);
+	omap3isp_csi2_unregister_entities(&isp->isp_csi2a);
+	omap3isp_ccp2_unregister_entities(&isp->isp_ccp2);
+	omap3isp_ccdc_unregister_entities(&isp->isp_ccdc);
+	omap3isp_preview_unregister_entities(&isp->isp_prev);
+	omap3isp_resizer_unregister_entities(&isp->isp_res);
+	omap3isp_stat_unregister_entities(&isp->isp_aewb);
+	omap3isp_stat_unregister_entities(&isp->isp_af);
+	omap3isp_stat_unregister_entities(&isp->isp_hist);
 
 	v4l2_device_unregister(&isp->v4l2_dev);
 	media_device_unregister(&isp->media_dev);
@@ -1683,7 +1684,7 @@ isp_register_subdev_group(struct isp_device *isp,
 		subdev = v4l2_i2c_new_subdev_board(&isp->v4l2_dev, adapter,
 				board_info->board_info, NULL, 1);
 		if (subdev == NULL) {
-			printk(KERN_ERR "%s: Unable to register subdev %s\n",
+			dev_err(isp->dev, "%s: Unable to register subdev %s\n",
 				__func__, board_info->board_info->type);
 			continue;
 		}
@@ -1708,7 +1709,7 @@ static int isp_register_entities(struct isp_device *isp)
 	isp->media_dev.link_notify = isp_pipeline_link_notify;
 	ret = media_device_register(&isp->media_dev);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: Media device registration failed (%d)\n",
+		dev_err(isp->dev, "%s: Media device registration failed (%d)\n",
 			__func__, ret);
 		return ret;
 	}
@@ -1716,41 +1717,42 @@ static int isp_register_entities(struct isp_device *isp)
 	isp->v4l2_dev.mdev = &isp->media_dev;
 	ret = v4l2_device_register(isp->dev, &isp->v4l2_dev);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: V4L2 device registration failed (%d)\n",
+		dev_err(isp->dev, "%s: V4L2 device registration failed (%d)\n",
 			__func__, ret);
 		goto done;
 	}
 
 	/* Register internal entities */
-	ret = ispccp2_register_entities(&isp->isp_ccp2, &isp->v4l2_dev);
+	ret = omap3isp_ccp2_register_entities(&isp->isp_ccp2, &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
-	ret = ispcsi2_register_entities(&isp->isp_csi2a, &isp->v4l2_dev);
+	ret = omap3isp_csi2_register_entities(&isp->isp_csi2a, &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
-	ret = ispccdc_register_entities(&isp->isp_ccdc, &isp->v4l2_dev);
+	ret = omap3isp_ccdc_register_entities(&isp->isp_ccdc, &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
-	ret = isppreview_register_entities(&isp->isp_prev, &isp->v4l2_dev);
+	ret = omap3isp_preview_register_entities(&isp->isp_prev,
+						 &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
-	ret = ispresizer_register_entities(&isp->isp_res, &isp->v4l2_dev);
+	ret = omap3isp_resizer_register_entities(&isp->isp_res, &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
-	ret = ispstat_register_entities(&isp->isp_aewb, &isp->v4l2_dev);
+	ret = omap3isp_stat_register_entities(&isp->isp_aewb, &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
-	ret = ispstat_register_entities(&isp->isp_af, &isp->v4l2_dev);
+	ret = omap3isp_stat_register_entities(&isp->isp_af, &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
-	ret = ispstat_register_entities(&isp->isp_hist, &isp->v4l2_dev);
+	ret = omap3isp_stat_register_entities(&isp->isp_hist, &isp->v4l2_dev);
 	if (ret < 0)
 		goto done;
 
@@ -1801,8 +1803,8 @@ static int isp_register_entities(struct isp_device *isp)
 			break;
 
 		default:
-			printk(KERN_ERR "%s: invalid interface type %u\n",
-			       __func__, subdevs->interface);
+			dev_err(isp->dev, "%s: invalid interface type %u\n",
+				__func__, subdevs->interface);
 			ret = -EINVAL;
 			goto done;
 		}
@@ -1824,69 +1826,69 @@ done:
 
 static void isp_cleanup_modules(struct isp_device *isp)
 {
-	isph3a_aewb_cleanup(isp);
-	isph3a_af_cleanup(isp);
-	isphist_cleanup(isp);
-	ispresizer_cleanup(isp);
-	isppreview_cleanup(isp);
-	ispccdc_cleanup(isp);
-	ispccp2_cleanup(isp);
-	ispcsi2_cleanup(isp);
+	omap3isp_h3a_aewb_cleanup(isp);
+	omap3isp_h3a_af_cleanup(isp);
+	omap3isp_hist_cleanup(isp);
+	omap3isp_resizer_cleanup(isp);
+	omap3isp_preview_cleanup(isp);
+	omap3isp_ccdc_cleanup(isp);
+	omap3isp_ccp2_cleanup(isp);
+	omap3isp_csi2_cleanup(isp);
 }
 
 static int isp_initialize_modules(struct isp_device *isp)
 {
 	int ret;
 
-	ret = ispcsiphy_init(isp);
+	ret = omap3isp_csiphy_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "CSI PHY initialization failed\n");
 		goto error_csiphy;
 	}
 
-	ret = ispcsi2_init(isp);
+	ret = omap3isp_csi2_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "CSI2 initialization failed\n");
 		goto error_csi2;
 	}
 
-	ret = ispccp2_init(isp);
+	ret = omap3isp_ccp2_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "CCP2 initialization failed\n");
 		goto error_ccp2;
 	}
 
-	ret = ispccdc_init(isp);
+	ret = omap3isp_ccdc_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "CCDC initialization failed\n");
 		goto error_ccdc;
 	}
 
-	ret = isppreview_init(isp);
+	ret = omap3isp_preview_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "Preview initialization failed\n");
 		goto error_preview;
 	}
 
-	ret = ispresizer_init(isp);
+	ret = omap3isp_resizer_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "Resizer initialization failed\n");
 		goto error_resizer;
 	}
 
-	ret = isphist_init(isp);
+	ret = omap3isp_hist_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "Histogram initialization failed\n");
 		goto error_hist;
 	}
 
-	ret = isph3a_aewb_init(isp);
+	ret = omap3isp_h3a_aewb_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "H3A AEWB initialization failed\n");
 		goto error_h3a_aewb;
 	}
 
-	ret = isph3a_af_init(isp);
+	ret = omap3isp_h3a_af_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "H3A AF initialization failed\n");
 		goto error_h3a_af;
@@ -1947,21 +1949,21 @@ static int isp_initialize_modules(struct isp_device *isp)
 	return 0;
 
 error_link:
-	isph3a_af_cleanup(isp);
+	omap3isp_h3a_af_cleanup(isp);
 error_h3a_af:
-	isph3a_aewb_cleanup(isp);
+	omap3isp_h3a_aewb_cleanup(isp);
 error_h3a_aewb:
-	isphist_cleanup(isp);
+	omap3isp_hist_cleanup(isp);
 error_hist:
-	ispresizer_cleanup(isp);
+	omap3isp_resizer_cleanup(isp);
 error_resizer:
-	isppreview_cleanup(isp);
+	omap3isp_preview_cleanup(isp);
 error_preview:
-	ispccdc_cleanup(isp);
+	omap3isp_ccdc_cleanup(isp);
 error_ccdc:
-	ispccp2_cleanup(isp);
+	omap3isp_ccp2_cleanup(isp);
 error_ccp2:
-	ispcsi2_cleanup(isp);
+	omap3isp_csi2_cleanup(isp);
 error_csi2:
 error_csiphy:
 	return ret;
@@ -1981,9 +1983,9 @@ static int isp_remove(struct platform_device *pdev)
 	isp_unregister_entities(isp);
 	isp_cleanup_modules(isp);
 
-	__isp_get(isp, false);
+	__omap3isp_get(isp, false);
 	iommu_put(isp->iommu);
-	isp_put(isp);
+	omap3isp_put(isp);
 
 	free_irq(isp->irq_num, isp);
 	isp_put_clocks(isp);
@@ -2097,7 +2099,7 @@ static int isp_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto error;
 
-	if (__isp_get(isp, false) == NULL)
+	if (__omap3isp_get(isp, false) == NULL)
 		goto error;
 
 	ret = isp_reset(isp);
@@ -2160,7 +2162,7 @@ static int isp_probe(struct platform_device *pdev)
 		goto error_modules;
 
 	isp_core_init(isp, 1);
-	isp_put(isp);
+	omap3isp_put(isp);
 
 	return 0;
 
@@ -2170,7 +2172,7 @@ error_irq:
 	free_irq(isp->irq_num, isp);
 error_isp:
         iommu_put(isp->iommu);
-	isp_put(isp);
+	omap3isp_put(isp);
 error:
 	isp_put_clocks(isp);
 

@@ -131,38 +131,39 @@ struct ispstat {
 struct ispstat_generic_config {
 	/*
 	 * Fields must be in the same order as in:
-	 *  - isph3a_aewb_config
-	 *  - isph3a_af_config
-	 *  - isphist_config
+	 *  - omap3isp_h3a_aewb_config
+	 *  - omap3isp_h3a_af_config
+	 *  - omap3isp_hist_config
 	 */
 	u32 buf_size;
 	u16 config_counter;
 };
 
-int ispstat_config(struct ispstat *stat, void *new_conf);
-int ispstat_request_statistics(struct ispstat *stat,
+int omap3isp_stat_config(struct ispstat *stat, void *new_conf);
+int omap3isp_stat_request_statistics(struct ispstat *stat,
 				     struct omap3isp_stat_data *data);
-int ispstat_init(struct ispstat *stat, const char *name,
+int omap3isp_stat_init(struct ispstat *stat, const char *name,
 		       const struct v4l2_subdev_ops *sd_ops);
-void ispstat_cleanup(struct ispstat *stat);
-int ispstat_subscribe_event(struct v4l2_subdev *subdev,
+void omap3isp_stat_cleanup(struct ispstat *stat);
+int omap3isp_stat_subscribe_event(struct v4l2_subdev *subdev,
 				  struct v4l2_fh *fh,
 				  struct v4l2_event_subscription *sub);
-int ispstat_unsubscribe_event(struct v4l2_subdev *subdev,
+int omap3isp_stat_unsubscribe_event(struct v4l2_subdev *subdev,
 				    struct v4l2_fh *fh,
 				    struct v4l2_event_subscription *sub);
-int ispstat_s_stream(struct v4l2_subdev *subdev, int enable);
+int omap3isp_stat_s_stream(struct v4l2_subdev *subdev, int enable);
 
-int ispstat_busy(struct ispstat *stat);
-int ispstat_pcr_busy(struct ispstat *stat);
-void ispstat_suspend(struct ispstat *stat);
-void ispstat_resume(struct ispstat *stat);
-int ispstat_enable(struct ispstat *stat, u8 enable);
-void ispstat_sbl_overflow(struct ispstat *stat);
-void ispstat_isr(struct ispstat *stat);
-void ispstat_isr_frame_sync(struct ispstat *stat);
-void ispstat_dma_isr(struct ispstat *stat);
-int ispstat_register_entities(struct ispstat *stat, struct v4l2_device *vdev);
-void ispstat_unregister_entities(struct ispstat *stat);
+int omap3isp_stat_busy(struct ispstat *stat);
+int omap3isp_stat_pcr_busy(struct ispstat *stat);
+void omap3isp_stat_suspend(struct ispstat *stat);
+void omap3isp_stat_resume(struct ispstat *stat);
+int omap3isp_stat_enable(struct ispstat *stat, u8 enable);
+void omap3isp_stat_sbl_overflow(struct ispstat *stat);
+void omap3isp_stat_isr(struct ispstat *stat);
+void omap3isp_stat_isr_frame_sync(struct ispstat *stat);
+void omap3isp_stat_dma_isr(struct ispstat *stat);
+int omap3isp_stat_register_entities(struct ispstat *stat,
+				    struct v4l2_device *vdev);
+void omap3isp_stat_unregister_entities(struct ispstat *stat);
 
 #endif /* OMAP3_ISP_STAT_H */

@@ -27,7 +27,6 @@
 #define OMAP3_ISP_VIDEO_H
 
 #include <linux/v4l2-mediabus.h>
-#include <linux/version.h>
 #include <media/media-entity.h>
 #include <media/v4l2-dev.h>
 #include <media/v4l2-fh.h>
@@ -35,7 +34,7 @@
 #include "ispqueue.h"
 
 #define ISP_VIDEO_DRIVER_NAME		"ispvideo"
-#define ISP_VIDEO_DRIVER_VERSION	KERNEL_VERSION(0, 0, 2)
+#define ISP_VIDEO_DRIVER_VERSION	"0.0.2"
 
 struct isp_device;
 struct isp_video;
@@ -203,16 +202,17 @@ struct isp_video_fh {
 #define isp_video_queue_to_isp_video_fh(q) \
 				container_of(q, struct isp_video_fh, queue)
 
-int isp_video_init(struct isp_video *video, const char *name);
-void isp_video_cleanup(struct isp_video *video);
-int isp_video_register(struct isp_video *video,
+int omap3isp_video_init(struct isp_video *video, const char *name);
+void omap3isp_video_cleanup(struct isp_video *video);
+int omap3isp_video_register(struct isp_video *video,
 			    struct v4l2_device *vdev);
-void isp_video_unregister(struct isp_video *video);
-struct isp_buffer *isp_video_buffer_next(struct isp_video *video);
-void isp_video_resume(struct isp_video *video, int continuous);
-struct media_pad *isp_video_remote_pad(struct isp_video *video);
+void omap3isp_video_unregister(struct isp_video *video);
+struct isp_buffer *omap3isp_video_buffer_next(struct isp_video *video);
+void omap3isp_video_cancel_stream(struct isp_video *video);
+void omap3isp_video_resume(struct isp_video *video, int continuous);
+struct media_pad *omap3isp_video_remote_pad(struct isp_video *video);
 
 const struct isp_format_info *
-isp_video_format_info(enum v4l2_mbus_pixelcode code);
+omap3isp_video_format_info(enum v4l2_mbus_pixelcode code);
 
 #endif /* OMAP3_ISP_VIDEO_H */

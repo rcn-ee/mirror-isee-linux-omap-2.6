@@ -31,12 +31,12 @@
 #include <media/v4l2-ctrls.h>
 
 /*
- * Constants for filter coefficents count
+ * Constants for filter coefficients count
  */
 #define COEFF_CNT		32
 
 /*
- * struct isprsz_coef - Structure for resizer filter coeffcients.
+ * struct isprsz_coef - Structure for resizer filter coefficients.
  * @h_filter_coef_4tap: Horizontal filter coefficients for 8-phase/4-tap
  *			mode (.5x-4x)
  * @v_filter_coef_4tap: Vertical filter coefficients for 8-phase/4-tap
@@ -128,22 +128,22 @@ struct isp_res_device {
 
 struct isp_device;
 
-int ispresizer_init(struct isp_device *isp);
-void ispresizer_cleanup(struct isp_device *isp);
+int omap3isp_resizer_init(struct isp_device *isp);
+void omap3isp_resizer_cleanup(struct isp_device *isp);
 
-int ispresizer_register_entities(struct isp_res_device *res,
+int omap3isp_resizer_register_entities(struct isp_res_device *res,
 				       struct v4l2_device *vdev);
-void ispresizer_unregister_entities(struct isp_res_device *res);
-void ispresizer_isr_frame_sync(struct isp_res_device *res);
-void ispresizer_isr(struct isp_res_device *isp_res);
+void omap3isp_resizer_unregister_entities(struct isp_res_device *res);
+void omap3isp_resizer_isr_frame_sync(struct isp_res_device *res);
+void omap3isp_resizer_isr(struct isp_res_device *isp_res);
 
-void ispresizer_max_rate(struct isp_res_device *res,
+void omap3isp_resizer_max_rate(struct isp_res_device *res,
 			       unsigned int *max_rate);
 
-void ispresizer_suspend(struct isp_res_device *isp_res);
+void omap3isp_resizer_suspend(struct isp_res_device *isp_res);
 
-void ispresizer_resume(struct isp_res_device *isp_res);
+void omap3isp_resizer_resume(struct isp_res_device *isp_res);
 
-int ispresizer_busy(struct isp_res_device *isp_res);
+int omap3isp_resizer_busy(struct isp_res_device *isp_res);
 
 #endif	/* OMAP3_ISP_RESIZER_H */

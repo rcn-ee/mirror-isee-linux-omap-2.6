@@ -72,13 +72,13 @@
 	} while (0)
 
 /*
- * ispccp2_print_status - Print current CCP2 module register values.
+ * ccp2_print_status - Print current CCP2 module register values.
  */
 #define CCP2_PRINT_REGISTER(isp, name)\
 	dev_dbg(isp->dev, "###CCP2 " #name "=0x%08x\n", \
 		isp_reg_readl(isp, OMAP3_ISP_IOMEM_CCP2, ISPCCP2_##name))
 
-static void ispccp2_print_status(struct isp_ccp2_device *ccp2)
+static void ccp2_print_status(struct isp_ccp2_device *ccp2)
 {
 	struct isp_device *isp = to_isp_device(ccp2);
 
@@ -117,10 +117,10 @@ static void ispccp2_print_status(struct isp_ccp2_device *ccp2)
 }
 
 /*
- * ispccp2_reset - Reset the CCP2
+ * ccp2_reset - Reset the CCP2
  * @ccp2: pointer to ISP CCP2 device
  */
-static void ispccp2_reset(struct isp_ccp2_device *ccp2)
+static void ccp2_reset(struct isp_ccp2_device *ccp2)
 {
 	struct isp_device *isp = to_isp_device(ccp2);
 	int i = 0;
@@ -140,10 +140,10 @@ static void ispccp2_reset(struct isp_ccp2_device *ccp2)
 }
 
 /*
- * ispccp2_pwr_cfg - Configure the power mode settings
+ * ccp2_pwr_cfg - Configure the power mode settings
  * @ccp2: pointer to ISP CCP2 device
  */
-static void ispccp2_pwr_cfg(struct isp_ccp2_device *ccp2)
+static void ccp2_pwr_cfg(struct isp_ccp2_device *ccp2)
 {
 	struct isp_device *isp = to_isp_device(ccp2);
 
@@ -154,17 +154,21 @@ static void ispccp2_pwr_cfg(struct isp_ccp2_device *ccp2)
 }
 
 /*
- * ispccp2_if_enable - Enable CCP2 interface.
+ * ccp2_if_enable - Enable CCP2 interface.
  * @ccp2: pointer to ISP CCP2 device
  * @enable: enable/disable flag
  */
-static void ispccp2_if_enable(struct isp_ccp2_device *ccp2, u8 enable)
+static int ccp2_if_enable(struct isp_ccp2_device *ccp2, u8 enable)
 {
 	struct isp_device *isp = to_isp_device(ccp2);
+	int ret;
 	int i;
 
-	if (enable && ccp2->vdds_csib)
-		regulator_enable(ccp2->vdds_csib);
+	if (enable && ccp2->vdds_csib) {
+		ret = regulator_enable(ccp2->vdds_csib);
+		if (ret < 0)
+			return ret;
+	}
 
 	/* Enable/Disable all the LCx channels */
 	for (i = 0; i < CCP2_LCx_CHANS_NUM; i++)
@@ -179,19 +183,21 @@ static void ispccp2_if_enable(struct isp_ccp2_device *ccp2, u8 enable)
 
 	if (!enable && ccp2->vdds_csib)
 		regulator_disable(ccp2->vdds_csib);
+
+	return 0;
 }
 
 /*
- * ispccp2_mem_enable - Enable CCP2 memory interface.
+ * ccp2_mem_enable - Enable CCP2 memory interface.
  * @ccp2: pointer to ISP CCP2 device
  * @enable: enable/disable flag
  */
-static void ispccp2_mem_enable(struct isp_ccp2_device *ccp2, u8 enable)
+static void ccp2_mem_enable(struct isp_ccp2_device *ccp2, u8 enable)
 {
 	struct isp_device *isp = to_isp_device(ccp2);
 
 	if (enable)
-		ispccp2_if_enable(ccp2, 0);
+		ccp2_if_enable(ccp2, 0);
 
 	/* Enable/Disable ccp2 interface in ccp2 mode */
 	isp_reg_clr_set(isp, OMAP3_ISP_IOMEM_CCP2, ISPCCP2_CTRL,
@@ -203,16 +209,16 @@ static void ispccp2_mem_enable(struct isp_ccp2_device *ccp2, u8 enable)
 }
 
 /*
- * ispccp2_phyif_config - Initialize CCP2 phy interface config
+ * ccp2_phyif_config - Initialize CCP2 phy interface config
  * @ccp2: Pointer to ISP CCP2 device
- * @config: CCP2 platform data
+ * @pdata: CCP2 platform data
  *
  * Configure the CCP2 physical interface module from platform data.
  *
  * Returns -EIO if strobe is chosen in CSI1 mode, or 0 on success.
  */
-static int ispccp2_phyif_config(struct isp_ccp2_device *ccp2,
-				const struct isp_ccp2_platform_data *pdata)
+static int ccp2_phyif_config(struct isp_ccp2_device *ccp2,
+			     const struct isp_ccp2_platform_data *pdata)
 {
 	struct isp_device *isp = to_isp_device(ccp2);
 	u32 val;
@@ -240,7 +246,7 @@ static int ispccp2_phyif_config(struct isp_ccp2_device *ccp2,
 }
 
 /*
- * ispccp2_vp_config - Initialize CCP2 video port interface.
+ * ccp2_vp_config - Initialize CCP2 video port interface.
  * @ccp2: Pointer to ISP CCP2 device
  * @vpclk_div: Video port divisor
  *
@@ -253,8 +259,8 @@ static int ispccp2_phyif_config(struct isp_ccp2_device *ccp2,
  * The exact divisor value used might differ from the requested value, as ISP
  * revision 15.0 represent the divisor by 65536 divided by an integer.
  */
-static void ispccp2_vp_config(struct isp_ccp2_device *ccp2,
-			      unsigned int vpclk_div)
+static void ccp2_vp_config(struct isp_ccp2_device *ccp2,
+			   unsigned int vpclk_div)
 {
 	struct isp_device *isp = to_isp_device(ccp2);
 	u32 val;
@@ -278,7 +284,7 @@ static void ispccp2_vp_config(struct isp_ccp2_device *ccp2,
 }
 
 /*
- * ispccp2_lcx_config - Initialize CCP2 logical channel interface.
+ * ccp2_lcx_config - Initialize CCP2 logical channel interface.
  * @ccp2: Pointer to ISP CCP2 device
  * @config: Pointer to ISP LCx config structure.
  *
@@ -286,8 +292,8 @@ static void ispccp2_vp_config(struct isp_ccp2_device *ccp2,
  * and configure CSI1/CCP2 logical channel
  *
  */
-static void ispccp2_lcx_config(struct isp_ccp2_device *ccp2,
-			       struct isp_interface_lcx_config *config)
+static void ccp2_lcx_config(struct isp_ccp2_device *ccp2,
+			    struct isp_interface_lcx_config *config)
 {
 	struct isp_device *isp = to_isp_device(ccp2);
 	u32 val, format;
@@ -344,12 +350,12 @@ static void ispccp2_lcx_config(struct isp_ccp2_device *ccp2,
 }
 
 /*
- * ispccp2_if_configure - Configure ccp2 with data from sensor
+ * ccp2_if_configure - Configure ccp2 with data from sensor
  * @ccp2: Pointer to ISP CCP2 device
  *
  * Return 0 on success or a negative error code
  */
-static int ispccp2_if_configure(struct isp_ccp2_device *ccp2)
+static int ccp2_if_configure(struct isp_ccp2_device *ccp2)
 {
 	const struct isp_v4l2_subdevs_group *pdata;
 	struct v4l2_mbus_framefmt *format;
@@ -358,17 +364,17 @@ static int ispccp2_if_configure(struct isp_ccp2_device *ccp2)
 	u32 lines = 0;
 	int ret;
 
-	ispccp2_pwr_cfg(ccp2);
+	ccp2_pwr_cfg(ccp2);
 
 	pad = media_entity_remote_source(&ccp2->pads[CCP2_PAD_SINK]);
 	sensor = media_entity_to_v4l2_subdev(pad->entity);
 	pdata = sensor->host_priv;
 
-	ret = ispccp2_phyif_config(ccp2, &pdata->bus.ccp2);
+	ret = ccp2_phyif_config(ccp2, &pdata->bus.ccp2);
 	if (ret < 0)
 		return ret;
 
-	ispccp2_vp_config(ccp2, pdata->bus.ccp2.vpclk_div + 1);
+	ccp2_vp_config(ccp2, pdata->bus.ccp2.vpclk_div + 1);
 
 	v4l2_subdev_call(sensor, sensor, g_skip_top_lines, &lines);
 
@@ -379,12 +385,12 @@ static int ispccp2_if_configure(struct isp_ccp2_device *ccp2)
 	ccp2->if_cfg.format = format->code;
 	ccp2->if_cfg.data_size = format->height;
 
-	ispccp2_lcx_config(ccp2, &ccp2->if_cfg);
+	ccp2_lcx_config(ccp2, &ccp2->if_cfg);
 
 	return 0;
 }
 
-static int ispccp2_adjust_bandwidth(struct isp_ccp2_device *ccp2)
+static int ccp2_adjust_bandwidth(struct isp_ccp2_device *ccp2)
 {
 	struct isp_pipeline *pipe = to_isp_pipeline(&ccp2->subdev.entity);
 	struct isp_device *isp = to_isp_device(ccp2);
@@ -424,7 +430,7 @@ static int ispccp2_adjust_bandwidth(struct isp_ccp2_device *ccp2)
 }
 
 /*
- * ispccp2_mem_configure - Initialize CCP2 memory input/output interface
+ * ccp2_mem_configure - Initialize CCP2 memory input/output interface
  * @ccp2: Pointer to ISP CCP2 device
  * @config: Pointer to ISP mem interface config structure
  *
@@ -432,8 +438,8 @@ static int ispccp2_adjust_bandwidth(struct isp_ccp2_device *ccp2)
  * structure, and configure the respective registers for proper
  * CSI1/CCP2 memory input.
  */
-static void ispccp2_mem_configure(struct isp_ccp2_device *ccp2,
-				  struct isp_interface_mem_config *config)
+static void ccp2_mem_configure(struct isp_ccp2_device *ccp2,
+			       struct isp_interface_mem_config *config)
 {
 	struct isp_device *isp = to_isp_device(ccp2);
 	u32 sink_pixcode = ccp2->formats[CCP2_PAD_SINK].code;
@@ -445,7 +451,7 @@ static void ispccp2_mem_configure(struct isp_ccp2_device *ccp2,
 	    sink_pixcode == V4L2_MBUS_FMT_SGRBG10_DPCM8_1X8)
 		dpcm_decompress = 1;
 
-	ispccp2_pwr_cfg(ccp2);
+	ccp2_pwr_cfg(ccp2);
 
 	/* Hsize, Skip */
 	isp_reg_writel(isp, ISPCCP2_LCM_HSIZE_SKIP_MIN |
@@ -505,27 +511,27 @@ static void ispccp2_mem_configure(struct isp_ccp2_device *ccp2,
 	/* Video port */
 	isp_reg_set(isp, OMAP3_ISP_IOMEM_CCP2, ISPCCP2_CTRL,
 		    ISPCCP2_CTRL_IO_OUT_SEL | ISPCCP2_CTRL_MODE);
-	ispccp2_vp_config(ccp2, ispccp2_adjust_bandwidth(ccp2));
+	ccp2_vp_config(ccp2, ccp2_adjust_bandwidth(ccp2));
 
 	/* Clear LCM interrupts */
 	isp_reg_writel(isp, ISPCCP2_LCM_IRQSTATUS_OCPERROR_IRQ |
 		       ISPCCP2_LCM_IRQSTATUS_EOF_IRQ,
 		       OMAP3_ISP_IOMEM_CCP2, ISPCCP2_LCM_IRQSTATUS);
 
-	/* Enable LCM interupts */
+	/* Enable LCM interrupts */
 	isp_reg_set(isp, OMAP3_ISP_IOMEM_CCP2, ISPCCP2_LCM_IRQENABLE,
 		    ISPCCP2_LCM_IRQSTATUS_EOF_IRQ |
 		    ISPCCP2_LCM_IRQSTATUS_OCPERROR_IRQ);
 }
 
 /*
- * ispccp2_set_inaddr - Sets memory address of input frame.
+ * ccp2_set_inaddr - Sets memory address of input frame.
  * @ccp2: Pointer to ISP CCP2 device
  * @addr: 32bit memory address aligned on 32byte boundary.
  *
  * Configures the memory address from which the input frame is to be read.
  */
-static void ispccp2_set_inaddr(struct isp_ccp2_device *ccp2, u32 addr)
+static void ccp2_set_inaddr(struct isp_ccp2_device *ccp2, u32 addr)
 {
 	struct isp_device *isp = to_isp_device(ccp2);
 
@@ -536,31 +542,31 @@ static void ispccp2_set_inaddr(struct isp_ccp2_device *ccp2, u32 addr)
  * Interrupt handling
  */
 
-static void ispccp2_isr_buffer(struct isp_ccp2_device *ccp2)
+static void ccp2_isr_buffer(struct isp_ccp2_device *ccp2)
 {
 	struct isp_pipeline *pipe = to_isp_pipeline(&ccp2->subdev.entity);
 	struct isp_buffer *buffer;
 
-	buffer = isp_video_buffer_next(&ccp2->video_in);
+	buffer = omap3isp_video_buffer_next(&ccp2->video_in);
 	if (buffer != NULL)
-		ispccp2_set_inaddr(ccp2, buffer->isp_addr);
+		ccp2_set_inaddr(ccp2, buffer->isp_addr);
 
 	pipe->state |= ISP_PIPELINE_IDLE_INPUT;
 
 	if (ccp2->state == ISP_PIPELINE_STREAM_SINGLESHOT) {
 		if (isp_pipeline_ready(pipe))
-			isp_pipeline_set_stream(pipe,
+			omap3isp_pipeline_set_stream(pipe,
 						ISP_PIPELINE_STREAM_SINGLESHOT);
 	}
 }
 
 /*
- * ispccp2_isr - Handle ISP CCP2 interrupts
+ * omap3isp_ccp2_isr - Handle ISP CCP2 interrupts
  * @ccp2: Pointer to ISP CCP2 device
  *
  * This will handle the CCP2 interrupts
  */
-void ispccp2_isr(struct isp_ccp2_device *ccp2)
+void omap3isp_ccp2_isr(struct isp_ccp2_device *ccp2)
 {
 	struct isp_pipeline *pipe = to_isp_pipeline(&ccp2->subdev.entity);
 	struct isp_device *isp = to_isp_device(ccp2);
@@ -595,14 +601,12 @@ void ispccp2_isr(struct isp_ccp2_device *ccp2)
 		dev_dbg(isp->dev, "CCP2 OCP err:%x\n", lcm_irqstatus);
 	}
 
-	if (isp_module_sync_is_stopping(&ccp2->wait, &ccp2->stopping))
+	if (omap3isp_module_sync_is_stopping(&ccp2->wait, &ccp2->stopping))
 		return;
 
 	/* Handle queued buffers on frame end interrupts */
 	if (lcm_irqstatus & ISPCCP2_LCM_IRQSTATUS_EOF_IRQ)
-		ispccp2_isr_buffer(ccp2);
-
-	return;
+		ccp2_isr_buffer(ccp2);
 }
 
 /* -----------------------------------------------------------------------------
@@ -615,7 +619,7 @@ static const unsigned int ccp2_fmts[] = {
 };
 
 /*
- * __ispccp2_get_format - helper function for getting ccp2 format
+ * __ccp2_get_format - helper function for getting ccp2 format
  * @ccp2  : Pointer to ISP CCP2 device
  * @fh    : V4L2 subdev file handle
  * @pad   : pad number
@@ -623,7 +627,7 @@ static const unsigned int ccp2_fmts[] = {
  * return format structure or NULL on error
  */
 static struct v4l2_mbus_framefmt *
-__ispccp2_get_format(struct isp_ccp2_device *ccp2, struct v4l2_subdev_fh *fh,
+__ccp2_get_format(struct isp_ccp2_device *ccp2, struct v4l2_subdev_fh *fh,
 		     unsigned int pad, enum v4l2_subdev_format_whence which)
 {
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
@@ -633,14 +637,14 @@ __ispccp2_get_format(struct isp_ccp2_device *ccp2, struct v4l2_subdev_fh *fh,
 }
 
 /*
- * ispccp2_try_format - Handle try format by pad subdev method
+ * ccp2_try_format - Handle try format by pad subdev method
  * @ccp2  : Pointer to ISP CCP2 device
  * @fh    : V4L2 subdev file handle
  * @pad   : pad num
  * @fmt   : pointer to v4l2 mbus format structure
  * @which : wanted subdev format
  */
-static void ispccp2_try_format(struct isp_ccp2_device *ccp2,
+static void ccp2_try_format(struct isp_ccp2_device *ccp2,
 			       struct v4l2_subdev_fh *fh, unsigned int pad,
 			       struct v4l2_mbus_framefmt *fmt,
 			       enum v4l2_subdev_format_whence which)
@@ -675,7 +679,7 @@ static void ispccp2_try_format(struct isp_ccp2_device *ccp2,
 		 * When CCP2 write to memory feature will be added this
 		 * should be changed properly.
 		 */
-		format = __ispccp2_get_format(ccp2, fh, CCP2_PAD_SINK, which);
+		format = __ccp2_get_format(ccp2, fh, CCP2_PAD_SINK, which);
 		memcpy(fmt, format, sizeof(*fmt));
 		fmt->code = V4L2_MBUS_FMT_SGRBG10_1X10;
 		break;
@@ -686,13 +690,13 @@ static void ispccp2_try_format(struct isp_ccp2_device *ccp2,
 }
 
 /*
- * ispccp2_enum_mbus_code - Handle pixel format enumeration
+ * ccp2_enum_mbus_code - Handle pixel format enumeration
  * @sd     : pointer to v4l2 subdev structure
  * @fh     : V4L2 subdev file handle
  * @code   : pointer to v4l2_subdev_mbus_code_enum structure
  * return -EINVAL or zero on success
  */
-static int ispccp2_enum_mbus_code(struct v4l2_subdev *sd,
+static int ccp2_enum_mbus_code(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_fh *fh,
 				  struct v4l2_subdev_mbus_code_enum *code)
 {
@@ -708,7 +712,7 @@ static int ispccp2_enum_mbus_code(struct v4l2_subdev *sd,
 		if (code->index != 0)
 			return -EINVAL;
 
-		format = __ispccp2_get_format(ccp2, fh, CCP2_PAD_SINK,
+		format = __ccp2_get_format(ccp2, fh, CCP2_PAD_SINK,
 					      V4L2_SUBDEV_FORMAT_TRY);
 		code->code = format->code;
 	}
@@ -716,7 +720,7 @@ static int ispccp2_enum_mbus_code(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int ispccp2_enum_frame_size(struct v4l2_subdev *sd,
+static int ccp2_enum_frame_size(struct v4l2_subdev *sd,
 				   struct v4l2_subdev_fh *fh,
 				   struct v4l2_subdev_frame_size_enum *fse)
 {
@@ -729,7 +733,7 @@ static int ispccp2_enum_frame_size(struct v4l2_subdev *sd,
 	format.code = fse->code;
 	format.width = 1;
 	format.height = 1;
-	ispccp2_try_format(ccp2, fh, fse->pad, &format, V4L2_SUBDEV_FORMAT_TRY);
+	ccp2_try_format(ccp2, fh, fse->pad, &format, V4L2_SUBDEV_FORMAT_TRY);
 	fse->min_width = format.width;
 	fse->min_height = format.height;
 
@@ -739,7 +743,7 @@ static int ispccp2_enum_frame_size(struct v4l2_subdev *sd,
 	format.code = fse->code;
 	format.width = -1;
 	format.height = -1;
-	ispccp2_try_format(ccp2, fh, fse->pad, &format, V4L2_SUBDEV_FORMAT_TRY);
+	ccp2_try_format(ccp2, fh, fse->pad, &format, V4L2_SUBDEV_FORMAT_TRY);
 	fse->max_width = format.width;
 	fse->max_height = format.height;
 
@@ -747,19 +751,19 @@ static int ispccp2_enum_frame_size(struct v4l2_subdev *sd,
 }
 
 /*
- * ispccp2_get_format - Handle get format by pads subdev method
+ * ccp2_get_format - Handle get format by pads subdev method
  * @sd    : pointer to v4l2 subdev structure
  * @fh    : V4L2 subdev file handle
  * @fmt   : pointer to v4l2 subdev format structure
  * return -EINVAL or zero on success
  */
-static int ispccp2_get_format(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
+static int ccp2_get_format(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
 			      struct v4l2_subdev_format *fmt)
 {
 	struct isp_ccp2_device *ccp2 = v4l2_get_subdevdata(sd);
 	struct v4l2_mbus_framefmt *format;
 
-	format = __ispccp2_get_format(ccp2, fh, fmt->pad, fmt->which);
+	format = __ccp2_get_format(ccp2, fh, fmt->pad, fmt->which);
 	if (format == NULL)
 		return -EINVAL;
 
@@ -768,39 +772,38 @@ static int ispccp2_get_format(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
 }
 
 /*
- * ispccp2_set_format - Handle set format by pads subdev method
+ * ccp2_set_format - Handle set format by pads subdev method
  * @sd    : pointer to v4l2 subdev structure
  * @fh    : V4L2 subdev file handle
  * @fmt   : pointer to v4l2 subdev format structure
  * returns zero
  */
-static int ispccp2_set_format(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
+static int ccp2_set_format(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
 			      struct v4l2_subdev_format *fmt)
 {
 	struct isp_ccp2_device *ccp2 = v4l2_get_subdevdata(sd);
 	struct v4l2_mbus_framefmt *format;
 
-	format = __ispccp2_get_format(ccp2, fh, fmt->pad, fmt->which);
+	format = __ccp2_get_format(ccp2, fh, fmt->pad, fmt->which);
 	if (format == NULL)
 		return -EINVAL;
 
-	ispccp2_try_format(ccp2, fh, fmt->pad, &fmt->format, fmt->which);
+	ccp2_try_format(ccp2, fh, fmt->pad, &fmt->format, fmt->which);
 	*format = fmt->format;
 
 	/* Propagate the format from sink to source */
 	if (fmt->pad == CCP2_PAD_SINK) {
-		format = __ispccp2_get_format(ccp2, fh, CCP2_PAD_SOURCE,
-					      fmt->which);
+		format = __ccp2_get_format(ccp2, fh, CCP2_PAD_SOURCE,
+					   fmt->which);
 		*format = fmt->format;
-		ispccp2_try_format(ccp2, fh, CCP2_PAD_SOURCE, format,
-				   fmt->which);
+		ccp2_try_format(ccp2, fh, CCP2_PAD_SOURCE, format, fmt->which);
 	}
 
 	return 0;
 }
 
 /*
- * ispccp2_init_formats - Initialize formats on all pads
+ * ccp2_init_formats - Initialize formats on all pads
  * @sd: ISP CCP2 V4L2 subdevice
  * @fh: V4L2 subdev file handle
  *
@@ -808,8 +811,7 @@ static int ispccp2_set_format(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
  * formats are initialized on the file handle. Otherwise active formats are
  * initialized on the device.
  */
-static int ispccp2_init_formats(struct v4l2_subdev *sd,
-				struct v4l2_subdev_fh *fh)
+static int ccp2_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct v4l2_subdev_format format;
 
@@ -819,18 +821,18 @@ static int ispccp2_init_formats(struct v4l2_subdev *sd,
 	format.format.code = V4L2_MBUS_FMT_SGRBG10_1X10;
 	format.format.width = 4096;
 	format.format.height = 4096;
-	ispccp2_set_format(sd, fh, &format);
+	ccp2_set_format(sd, fh, &format);
 
 	return 0;
 }
 
 /*
- * ispccp2_s_stream - Enable/Disable streaming on ccp2 subdev
+ * ccp2_s_stream - Enable/Disable streaming on ccp2 subdev
  * @sd    : pointer to v4l2 subdev structure
  * @enable: 1 == Enable, 0 == Disable
  * return zero
  */
-static int ispccp2_s_stream(struct v4l2_subdev *sd, int enable)
+static int ccp2_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct isp_ccp2_device *ccp2 = v4l2_get_subdevdata(sd);
 	struct isp_device *isp = to_isp_device(ccp2);
@@ -846,16 +848,21 @@ static int ispccp2_s_stream(struct v4l2_subdev *sd, int enable)
 	switch (enable) {
 	case ISP_PIPELINE_STREAM_CONTINUOUS:
 		if (ccp2->phy) {
-			ret = ispcsiphy_acquire(ccp2->phy);
+			ret = omap3isp_csiphy_acquire(ccp2->phy);
 			if (ret < 0)
 				return ret;
 		}
 
-		ispccp2_if_configure(ccp2);
-		ispccp2_print_status(ccp2);
+		ccp2_if_configure(ccp2);
+		ccp2_print_status(ccp2);
 
 		/* Enable CSI1/CCP2 interface */
-		ispccp2_if_enable(ccp2, 1);
+		ret = ccp2_if_enable(ccp2, 1);
+		if (ret < 0) {
+			if (ccp2->phy)
+				omap3isp_csiphy_release(ccp2->phy);
+			return ret;
+		}
 		break;
 
 	case ISP_PIPELINE_STREAM_SINGLESHOT:
@@ -868,25 +875,25 @@ static int ispccp2_s_stream(struct v4l2_subdev *sd, int enable)
 			ccp2->mem_cfg.vsize_count = format->height;
 			ccp2->mem_cfg.src_ofst = 0;
 
-			ispccp2_mem_configure(ccp2, &ccp2->mem_cfg);
-			isp_sbl_enable(isp, OMAP3_ISP_SBL_CSI1_READ);
-			ispccp2_print_status(ccp2);
+			ccp2_mem_configure(ccp2, &ccp2->mem_cfg);
+			omap3isp_sbl_enable(isp, OMAP3_ISP_SBL_CSI1_READ);
+			ccp2_print_status(ccp2);
 		}
-		ispccp2_mem_enable(ccp2, 1);
+		ccp2_mem_enable(ccp2, 1);
 		break;
 
 	case ISP_PIPELINE_STREAM_STOPPED:
-		if (isp_module_sync_idle(&sd->entity, &ccp2->wait,
-					 &ccp2->stopping))
+		if (omap3isp_module_sync_idle(&sd->entity, &ccp2->wait,
+					      &ccp2->stopping))
 			dev_dbg(dev, "%s: module stop timeout.\n", sd->name);
 		if (ccp2->input == CCP2_INPUT_MEMORY) {
-			ispccp2_mem_enable(ccp2, 0);
-			isp_sbl_disable(isp, OMAP3_ISP_SBL_CSI1_READ);
+			ccp2_mem_enable(ccp2, 0);
+			omap3isp_sbl_disable(isp, OMAP3_ISP_SBL_CSI1_READ);
 		} else if (ccp2->input == CCP2_INPUT_SENSOR) {
 			/* Disable CSI1/CCP2 interface */
-			ispccp2_if_enable(ccp2, 0);
+			ccp2_if_enable(ccp2, 0);
 			if (ccp2->phy)
-				ispcsiphy_release(ccp2->phy);
+				omap3isp_csiphy_release(ccp2->phy);
 		}
 		break;
 	}
@@ -908,28 +915,28 @@ static const struct v4l2_subdev_core_ops ispccp2_sd_core_ops = {
 
 /* subdev file operations */
 static const struct v4l2_subdev_file_ops ispccp2_sd_file_ops = {
-	.open = ispccp2_init_formats,
+	.open = ccp2_init_formats,
 };
 
 /* subdev video operations */
-static const struct v4l2_subdev_video_ops ispccp2_sd_video_ops = {
-	.s_stream = ispccp2_s_stream,
+static const struct v4l2_subdev_video_ops ccp2_sd_video_ops = {
+	.s_stream = ccp2_s_stream,
 };
 
 /* subdev pad operations */
-static const struct v4l2_subdev_pad_ops ispccp2_sd_pad_ops = {
-	.enum_mbus_code = ispccp2_enum_mbus_code,
-	.enum_frame_size = ispccp2_enum_frame_size,
-	.get_fmt = ispccp2_get_format,
-	.set_fmt = ispccp2_set_format,
+static const struct v4l2_subdev_pad_ops ccp2_sd_pad_ops = {
+	.enum_mbus_code = ccp2_enum_mbus_code,
+	.enum_frame_size = ccp2_enum_frame_size,
+	.get_fmt = ccp2_get_format,
+	.set_fmt = ccp2_set_format,
 };
 
 /* subdev operations */
-static const struct v4l2_subdev_ops ispccp2_sd_ops = {
+static const struct v4l2_subdev_ops ccp2_sd_ops = {
 	.core = &ispccp2_sd_core_ops,
 	.file = &ispccp2_sd_file_ops,
-	.video = &ispccp2_sd_video_ops,
-	.pad = &ispccp2_sd_pad_ops,
+	.video = &ccp2_sd_video_ops,
+	.pad = &ccp2_sd_pad_ops,
 };
 
 /* --------------------------------------------------------------------------
@@ -937,22 +944,21 @@ static const struct v4l2_subdev_ops ispccp2_sd_ops = {
  */
 
 /*
- * ispccp2_video_queue - Queue video buffer.
+ * ccp2_video_queue - Queue video buffer.
  * @video : Pointer to isp video structure
  * @buffer: Pointer to isp_buffer structure
  * return -EIO or zero on success
  */
-static int
-ispccp2_video_queue(struct isp_video *video, struct isp_buffer *buffer)
+static int ccp2_video_queue(struct isp_video *video, struct isp_buffer *buffer)
 {
 	struct isp_ccp2_device *ccp2 = &video->isp->isp_ccp2;
 
-	ispccp2_set_inaddr(ccp2, buffer->isp_addr);
+	ccp2_set_inaddr(ccp2, buffer->isp_addr);
 	return 0;
 }
 
-static const struct isp_video_operations ispccp2_video_ops = {
-	.queue = ispccp2_video_queue,
+static const struct isp_video_operations ccp2_video_ops = {
+	.queue = ccp2_video_queue,
 };
 
 /* -----------------------------------------------------------------------------
@@ -960,16 +966,16 @@ static const struct isp_video_operations ispccp2_video_ops = {
  */
 
 /*
- * ispccp2_link_setup - Setup ccp2 connections.
+ * ccp2_link_setup - Setup ccp2 connections.
  * @entity : Pointer to media entity structure
  * @local  : Pointer to local pad array
  * @remote : Pointer to remote pad array
  * @flags  : Link flags
  * return -EINVAL on error or zero on success
  */
-static int ispccp2_link_setup(struct media_entity *entity,
-			const struct media_pad *local,
-			const struct media_pad *remote, u32 flags)
+static int ccp2_link_setup(struct media_entity *entity,
+			   const struct media_pad *local,
+			   const struct media_pad *remote, u32 flags)
 {
 	struct v4l2_subdev *sd = media_entity_to_v4l2_subdev(entity);
 	struct isp_ccp2_device *ccp2 = v4l2_get_subdevdata(sd);
@@ -1015,15 +1021,60 @@ static int ispccp2_link_setup(struct media_entity *entity,
 
 /* media operations */
 static const struct media_entity_operations ccp2_media_ops = {
-	.link_setup = ispccp2_link_setup,
+	.link_setup = ccp2_link_setup,
 };
 
 /*
- * ispccp2_init_entities - Initialize ccp2 subdev and media entity.
+ * omap3isp_ccp2_unregister_entities - Unregister media entities: subdev
+ * @ccp2: Pointer to ISP CCP2 device
+ */
+void omap3isp_ccp2_unregister_entities(struct isp_ccp2_device *ccp2)
+{
+	media_entity_cleanup(&ccp2->subdev.entity);
+
+	v4l2_device_unregister_subdev(&ccp2->subdev);
+	v4l2_ctrl_handler_free(&ccp2->ctrls);
+	omap3isp_video_unregister(&ccp2->video_in);
+}
+
+/*
+ * omap3isp_ccp2_register_entities - Register the subdev media entity
+ * @ccp2: Pointer to ISP CCP2 device
+ * @vdev: Pointer to v4l device
+ * return negative error code or zero on success
+ */
+
+int omap3isp_ccp2_register_entities(struct isp_ccp2_device *ccp2,
+				    struct v4l2_device *vdev)
+{
+	int ret;
+
+	/* Register the subdev and video nodes. */
+	ret = v4l2_device_register_subdev(vdev, &ccp2->subdev);
+	if (ret < 0)
+		goto error;
+
+	ret = omap3isp_video_register(&ccp2->video_in, vdev);
+	if (ret < 0)
+		goto error;
+
+	return 0;
+
+error:
+	omap3isp_ccp2_unregister_entities(ccp2);
+	return ret;
+}
+
+/* -----------------------------------------------------------------------------
+ * ISP ccp2 initialisation and cleanup
+ */
+
+/*
+ * ccp2_init_entities - Initialize ccp2 subdev and media entity.
  * @ccp2: Pointer to ISP CCP2 device
  * return negative error code or zero on success
  */
-static int ispccp2_init_entities(struct isp_ccp2_device *ccp2)
+static int ccp2_init_entities(struct isp_ccp2_device *ccp2)
 {
 	struct v4l2_subdev *sd = &ccp2->subdev;
 	struct media_pad *pads = ccp2->pads;
@@ -1033,7 +1084,7 @@ static int ispccp2_init_entities(struct isp_ccp2_device *ccp2)
 	ccp2->input = CCP2_INPUT_NONE;
 	ccp2->output = CCP2_OUTPUT_NONE;
 
-	v4l2_subdev_init(sd, &ispccp2_sd_ops);
+	v4l2_subdev_init(sd, &ccp2_sd_ops);
 	strlcpy(sd->name, "OMAP3 ISP CCP2", sizeof(sd->name));
 	sd->grp_id = 1 << 16;   /* group ID for isp subdevs */
 	v4l2_set_subdevdata(sd, ccp2);
@@ -1050,7 +1101,7 @@ static int ispccp2_init_entities(struct isp_ccp2_device *ccp2)
 	if (ret < 0)
 		return ret;
 
-	ispccp2_init_formats(sd, NULL);
+	ccp2_init_formats(sd, NULL);
 
 	/*
 	 * The CCP2 has weird line alignment requirements, possibly caused by
@@ -1061,16 +1112,16 @@ static int ispccp2_init_entities(struct isp_ccp2_device *ccp2)
 	 * implementation we use a fixed 32 bytes alignment regardless of the
 	 * input format and width. If strict 128 bits alignment support is
 	 * required ispvideo will need to be made aware of this special dual
-	 * alignement requirements.
+	 * alignment requirements.
 	 */
 	ccp2->video_in.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
 	ccp2->video_in.bpl_alignment = 32;
 	ccp2->video_in.bpl_max = 0xffffffe0;
 	ccp2->video_in.isp = to_isp_device(ccp2);
-	ccp2->video_in.ops = &ispccp2_video_ops;
+	ccp2->video_in.ops = &ccp2_video_ops;
 	ccp2->video_in.capture_mem = PAGE_ALIGN(4096 * 4096) * 3;
 
-	ret = isp_video_init(&ccp2->video_in, "CCP2");
+	ret = omap3isp_video_init(&ccp2->video_in, "CCP2");
 	if (ret < 0)
 		goto error_video;
 
@@ -1083,77 +1134,18 @@ static int ispccp2_init_entities(struct isp_ccp2_device *ccp2)
 	return 0;
 
 error_link:
-	isp_video_cleanup(&ccp2->video_in);
+	omap3isp_video_cleanup(&ccp2->video_in);
 error_video:
 	media_entity_cleanup(&ccp2->subdev.entity);
 	return ret;
 }
 
 /*
- * ispccp2_unregister_entities - Unregister media entities: subdev
- * @ccp2: Pointer to ISP CCP2 device
- */
-void ispccp2_unregister_entities(struct isp_ccp2_device *ccp2)
-{
-	media_entity_cleanup(&ccp2->subdev.entity);
-
-	v4l2_device_unregister_subdev(&ccp2->subdev);
-	v4l2_ctrl_handler_free(&ccp2->ctrls);
-	isp_video_unregister(&ccp2->video_in);
-}
-
-/*
- * ispccp2_register_entities - Register the subdev media entity
- * @ccp2: Pointer to ISP CCP2 device
- * @vdev: Pointer to v4l device
- * return negative error code or zero on success
- */
-
-int ispccp2_register_entities(struct isp_ccp2_device *ccp2,
-			       struct v4l2_device *vdev)
-{
-	int ret;
-
-	/* Register the subdev and video nodes. */
-	ret = v4l2_device_register_subdev(vdev, &ccp2->subdev);
-	if (ret < 0)
-		goto error;
-
-	ret = isp_video_register(&ccp2->video_in, vdev);
-	if (ret < 0)
-		goto error;
-
-	return 0;
-
-error:
-	ispccp2_unregister_entities(ccp2);
-	return ret;
-}
-
-/* -----------------------------------------------------------------------------
- * ISP ccp2 initialisation and cleanup
- */
-
-/*
- * ispccp2_cleanup - CCP2 un-initialization
- * @isp : Pointer to ISP device
- */
-void ispccp2_cleanup(struct isp_device *isp)
-{
-	struct isp_ccp2_device *ccp2 = &isp->isp_ccp2;
-
-	isp_video_cleanup(&ccp2->video_in);
-	media_entity_cleanup(&ccp2->subdev.entity);
-
-	regulator_put(ccp2->vdds_csib);
-}
-
-/*
- * ispccp2_init - CCP2 initialization.
+ * omap3isp_ccp2_init - CCP2 initialization.
  * @isp : Pointer to ISP device
  * return negative error code or zero on success
  */
-int ispccp2_init(struct isp_device *isp)
+int omap3isp_ccp2_init(struct isp_device *isp)
 {
 	struct isp_ccp2_device *ccp2 = &isp->isp_ccp2;
 	int ret;
@@ -1182,13 +1174,26 @@ int ispccp2_init(struct isp_device *isp)
 		ccp2->phy = &isp->isp_csiphy1;
 	}
 
-	ret = ispccp2_init_entities(ccp2);
+	ret = ccp2_init_entities(ccp2);
 	if (ret < 0) {
 		regulator_put(ccp2->vdds_csib);
 		return ret;
 	}
 
-	ispccp2_reset(ccp2);
+	ccp2_reset(ccp2);
 	return 0;
 }
 
+/*
+ * omap3isp_ccp2_cleanup - CCP2 un-initialization
+ * @isp : Pointer to ISP device
+ */
+void omap3isp_ccp2_cleanup(struct isp_device *isp)
+{
+	struct isp_ccp2_device *ccp2 = &isp->isp_ccp2;
+
+	omap3isp_video_cleanup(&ccp2->video_in);
+	media_entity_cleanup(&ccp2->subdev.entity);
+
+	regulator_put(ccp2->vdds_csib);
+}

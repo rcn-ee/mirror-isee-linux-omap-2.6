@@ -36,7 +36,7 @@
 #define IS_OUT_OF_BOUNDS(value, min, max)		\
 	(((value) < (min)) || ((value) > (max)))
 
-static void isph3a_af_setup_regs(struct ispstat *af, void *priv)
+static void h3a_af_setup_regs(struct ispstat *af, void *priv)
 {
 	struct omap3isp_h3a_af_config *conf = priv;
 	u32 pcr;
@@ -138,32 +138,32 @@ static void isph3a_af_setup_regs(struct ispstat *af, void *priv)
 	af->buf_size = conf->buf_size;
 }
 
-static void isph3a_af_enable(struct ispstat *af, int enable)
+static void h3a_af_enable(struct ispstat *af, int enable)
 {
 	if (enable) {
 		isp_reg_set(af->isp, OMAP3_ISP_IOMEM_H3A, ISPH3A_PCR,
 			    ISPH3A_PCR_AF_EN);
-		isp_subclk_enable(af->isp, OMAP3_ISP_SUBCLK_AF);
+		omap3isp_subclk_enable(af->isp, OMAP3_ISP_SUBCLK_AF);
 	} else {
 		isp_reg_clr(af->isp, OMAP3_ISP_IOMEM_H3A, ISPH3A_PCR,
 			    ISPH3A_PCR_AF_EN);
-		isp_subclk_disable(af->isp, OMAP3_ISP_SUBCLK_AF);
+		omap3isp_subclk_disable(af->isp, OMAP3_ISP_SUBCLK_AF);
 	}
 }
 
-static int isph3a_af_busy(struct ispstat *af)
+static int h3a_af_busy(struct ispstat *af)
 {
 	return isp_reg_readl(af->isp, OMAP3_ISP_IOMEM_H3A, ISPH3A_PCR)
 						& ISPH3A_PCR_BUSYAF;
 }
 
-static u32 isph3a_af_get_buf_size(struct omap3isp_h3a_af_config *conf)
+static u32 h3a_af_get_buf_size(struct omap3isp_h3a_af_config *conf)
 {
 	return conf->paxel.h_cnt * conf->paxel.v_cnt * OMAP3ISP_AF_PAXEL_SIZE;
 }
 
 /* Function to check paxel parameters */
-static int isph3a_af_validate_params(struct ispstat *af, void *new_conf)
+static int h3a_af_validate_params(struct ispstat *af, void *new_conf)
 {
 	struct omap3isp_h3a_af_config *user_cfg = new_conf;
 	struct omap3isp_h3a_af_paxel *paxel_cfg = &user_cfg->paxel;
@@ -226,7 +226,7 @@ static int isph3a_af_validate_params(struct ispstat *af, void *new_conf)
 	    (paxel_cfg->width * paxel_cfg->height == 12))
 		return -EINVAL;
 
-	buf_size = isph3a_af_get_buf_size(user_cfg);
+	buf_size = h3a_af_get_buf_size(user_cfg);
 	if (buf_size > user_cfg->buf_size)
 		/* User buf_size request wasn't enough */
 		user_cfg->buf_size = buf_size;
@@ -237,7 +237,7 @@ static int isph3a_af_validate_params(struct ispstat *af, void *new_conf)
 }
 
 /* Update local parameters */
-static void isph3a_af_set_params(struct ispstat *af, void *new_conf)
+static void h3a_af_set_params(struct ispstat *af, void *new_conf)
 {
 	struct omap3isp_h3a_af_config *user_cfg = new_conf;
 	struct omap3isp_h3a_af_config *cur_cfg = af->priv;
@@ -311,22 +311,22 @@ out:
 		 * data during buffer request, let's calculate the size here
 		 * instead of stick with user_cfg->buf_size.
 		 */
-		cur_cfg->buf_size = isph3a_af_get_buf_size(cur_cfg);
+		cur_cfg->buf_size = h3a_af_get_buf_size(cur_cfg);
 	}
 }
 
-static long isph3a_af_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+static long h3a_af_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct ispstat *stat = v4l2_get_subdevdata(sd);
 
 	switch (cmd) {
 	case VIDIOC_OMAP3ISP_AF_CFG:
-		return ispstat_config(stat, arg);
+		return omap3isp_stat_config(stat, arg);
 	case VIDIOC_OMAP3ISP_STAT_REQ:
-		return ispstat_request_statistics(stat, arg);
+		return omap3isp_stat_request_statistics(stat, arg);
 	case VIDIOC_OMAP3ISP_STAT_EN: {
 		int *en = arg;
-		return ispstat_enable(stat, !!*en);
+		return omap3isp_stat_enable(stat, !!*en);
 	}
 	}
 
@@ -334,31 +334,31 @@ static long isph3a_af_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 
 }
 
-static const struct ispstat_ops isph3a_af_ops = {
-	.validate_params	= isph3a_af_validate_params,
-	.set_params		= isph3a_af_set_params,
-	.setup_regs		= isph3a_af_setup_regs,
-	.enable			= isph3a_af_enable,
-	.busy			= isph3a_af_busy,
+static const struct ispstat_ops h3a_af_ops = {
+	.validate_params	= h3a_af_validate_params,
+	.set_params		= h3a_af_set_params,
+	.setup_regs		= h3a_af_setup_regs,
+	.enable			= h3a_af_enable,
+	.busy			= h3a_af_busy,
 };
 
-static const struct v4l2_subdev_core_ops isph3a_af_subdev_core_ops = {
-	.ioctl = isph3a_af_ioctl,
-	.subscribe_event = ispstat_subscribe_event,
-	.unsubscribe_event = ispstat_unsubscribe_event,
+static const struct v4l2_subdev_core_ops h3a_af_subdev_core_ops = {
+	.ioctl = h3a_af_ioctl,
+	.subscribe_event = omap3isp_stat_subscribe_event,
+	.unsubscribe_event = omap3isp_stat_unsubscribe_event,
 };
 
-static const struct v4l2_subdev_video_ops isph3a_af_subdev_video_ops = {
-	.s_stream = ispstat_s_stream,
+static const struct v4l2_subdev_video_ops h3a_af_subdev_video_ops = {
+	.s_stream = omap3isp_stat_s_stream,
 };
 
-static const struct v4l2_subdev_ops isph3a_af_subdev_ops = {
-	.core = &isph3a_af_subdev_core_ops,
-	.video = &isph3a_af_subdev_video_ops,
+static const struct v4l2_subdev_ops h3a_af_subdev_ops = {
+	.core = &h3a_af_subdev_core_ops,
+	.video = &h3a_af_subdev_video_ops,
 };
 
 /* Function to register the AF character device driver. */
-int isph3a_af_init(struct isp_device *isp)
+int omap3isp_h3a_af_init(struct isp_device *isp)
 {
 	struct ispstat *af = &isp->isp_af;
 	struct omap3isp_h3a_af_config *af_cfg;
@@ -370,7 +370,7 @@ int isph3a_af_init(struct isp_device *isp)
 		return -ENOMEM;
 
 	memset(af, 0, sizeof(*af));
-	af->ops = &isph3a_af_ops;
+	af->ops = &h3a_af_ops;
 	af->priv = af_cfg;
 	af->dma_ch = -1;
 	af->event_type = V4L2_EVENT_OMAP3ISP_AF;
@@ -391,17 +391,17 @@ int isph3a_af_init(struct isp_device *isp)
 	af_recover_cfg->paxel.h_cnt = OMAP3ISP_AF_PAXEL_HORIZONTAL_COUNT_MIN;
 	af_recover_cfg->paxel.v_cnt = OMAP3ISP_AF_PAXEL_VERTICAL_COUNT_MIN;
 	af_recover_cfg->paxel.line_inc = OMAP3ISP_AF_PAXEL_INCREMENT_MIN;
-	if (isph3a_af_validate_params(af, af_recover_cfg)) {
+	if (h3a_af_validate_params(af, af_recover_cfg)) {
 		dev_err(af->isp->dev, "AF: recover configuration is "
 				      "invalid.\n");
 		ret = -EINVAL;
 		goto err_conf;
 	}
 
-	af_recover_cfg->buf_size = isph3a_af_get_buf_size(af_recover_cfg);
+	af_recover_cfg->buf_size = h3a_af_get_buf_size(af_recover_cfg);
 	af->recover_priv = af_recover_cfg;
 
-	ret = ispstat_init(af, "AF", &isph3a_af_subdev_ops);
+	ret = omap3isp_stat_init(af, "AF", &h3a_af_subdev_ops);
 	if (ret)
 		goto err_conf;
 
@@ -415,9 +415,9 @@ err_recover_alloc:
 	return ret;
 }
 
-void isph3a_af_cleanup(struct isp_device *isp)
+void omap3isp_h3a_af_cleanup(struct isp_device *isp)
 {
 	kfree(isp->isp_af.priv);
 	kfree(isp->isp_af.recover_priv);
-	ispstat_cleanup(&isp->isp_af);
+	omap3isp_stat_cleanup(&isp->isp_af);
 }

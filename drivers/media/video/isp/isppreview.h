@@ -157,18 +157,18 @@ struct isp_prev_device {
 
 struct isp_device;
 
-int isppreview_init(struct isp_device *isp);
-void isppreview_cleanup(struct isp_device *isp);
+int omap3isp_preview_init(struct isp_device *isp);
+void omap3isp_preview_cleanup(struct isp_device *isp);
 
-int isppreview_register_entities(struct isp_prev_device *prv,
-	struct v4l2_device *vdev);
-void isppreview_unregister_entities(struct isp_prev_device *prv);
+int omap3isp_preview_register_entities(struct isp_prev_device *prv,
+				       struct v4l2_device *vdev);
+void omap3isp_preview_unregister_entities(struct isp_prev_device *prv);
 
-void isppreview_isr_frame_sync(struct isp_prev_device *prev);
-void isppreview_isr(struct isp_prev_device *prev);
+void omap3isp_preview_isr_frame_sync(struct isp_prev_device *prev);
+void omap3isp_preview_isr(struct isp_prev_device *prev);
 
-int isppreview_busy(struct isp_prev_device *isp_prev);
+int omap3isp_preview_busy(struct isp_prev_device *isp_prev);
 
-void isppreview_restore_context(struct isp_device *isp);
+void omap3isp_preview_restore_context(struct isp_device *isp);
 
 #endif	/* OMAP3_ISP_PREVIEW_H */

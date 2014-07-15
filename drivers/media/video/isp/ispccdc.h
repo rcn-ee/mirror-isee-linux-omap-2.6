@@ -160,15 +160,16 @@ struct isp_ccdc_device {
 
 struct isp_device;
 
-int ispccdc_init(struct isp_device *isp);
-void ispccdc_cleanup(struct isp_device *isp);
-int ispccdc_register_entities(struct isp_ccdc_device *ccdc,
+int omap3isp_ccdc_init(struct isp_device *isp);
+void omap3isp_ccdc_cleanup(struct isp_device *isp);
+int omap3isp_ccdc_register_entities(struct isp_ccdc_device *ccdc,
 	struct v4l2_device *vdev);
-void ispccdc_unregister_entities(struct isp_ccdc_device *ccdc);
+void omap3isp_ccdc_unregister_entities(struct isp_ccdc_device *ccdc);
 
-int ispccdc_busy(struct isp_ccdc_device *isp_ccdc);
-int ispccdc_isr(struct isp_ccdc_device *isp_ccdc, u32 events);
-void ispccdc_restore_context(struct isp_device *isp);
-void ispccdc_max_rate(struct isp_ccdc_device *ccdc, unsigned int *max_rate);
+int omap3isp_ccdc_busy(struct isp_ccdc_device *isp_ccdc);
+int omap3isp_ccdc_isr(struct isp_ccdc_device *isp_ccdc, u32 events);
+void omap3isp_ccdc_restore_context(struct isp_device *isp);
+void omap3isp_ccdc_max_rate(struct isp_ccdc_device *ccdc,
+	unsigned int *max_rate);
 
 #endif	/* OMAP3_ISP_CCDC_H */

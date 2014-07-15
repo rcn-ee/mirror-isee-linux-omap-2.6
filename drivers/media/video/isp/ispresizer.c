@@ -153,15 +153,14 @@ __resizer_get_crop(struct isp_res_device *res, struct v4l2_subdev_fh *fh,
 }
 
 /*
- * ispresizer_set_filters - Set resizer filters
+ * resizer_set_filters - Set resizer filters
  * @res: Device context.
  * @h_coeff: horizontal coefficient
  * @v_coeff: vertical coefficient
  * Return none
  */
-static void ispresizer_set_filters(struct isp_res_device *res,
-				   const u16 *h_coeff,
-				   const u16 *v_coeff)
+static void resizer_set_filters(struct isp_res_device *res, const u16 *h_coeff,
+				const u16 *v_coeff)
 {
 	struct isp_device *isp = to_isp_device(res);
 	u32 startaddr_h, startaddr_v, tmp_h, tmp_v;
@@ -183,7 +182,7 @@ static void ispresizer_set_filters(struct isp_res_device *res,
 }
 
 /*
- * ispresizer_set_bilinear - Chrominance horizontal algorithm select
+ * resizer_set_bilinear - Chrominance horizontal algorithm select
  * @res: Device context.
  * @type: Filtering interpolation type.
  *
@@ -191,8 +190,8 @@ static void ispresizer_set_filters(struct isp_res_device *res,
  * intended only for downsampling, and bilinear interpolation
  * is intended only for upsampling.
  */
-static void ispresizer_set_bilinear(struct isp_res_device *res,
-				    enum resizer_chroma_algo type)
+static void resizer_set_bilinear(struct isp_res_device *res,
+				 enum resizer_chroma_algo type)
 {
 	struct isp_device *isp = to_isp_device(res);
 
@@ -205,12 +204,12 @@ static void ispresizer_set_bilinear(struct isp_res_device *res,
 }
 
 /*
- * ispresizer_set_ycpos - Luminance and chrominance order
+ * resizer_set_ycpos - Luminance and chrominance order
  * @res: Device context.
- * @order: order type.
+ * @pixelcode: pixel code.
  */
-static void ispresizer_set_ycpos(struct isp_res_device *res,
-				 enum v4l2_mbus_pixelcode pixelcode)
+static void resizer_set_ycpos(struct isp_res_device *res,
+			      enum v4l2_mbus_pixelcode pixelcode)
 {
 	struct isp_device *isp = to_isp_device(res);
 
@@ -229,15 +228,15 @@ static void ispresizer_set_ycpos(struct isp_res_device *res,
 }
 
 /*
- * ispresizer_set_phase - Setup horizontal and vertical starting phase
+ * resizer_set_phase - Setup horizontal and vertical starting phase
  * @res: Device context.
  * @h_phase: horizontal phase parameters.
  * @v_phase: vertical phase parameters.
  *
  * Horizontal and vertical phase range is 0 to 7
  */
-static void ispresizer_set_phase(struct isp_res_device *res, u32 h_phase,
-				 u32 v_phase)
+static void resizer_set_phase(struct isp_res_device *res, u32 h_phase,
+			      u32 v_phase)
 {
 	struct isp_device *isp = to_isp_device(res);
 	u32 rgval = 0;
@@ -251,7 +250,7 @@ static void ispresizer_set_phase(struct isp_res_device *res, u32 h_phase,
 }
 
 /*
- * ispresizer_set_luma - Setup luminance enhancer parameters
+ * resizer_set_luma - Setup luminance enhancer parameters
  * @res: Device context.
  * @luma: Structure for luminance enhancer parameters.
  *
@@ -272,8 +271,8 @@ static void ispresizer_set_phase(struct isp_res_device *res, u32 h_phase,
  * The new luminance value is computed as:
  *  Y += HPF(Y) x max(GAIN, (HPF(Y) - CORE) x SLOP + 8) >> 4.
  */
-static void ispresizer_set_luma(struct isp_res_device *res,
-				struct resizer_luma_yenh *luma)
+static void resizer_set_luma(struct isp_res_device *res,
+			     struct resizer_luma_yenh *luma)
 {
 	struct isp_device *isp = to_isp_device(res);
 	u32 rgval = 0;
@@ -291,15 +290,15 @@ static void ispresizer_set_luma(struct isp_res_device *res,
 }
 
 /*
- * ispresizer_set_source - Input source select
+ * resizer_set_source - Input source select
  * @res: Device context.
  * @source: Input source type
  *
  * If this field is set to RESIZER_INPUT_VP, the resizer input is fed from
  * Preview/CCDC engine, otherwise from memory.
  */
-static void ispresizer_set_source(struct isp_res_device *res,
-				  enum resizer_input_entity source)
+static void resizer_set_source(struct isp_res_device *res,
+			       enum resizer_input_entity source)
 {
 	struct isp_device *isp = to_isp_device(res);
 
@@ -312,14 +311,14 @@ static void ispresizer_set_source(struct isp_res_device *res,
 }
 
 /*
- * ispresizer_set_ratio - Setup horizontal and vertical resizing value
+ * resizer_set_ratio - Setup horizontal and vertical resizing value
  * @res: Device context.
  * @ratio: Structure for ratio parameters.
  *
  * Resizing range from 64 to 1024
  */
-static void ispresizer_set_ratio(struct isp_res_device *res,
-				 const struct resizer_ratio *ratio)
+static void resizer_set_ratio(struct isp_res_device *res,
+			      const struct resizer_ratio *ratio)
 {
 	struct isp_device *isp = to_isp_device(res);
 	const u16 *h_filter, *v_filter;
@@ -345,11 +344,11 @@ static void ispresizer_set_ratio(struct isp_res_device *res,
 	else
 		v_filter = &filter_coefs.v_filter_coef_4tap[0];
 
-	ispresizer_set_filters(res, h_filter, v_filter);
+	resizer_set_filters(res, h_filter, v_filter);
 }
 
 /*
- * ispresizer_set_dst_size - Setup the output height and width
+ * resizer_set_dst_size - Setup the output height and width
  * @res: Device context.
  * @width: Output width.
  * @height: Output height.
@@ -362,8 +361,8 @@ static void ispresizer_set_ratio(struct isp_res_device *res,
  *  a multiple of 16-bytes if the vertical resizing factor
  *  is greater than 1x (upsizing)
  */
-static void ispresizer_set_output_size(struct isp_res_device *res,
-				       u32 width, u32 height)
+static void resizer_set_output_size(struct isp_res_device *res,
+				    u32 width, u32 height)
 {
 	struct isp_device *isp = to_isp_device(res);
 	u32 rgval = 0;
@@ -377,7 +376,7 @@ static void ispresizer_set_output_size(struct isp_res_device *res,
 }
 
 /*
- * ispresizer_set_output_offset - Setup memory offset for the output lines.
+ * resizer_set_output_offset - Setup memory offset for the output lines.
  * @res: Device context.
  * @offset: Memory offset.
  *
@@ -385,8 +384,7 @@ static void ispresizer_set_output_size(struct isp_res_device *res,
  * boundary; the 5 LSBs are read-only. For optimal use of SDRAM bandwidth,
  * the SDRAM line offset must be set on a 256-byte boundary
  */
-static void ispresizer_set_output_offset(struct isp_res_device *res,
-					 u32 offset)
+static void resizer_set_output_offset(struct isp_res_device *res, u32 offset)
 {
 	struct isp_device *isp = to_isp_device(res);
 
@@ -394,7 +392,7 @@ static void ispresizer_set_output_offset(struct isp_res_device *res,
 }
 
 /*
- * ispresizer_set_start - Setup vertical and horizontal start position
+ * resizer_set_start - Setup vertical and horizontal start position
  * @res: Device context.
  * @left: Horizontal start position.
  * @top: Vertical start position.
@@ -408,8 +406,7 @@ static void ispresizer_set_output_offset(struct isp_res_device *res,
  *  When the resizer gets its input from SDRAM, this field must be set
  *  to <= 15 for YUV 16-bit data and <= 31 for 8-bit color separate data
  */
-static void ispresizer_set_start(struct isp_res_device *res, u32 left,
-				 u32 top)
+static void resizer_set_start(struct isp_res_device *res, u32 left, u32 top)
 {
 	struct isp_device *isp = to_isp_device(res);
 	u32 rgval = 0;
@@ -423,13 +420,13 @@ static void ispresizer_set_start(struct isp_res_device *res, u32 left,
 }
 
 /*
- * ispresizer_set_input_size - Setup the input size
+ * resizer_set_input_size - Setup the input size
  * @res: Device context.
  * @width: The range is 0 to 4095 pixels
  * @height: The range is 0 to 4095 lines
  */
-static void ispresizer_set_input_size(struct isp_res_device *res,
-				      u32 width, u32 height)
+static void resizer_set_input_size(struct isp_res_device *res,
+				   u32 width, u32 height)
 {
 	struct isp_device *isp = to_isp_device(res);
 	u32 rgval = 0;
@@ -445,7 +442,7 @@ static void ispresizer_set_input_size(struct isp_res_device *res,
 }
 
 /*
- * ispresizer_set_src_offs - Setup the memory offset for the input lines
+ * resizer_set_src_offs - Setup the memory offset for the input lines
  * @res: Device context.
  * @offset: Memory offset.
  *
@@ -453,8 +450,7 @@ static void ispresizer_set_input_size(struct isp_res_device *res,
  * boundary; the 5 LSBs are read-only. This field must be programmed to be
  * 0x0 if the resizer input is from preview engine/CCDC.
  */
-static void ispresizer_set_input_offset(struct isp_res_device *res,
-					u32 offset)
+static void resizer_set_input_offset(struct isp_res_device *res, u32 offset)
 {
 	struct isp_device *isp = to_isp_device(res);
 
@@ -462,12 +458,12 @@ static void ispresizer_set_input_offset(struct isp_res_device *res,
 }
 
 /*
- * ispresizer_set_intype - Input type select
+ * resizer_set_intype - Input type select
  * @res: Device context.
  * @type: Pixel format type.
  */
-static void ispresizer_set_intype(struct isp_res_device *res,
-				  enum resizer_colors_type type)
+static void resizer_set_intype(struct isp_res_device *res,
+			       enum resizer_colors_type type)
 {
 	struct isp_device *isp = to_isp_device(res);
 
@@ -480,12 +476,12 @@ static void ispresizer_set_intype(struct isp_res_device *res,
 }
 
 /*
- * __ispresizer_set_inaddr - Helper function for set input address
+ * __resizer_set_inaddr - Helper function for set input address
  * @res : pointer to resizer private data structure
  * @addr: input address
  * return none
  */
-static void __ispresizer_set_inaddr(struct isp_res_device *res, u32 addr)
+static void __resizer_set_inaddr(struct isp_res_device *res, u32 addr)
 {
 	struct isp_device *isp = to_isp_device(res);
 
@@ -515,7 +511,8 @@ static void __ispresizer_set_inaddr(struct isp_res_device *res, u32 addr)
  * The TRM doesn't clearly explain if that's a maximum instant data rate or a
  * maximum average data rate.
  */
-void ispresizer_max_rate(struct isp_res_device *res, unsigned int *max_rate)
+void omap3isp_resizer_max_rate(struct isp_res_device *res,
+			       unsigned int *max_rate)
 {
 	struct isp_pipeline *pipe = to_isp_pipeline(&res->subdev.entity);
 	const struct v4l2_mbus_framefmt *ofmt = &res->formats[RESZ_PAD_SOURCE];
@@ -556,7 +553,7 @@ void ispresizer_max_rate(struct isp_res_device *res, unsigned int *max_rate)
  *
  * cycles per request = L3 frequency / 2 * 256 / data rate
  */
-static void ispresizer_adjust_bandwidth(struct isp_res_device *res)
+static void resizer_adjust_bandwidth(struct isp_res_device *res)
 {
 	struct isp_pipeline *pipe = to_isp_pipeline(&res->subdev.entity);
 	struct isp_device *isp = to_isp_device(res);
@@ -620,11 +617,11 @@ static void ispresizer_adjust_bandwidth(struct isp_res_device *res)
 }
 
 /*
- * ispresizer_busy - Checks if ISP resizer is busy.
+ * omap3isp_resizer_busy - Checks if ISP resizer is busy.
  *
  * Returns busy field from ISPRSZ_PCR register.
  */
-int ispresizer_busy(struct isp_res_device *res)
+int omap3isp_resizer_busy(struct isp_res_device *res)
 {
 	struct isp_device *isp = to_isp_device(res);
 
@@ -633,10 +630,10 @@ int ispresizer_busy(struct isp_res_device *res)
 }
 
 /*
- * ispresizer_set_inaddr - Sets the memory address of the input frame.
+ * resizer_set_inaddr - Sets the memory address of the input frame.
  * @addr: 32bit memory address aligned on 32byte boundary.
  */
-static void ispresizer_set_inaddr(struct isp_res_device *res, u32 addr)
+static void resizer_set_inaddr(struct isp_res_device *res, u32 addr)
 {
 	res->addr_base = addr;
 
@@ -644,7 +641,7 @@ static void ispresizer_set_inaddr(struct isp_res_device *res, u32 addr)
 	if (res->crop_offset)
 		addr += res->crop_offset & ~0x1f;
 
-	__ispresizer_set_inaddr(res, addr);
+	__resizer_set_inaddr(res, addr);
 }
 
 /*
@@ -653,7 +650,7 @@ static void ispresizer_set_inaddr(struct isp_res_device *res, u32 addr)
  * Note: For SBL efficiency reasons the address should be on a 256-byte
  * boundary.
  */
-static void ispresizer_set_outaddr(struct isp_res_device *res, u32 addr)
+static void resizer_set_outaddr(struct isp_res_device *res, u32 addr)
 {
 	struct isp_device *isp = to_isp_device(res);
 
@@ -666,13 +663,13 @@ static void ispresizer_set_outaddr(struct isp_res_device *res, u32 addr)
 }
 
 /*
- * ispresizer_print_status - Prints the values of the resizer module registers.
+ * resizer_print_status - Prints the values of the resizer module registers.
  */
 #define RSZ_PRINT_REGISTER(isp, name)\
 	dev_dbg(isp->dev, "###RSZ " #name "=0x%08x\n", \
 		isp_reg_readl(isp, OMAP3_ISP_IOMEM_RESZ, ISPRSZ_##name))
 
-static void ispresizer_print_status(struct isp_res_device *res)
+static void resizer_print_status(struct isp_res_device *res)
 {
 	struct isp_device *isp = to_isp_device(res);
 
@@ -693,7 +690,7 @@ static void ispresizer_print_status(struct isp_res_device *res)
 }
 
 /*
- * ispresizer_calc_ratios - Helper function for calculating resizer ratios
+ * resizer_calc_ratios - Helper function for calculating resizer ratios
  * @res: pointer to resizer private data structure
  * @input: input frame size
  * @output: output frame size
@@ -794,10 +791,10 @@ static void ispresizer_print_status(struct isp_res_device *res)
  * output height and the vertical ratio, and then move to computing the output
  * width and the horizontal ratio.
  */
-static void ispresizer_calc_ratios(struct isp_res_device *res,
-				   struct v4l2_rect *input,
-				   struct v4l2_mbus_framefmt *output,
-				   struct resizer_ratio *ratio)
+static void resizer_calc_ratios(struct isp_res_device *res,
+				struct v4l2_rect *input,
+				struct v4l2_mbus_framefmt *output,
+				struct resizer_ratio *ratio)
 {
 	struct isp_device *isp = to_isp_device(res);
 	const unsigned int spv = DEFAULT_PHASE;
@@ -919,25 +916,25 @@ static void ispresizer_calc_ratios(struct isp_res_device *res,
 }
 
 /*
- * ispresizer_set_crop_params - Setup hardware with cropping parameters
- * @res : ispresizer private structure
- * @crop_rect : current crop rectangle
- * @ratio : resizer ratios
+ * resizer_set_crop_params - Setup hardware with cropping parameters
+ * @res : resizer private structure
+ * @input : format on sink pad
+ * @output : format on source pad
  * return none
  */
-static void ispresizer_set_crop_params(struct isp_res_device *res,
-				       const struct v4l2_mbus_framefmt *input,
-				       const struct v4l2_mbus_framefmt *output)
+static void resizer_set_crop_params(struct isp_res_device *res,
+				    const struct v4l2_mbus_framefmt *input,
+				    const struct v4l2_mbus_framefmt *output)
 {
-	ispresizer_set_ratio(res, &res->ratio);
+	resizer_set_ratio(res, &res->ratio);
 
 	/* Set chrominance horizontal algorithm */
 	if (res->ratio.horz >= RESIZE_DIVISOR)
-		ispresizer_set_bilinear(res, RSZ_THE_SAME);
+		resizer_set_bilinear(res, RSZ_THE_SAME);
 	else
-		ispresizer_set_bilinear(res, RSZ_BILINEAR);
+		resizer_set_bilinear(res, RSZ_BILINEAR);
 
-	ispresizer_adjust_bandwidth(res);
+	resizer_adjust_bandwidth(res);
 
 	if (res->input == RESIZER_INPUT_MEMORY) {
 		/* Calculate additional offset for crop */
@@ -947,13 +944,13 @@ static void ispresizer_set_crop_params(struct isp_res_device *res,
 		 * Write lowest 4 bits of horizontal pixel offset (in pixels),
 		 * vertical start must be 0.
 		 */
-		ispresizer_set_start(res, (res->crop_offset / 2) & 0xf, 0);
+		resizer_set_start(res, (res->crop_offset / 2) & 0xf, 0);
 
 		/*
 		 * Set start (read) address for cropping, in bytes.
 		 * Lowest 5 bits must be zero.
 		 */
-		__ispresizer_set_inaddr(res,
+		__resizer_set_inaddr(res,
 				res->addr_base + (res->crop_offset & ~0x1f));
 	} else {
 		/*
@@ -961,16 +958,16 @@ static void ispresizer_set_crop_params(struct isp_res_device *res,
 		 * If the input is from CCDC/PREV, horizontal start field is
 		 * in bytes (twice number of pixels).
 		 */
-		ispresizer_set_start(res, res->crop.active.left * 2,
-				     res->crop.active.top);
+		resizer_set_start(res, res->crop.active.left * 2,
+				  res->crop.active.top);
 		/* Input address and offset must be 0 for preview/ccdc input */
-		__ispresizer_set_inaddr(res, 0);
-		ispresizer_set_input_offset(res, 0);
+		__resizer_set_inaddr(res, 0);
+		resizer_set_input_offset(res, 0);
 	}
 
 	/* Set the input size */
-	ispresizer_set_input_size(res, res->crop.active.width,
-				  res->crop.active.height);
+	resizer_set_input_size(res, res->crop.active.width,
+			       res->crop.active.height);
 }
 
 static void resizer_configure(struct isp_res_device *res)
@@ -978,29 +975,28 @@ static void resizer_configure(struct isp_res_device *res)
 	struct v4l2_mbus_framefmt *informat, *outformat;
 	struct resizer_luma_yenh luma = {0, 0, 0, 0};
 
-	ispresizer_set_source(res, res->input);
+	resizer_set_source(res, res->input);
 
 	informat = &res->formats[RESZ_PAD_SINK];
 	outformat = &res->formats[RESZ_PAD_SOURCE];
 
 	/* RESZ_PAD_SINK */
 	if (res->input == RESIZER_INPUT_VP)
-		ispresizer_set_input_offset(res, 0);
+		resizer_set_input_offset(res, 0);
 	else
-		ispresizer_set_input_offset(res,
-					    ALIGN(informat->width, 0x10) * 2);
+		resizer_set_input_offset(res, ALIGN(informat->width, 0x10) * 2);
 
 	/* YUV422 interleaved, default phase, no luma enhancement */
-	ispresizer_set_intype(res, RSZ_YUV422);
-	ispresizer_set_ycpos(res, informat->code);
-	ispresizer_set_phase(res, DEFAULT_PHASE, DEFAULT_PHASE);
-	ispresizer_set_luma(res, &luma);
+	resizer_set_intype(res, RSZ_YUV422);
+	resizer_set_ycpos(res, informat->code);
+	resizer_set_phase(res, DEFAULT_PHASE, DEFAULT_PHASE);
+	resizer_set_luma(res, &luma);
 
 	/* RESZ_PAD_SOURCE */
-	ispresizer_set_output_offset(res, ALIGN(outformat->width * 2, 32));
-	ispresizer_set_output_size(res, outformat->width, outformat->height);
+	resizer_set_output_offset(res, ALIGN(outformat->width * 2, 32));
+	resizer_set_output_size(res, outformat->width, outformat->height);
 
-	ispresizer_set_crop_params(res, informat, outformat);
+	resizer_set_crop_params(res, informat, outformat);
 }
 
 /* -----------------------------------------------------------------------------
@@ -1015,7 +1011,7 @@ static void resizer_enable_oneshot(struct isp_res_device *res)
 		    ISPRSZ_PCR_ENABLE | ISPRSZ_PCR_ONESHOT);
 }
 
-void ispresizer_isr_frame_sync(struct isp_res_device *res)
+void omap3isp_resizer_isr_frame_sync(struct isp_res_device *res)
 {
 	/*
 	 * If ISP_VIDEO_DMAQUEUE_QUEUED is set, DMA queue had an underrun
@@ -1030,7 +1026,7 @@ void ispresizer_isr_frame_sync(struct isp_res_device *res)
 	}
 }
 
-static void ispresizer_isr_buffer(struct isp_res_device *res)
+static void resizer_isr_buffer(struct isp_res_device *res)
 {
 	struct isp_pipeline *pipe = to_isp_pipeline(&res->subdev.entity);
 	struct isp_buffer *buffer;
@@ -1042,24 +1038,24 @@ static void ispresizer_isr_buffer(struct isp_res_device *res)
 	/* Complete the output buffer and, if reading from memory, the input
 	 * buffer.
 	 */
-	buffer = isp_video_buffer_next(&res->video_out);
+	buffer = omap3isp_video_buffer_next(&res->video_out);
 	if (buffer != NULL) {
-		ispresizer_set_outaddr(res, buffer->isp_addr);
+		resizer_set_outaddr(res, buffer->isp_addr);
 		restart = 1;
 	}
 
 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
 
 	if (res->input == RESIZER_INPUT_MEMORY) {
-		buffer = isp_video_buffer_next(&res->video_in);
+		buffer = omap3isp_video_buffer_next(&res->video_in);
 		if (buffer != NULL)
-			ispresizer_set_inaddr(res, buffer->isp_addr);
+			resizer_set_inaddr(res, buffer->isp_addr);
 		pipe->state |= ISP_PIPELINE_IDLE_INPUT;
 	}
 
 	if (res->state == ISP_PIPELINE_STREAM_SINGLESHOT) {
 		if (isp_pipeline_ready(pipe))
-			isp_pipeline_set_stream(pipe,
+			omap3isp_pipeline_set_stream(pipe,
 						ISP_PIPELINE_STREAM_SINGLESHOT);
 	} else {
 		/* If an underrun occurs, the video queue operation handler will
@@ -1071,16 +1067,16 @@ static void ispresizer_isr_buffer(struct isp_res_device *res)
 }
 
 /*
- * ispresizer_isr - ISP resizer interrupt handler
+ * omap3isp_resizer_isr - ISP resizer interrupt handler
  *
  * Manage the resizer video buffers and configure shadowed and busy-locked
  * registers.
  */
-void ispresizer_isr(struct isp_res_device *res)
+void omap3isp_resizer_isr(struct isp_res_device *res)
 {
 	struct v4l2_mbus_framefmt *informat, *outformat;
 
-	if (isp_module_sync_is_stopping(&res->wait, &res->stopping))
+	if (omap3isp_module_sync_is_stopping(&res->wait, &res->stopping))
 		return;
 
 	if (res->applycrop) {
@@ -1088,11 +1084,11 @@ void ispresizer_isr(struct isp_res_device *res)
 					      V4L2_SUBDEV_FORMAT_ACTIVE);
 		informat = __resizer_get_format(res, NULL, RESZ_PAD_SINK,
 					      V4L2_SUBDEV_FORMAT_ACTIVE);
-		ispresizer_set_crop_params(res, informat, outformat);
+		resizer_set_crop_params(res, informat, outformat);
 		res->applycrop = 0;
 	}
 
-	ispresizer_isr_buffer(res);
+	resizer_isr_buffer(res);
 }
 
 /* -----------------------------------------------------------------------------
@@ -1105,7 +1101,7 @@ static int resizer_video_queue(struct isp_video *video,
 	struct isp_res_device *res = &video->isp->isp_res;
 
 	if (video->type == V4L2_BUF_TYPE_VIDEO_OUTPUT)
-		ispresizer_set_inaddr(res, buffer->isp_addr);
+		resizer_set_inaddr(res, buffer->isp_addr);
 
 	/*
 	 * We now have a buffer queued on the output. Despite what the
@@ -1120,7 +1116,7 @@ static int resizer_video_queue(struct isp_video *video,
 	 * continuous mode or when starting the stream.
 	 */
 	if (video->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
-		ispresizer_set_outaddr(res, buffer->isp_addr);
+		resizer_set_outaddr(res, buffer->isp_addr);
 
 	return 0;
 }
@@ -1154,14 +1150,14 @@ static int resizer_set_stream(struct v4l2_subdev *sd, int enable)
 		if (enable == ISP_PIPELINE_STREAM_STOPPED)
 			return 0;
 
-		isp_subclk_enable(isp, OMAP3_ISP_SUBCLK_RESIZER);
+		omap3isp_subclk_enable(isp, OMAP3_ISP_SUBCLK_RESIZER);
 		resizer_configure(res);
-		ispresizer_print_status(res);
+		resizer_print_status(res);
 	}
 
 	switch (enable) {
 	case ISP_PIPELINE_STREAM_CONTINUOUS:
-		isp_sbl_enable(isp, OMAP3_ISP_SBL_RESIZER_WRITE);
+		omap3isp_sbl_enable(isp, OMAP3_ISP_SBL_RESIZER_WRITE);
 		if (video_out->dmaqueue_flags & ISP_VIDEO_DMAQUEUE_QUEUED) {
 			resizer_enable_oneshot(res);
 			isp_video_dmaqueue_flags_clr(video_out);
@@ -1170,19 +1166,19 @@ static int resizer_set_stream(struct v4l2_subdev *sd, int enable)
 
 	case ISP_PIPELINE_STREAM_SINGLESHOT:
 		if (res->input == RESIZER_INPUT_MEMORY)
-			isp_sbl_enable(isp, OMAP3_ISP_SBL_RESIZER_READ);
-		isp_sbl_enable(isp, OMAP3_ISP_SBL_RESIZER_WRITE);
+			omap3isp_sbl_enable(isp, OMAP3_ISP_SBL_RESIZER_READ);
+		omap3isp_sbl_enable(isp, OMAP3_ISP_SBL_RESIZER_WRITE);
 
 		resizer_enable_oneshot(res);
 		break;
 
 	case ISP_PIPELINE_STREAM_STOPPED:
-		if (isp_module_sync_idle(&sd->entity, &res->wait,
+		if (omap3isp_module_sync_idle(&sd->entity, &res->wait,
 					      &res->stopping))
 			dev_dbg(dev, "%s: module stop timeout.\n", sd->name);
-		isp_sbl_disable(isp, OMAP3_ISP_SBL_RESIZER_READ |
+		omap3isp_sbl_disable(isp, OMAP3_ISP_SBL_RESIZER_READ |
 				OMAP3_ISP_SBL_RESIZER_WRITE);
-		isp_subclk_disable(isp, OMAP3_ISP_SUBCLK_RESIZER);
+		omap3isp_subclk_disable(isp, OMAP3_ISP_SUBCLK_RESIZER);
 		isp_video_dmaqueue_flags_clr(video_out);
 		break;
 	}
@@ -1254,7 +1250,7 @@ static int resizer_g_crop(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
 
     format = __resizer_get_format(res, fh, RESZ_PAD_SOURCE, crop->which);
     crop->rect = *__resizer_get_crop(res, fh, crop->which);
-    ispresizer_calc_ratios(res, &crop->rect, format, &ratio);
+    resizer_calc_ratios(res, &crop->rect, format, &ratio);
 
     return 0;
 }
@@ -1294,7 +1290,7 @@ static int resizer_s_crop(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
 
     resizer_try_crop(format_sink, format_source, &crop->rect, res->state);
     *__resizer_get_crop(res, fh, crop->which) = crop->rect;
-    ispresizer_calc_ratios(res, &crop->rect, format_source, &ratio);
+    resizer_calc_ratios(res, &crop->rect, format_source, &ratio);
 
     if (crop->which == V4L2_SUBDEV_FORMAT_TRY)
 	return 0;
@@ -1366,7 +1362,7 @@ static void resizer_try_format(struct isp_res_device *res,
 		fmt->code = format->code;
 
 		crop = *__resizer_get_crop(res, fh, which);
-		ispresizer_calc_ratios(res, &crop, fmt, &ratio);
+		resizer_calc_ratios(res, &crop, fmt, &ratio);
 		break;
 	}
 
@@ -1499,7 +1495,7 @@ static int resizer_set_format(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh,
 		 * format.
 		 */
 		res->crop.active = res->crop.request;
-		ispresizer_calc_ratios(res, &res->crop.active, format,
+		resizer_calc_ratios(res, &res->crop.active, format,
 				       &res->ratio);
 	}
 
@@ -1631,14 +1627,14 @@ static const struct media_entity_operations resizer_media_ops = {
 	.link_setup = resizer_link_setup,
 };
 
-void ispresizer_unregister_entities(struct isp_res_device *res)
+void omap3isp_resizer_unregister_entities(struct isp_res_device *res)
 {
 	v4l2_device_unregister_subdev(&res->subdev);
-	isp_video_unregister(&res->video_in);
-	isp_video_unregister(&res->video_out);
+	omap3isp_video_unregister(&res->video_in);
+	omap3isp_video_unregister(&res->video_out);
 }
 
-int ispresizer_register_entities(struct isp_res_device *res,
+int omap3isp_resizer_register_entities(struct isp_res_device *res,
 				       struct v4l2_device *vdev)
 {
 	int ret;
@@ -1648,18 +1644,18 @@ int ispresizer_register_entities(struct isp_res_device *res,
 	if (ret < 0)
 		goto error;
 
-	ret = isp_video_register(&res->video_in, vdev);
+	ret = omap3isp_video_register(&res->video_in, vdev);
 	if (ret < 0)
 		goto error;
 
-	ret = isp_video_register(&res->video_out, vdev);
+	ret = omap3isp_video_register(&res->video_out, vdev);
 	if (ret < 0)
 		goto error;
 
 	return 0;
 
 error:
-	ispresizer_unregister_entities(res);
+	omap3isp_resizer_unregister_entities(res);
 	return ret;
 }
 
@@ -1668,11 +1664,11 @@ error:
  */
 
 /*
- * ispresizer_init_entities - Initialize resizer subdev and media entity.
+ * resizer_init_entities - Initialize resizer subdev and media entity.
  * @res : Pointer to resizer device structure
  * return -ENOMEM or zero on success
  */
-static int ispresizer_init_entities(struct isp_res_device *res)
+static int resizer_init_entities(struct isp_res_device *res)
 {
 	struct v4l2_subdev *sd = &res->subdev;
 	struct media_pad *pads = res->pads;
@@ -1711,11 +1707,11 @@ static int ispresizer_init_entities(struct isp_res_device *res)
 	res->video_out.capture_mem = PAGE_ALIGN(4096 * 4096) * 2 * 3;
 	res->video_out.bpl_alignment = 32;
 
-	ret = isp_video_init(&res->video_in, "resizer");
+	ret = omap3isp_video_init(&res->video_in, "resizer");
 	if (ret < 0)
 		goto error_video_in;
 
-	ret = isp_video_init(&res->video_out, "resizer");
+	ret = omap3isp_video_init(&res->video_out, "resizer");
 	if (ret < 0)
 		goto error_video_out;
 
@@ -1735,9 +1731,9 @@ static int ispresizer_init_entities(struct isp_res_device *res)
 	return 0;
 
 error_link:
-	isp_video_cleanup(&res->video_out);
+	omap3isp_video_cleanup(&res->video_out);
 error_video_out:
-	isp_video_cleanup(&res->video_in);
+	omap3isp_video_cleanup(&res->video_in);
 error_video_in:
 	media_entity_cleanup(&res->subdev.entity);
 	return ret;
@@ -1748,20 +1744,20 @@ error_video_in:
  * @isp : Pointer to ISP device
  * return -ENOMEM or zero on success
  */
-int ispresizer_init(struct isp_device *isp)
+int omap3isp_resizer_init(struct isp_device *isp)
 {
 	struct isp_res_device *res = &isp->isp_res;
 
 	init_waitqueue_head(&res->wait);
 	atomic_set(&res->stopping, 0);
-	return ispresizer_init_entities(res);
+	return resizer_init_entities(res);
 }
 
-void ispresizer_cleanup(struct isp_device *isp)
+void omap3isp_resizer_cleanup(struct isp_device *isp)
 {
 	struct isp_res_device *res = &isp->isp_res;
 
-	isp_video_cleanup(&res->video_in);
-	isp_video_cleanup(&res->video_out);
+	omap3isp_video_cleanup(&res->video_in);
+	omap3isp_video_cleanup(&res->video_out);
 	media_entity_cleanup(&res->subdev.entity);
 }

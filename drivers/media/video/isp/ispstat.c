@@ -1,5 +1,5 @@
 /*
- * ispstat.c
+ * omap3isp_stat.c
  *
  * TI OMAP3 ISP - Statistics core
  *
@@ -69,7 +69,7 @@
 #define IS_H3A_AEWB(stat)	((stat) == &(stat)->isp->isp_aewb)
 #define IS_H3A(stat)		(IS_H3A_AF(stat) || IS_H3A_AEWB(stat))
 
-static void __ispstat_buf_sync_magic(struct ispstat *stat,
+static void __isp_stat_buf_sync_magic(struct ispstat *stat,
 				      struct ispstat_buffer *buf,
 				      u32 buf_size, enum dma_data_direction dir,
 				      void (*dma_sync)(struct device *,
@@ -93,32 +93,32 @@ static void __ispstat_buf_sync_magic(struct ispstat *stat,
 	dma_sync(dev, dma_addr, offset, MAGIC_SIZE, dir);
 }
 
-static void ispstat_buf_sync_magic_for_device(struct ispstat *stat,
-					      struct ispstat_buffer *buf,
-					      u32 buf_size,
-					      enum dma_data_direction dir)
+static void isp_stat_buf_sync_magic_for_device(struct ispstat *stat,
+					       struct ispstat_buffer *buf,
+					       u32 buf_size,
+					       enum dma_data_direction dir)
 {
 	if (IS_COHERENT_BUF(stat))
 		return;
 
-	__ispstat_buf_sync_magic(stat, buf, buf_size, dir,
-				 dma_sync_single_range_for_device);
+	__isp_stat_buf_sync_magic(stat, buf, buf_size, dir,
+				  dma_sync_single_range_for_device);
 }
 
-static void ispstat_buf_sync_magic_for_cpu(struct ispstat *stat,
-					   struct ispstat_buffer *buf,
-					   u32 buf_size,
-					   enum dma_data_direction dir)
+static void isp_stat_buf_sync_magic_for_cpu(struct ispstat *stat,
+					    struct ispstat_buffer *buf,
+					    u32 buf_size,
+					    enum dma_data_direction dir)
 {
 	if (IS_COHERENT_BUF(stat))
 		return;
 
-	__ispstat_buf_sync_magic(stat, buf, buf_size, dir,
-				 dma_sync_single_range_for_cpu);
+	__isp_stat_buf_sync_magic(stat, buf, buf_size, dir,
+				  dma_sync_single_range_for_cpu);
 }
 
-static int ispstat_buf_check_magic(struct ispstat *stat,
-				   struct ispstat_buffer *buf)
+static int isp_stat_buf_check_magic(struct ispstat *stat,
+				    struct ispstat_buffer *buf)
 {
 	const u32 buf_size = IS_H3A_AF(stat) ?
 			     buf->buf_size + AF_EXTRA_DATA : buf->buf_size;
@@ -126,7 +126,7 @@ static int ispstat_buf_check_magic(struct ispstat *stat,
 	u8 *end;
 	int ret = -EINVAL;
 
-	ispstat_buf_sync_magic_for_cpu(stat, buf, buf_size, DMA_FROM_DEVICE);
+	isp_stat_buf_sync_magic_for_cpu(stat, buf, buf_size, DMA_FROM_DEVICE);
 
 	/* Checking initial magic numbers. They shouldn't be here anymore. */
 	for (w = buf->virt_addr, end = w + MAGIC_SIZE; w < end; w++)
@@ -143,25 +143,25 @@ static int ispstat_buf_check_magic(struct ispstat *stat,
 	for (w = buf->virt_addr + buf_size, end = w + MAGIC_SIZE;
 	     w < end; w++) {
 		if (unlikely(*w != MAGIC_NUM)) {
-			dev_dbg(stat->isp->dev, "%s: endding magic check does "
+			dev_dbg(stat->isp->dev, "%s: ending magic check does "
 				"not match.\n", stat->subdev.name);
 			return -EINVAL;
 		}
 	}
 
-	ispstat_buf_sync_magic_for_device(stat, buf, buf_size,
+	isp_stat_buf_sync_magic_for_device(stat, buf, buf_size,
 					   DMA_FROM_DEVICE);
 
 	return 0;
 }
 
-static void ispstat_buf_insert_magic(struct ispstat *stat,
-				     struct ispstat_buffer *buf)
+static void isp_stat_buf_insert_magic(struct ispstat *stat,
+				      struct ispstat_buffer *buf)
 {
 	const u32 buf_size = IS_H3A_AF(stat) ?
 			     stat->buf_size + AF_EXTRA_DATA : stat->buf_size;
 
-	ispstat_buf_sync_magic_for_cpu(stat, buf, buf_size, DMA_FROM_DEVICE);
+	isp_stat_buf_sync_magic_for_cpu(stat, buf, buf_size, DMA_FROM_DEVICE);
 
 	/*
 	 * Inserting MAGIC_NUM at the beginning and end of the buffer.
@@ -172,12 +172,12 @@ static void ispstat_buf_insert_magic(struct ispstat *stat,
 	memset(buf->virt_addr, MAGIC_NUM, MAGIC_SIZE);
 	memset(buf->virt_addr + buf_size, MAGIC_NUM, MAGIC_SIZE);
 
-	ispstat_buf_sync_magic_for_device(stat, buf, buf_size,
-					  DMA_BIDIRECTIONAL);
+	isp_stat_buf_sync_magic_for_device(stat, buf, buf_size,
+					   DMA_BIDIRECTIONAL);
 }
 
-static void ispstat_buf_sync_for_device(struct ispstat *stat,
-					struct ispstat_buffer *buf)
+static void isp_stat_buf_sync_for_device(struct ispstat *stat,
+					 struct ispstat_buffer *buf)
 {
 	if (IS_COHERENT_BUF(stat))
 		return;
@@ -186,8 +186,8 @@ static void ispstat_buf_sync_for_device(struct ispstat *stat,
 			       buf->iovm->sgt->nents, DMA_FROM_DEVICE);
 }
 
-static void ispstat_buf_sync_for_cpu(struct ispstat *stat,
-				     struct ispstat_buffer *buf)
+static void isp_stat_buf_sync_for_cpu(struct ispstat *stat,
+				      struct ispstat_buffer *buf)
 {
 	if (IS_COHERENT_BUF(stat))
 		return;
@@ -196,7 +196,7 @@ static void ispstat_buf_sync_for_cpu(struct ispstat *stat,
 			    buf->iovm->sgt->nents, DMA_FROM_DEVICE);
 }
 
-static void ispstat_buf_clear(struct ispstat *stat)
+static void isp_stat_buf_clear(struct ispstat *stat)
 {
 	int i;
 
@@ -204,8 +204,8 @@ static void ispstat_buf_clear(struct ispstat *stat)
 		stat->buf[i].empty = 1;
 }
 
-static struct ispstat_buffer *__ispstat_buf_find(struct ispstat *stat,
-						 int look_empty)
+static struct ispstat_buffer *
+__isp_stat_buf_find(struct ispstat *stat, int look_empty)
 {
 	struct ispstat_buffer *found = NULL;
 	int i;
@@ -240,18 +240,18 @@ static struct ispstat_buffer *__ispstat_buf_find(struct ispstat *stat,
 }
 
 static inline struct ispstat_buffer *
-ispstat_buf_find_oldest(struct ispstat *stat)
+isp_stat_buf_find_oldest(struct ispstat *stat)
 {
-	return __ispstat_buf_find(stat, 0);
+	return __isp_stat_buf_find(stat, 0);
 }
 
 static inline struct ispstat_buffer *
-ispstat_buf_find_oldest_or_empty(struct ispstat *stat)
+isp_stat_buf_find_oldest_or_empty(struct ispstat *stat)
 {
-	return __ispstat_buf_find(stat, 1);
+	return __isp_stat_buf_find(stat, 1);
 }
 
-static int ispstat_buf_queue(struct ispstat *stat)
+static int isp_stat_buf_queue(struct ispstat *stat)
 {
 	if (!stat->active_buf)
 		return STAT_NO_BUF;
@@ -259,7 +259,7 @@ static int ispstat_buf_queue(struct ispstat *stat)
 	do_gettimeofday(&stat->active_buf->ts);
 
 	stat->active_buf->buf_size = stat->buf_size;
-	if (ispstat_buf_check_magic(stat, stat->active_buf)) {
+	if (isp_stat_buf_check_magic(stat, stat->active_buf)) {
 		dev_dbg(stat->isp->dev, "%s: data wasn't properly written.\n",
 			stat->subdev.name);
 		return STAT_NO_BUF;
@@ -273,7 +273,7 @@ static int ispstat_buf_queue(struct ispstat *stat)
 }
 
 /* Get next free buffer to write the statistics to and mark it active. */
-static void ispstat_buf_next(struct ispstat *stat)
+static void isp_stat_buf_next(struct ispstat *stat)
 {
 	if (unlikely(stat->active_buf))
 		/* Overwriting unused active buffer */
@@ -281,21 +281,21 @@ static void ispstat_buf_next(struct ispstat *stat)
 					"queuing active one.\n",
 					stat->subdev.name);
 	else
-		stat->active_buf = ispstat_buf_find_oldest_or_empty(stat);
+		stat->active_buf = isp_stat_buf_find_oldest_or_empty(stat);
 }
 
-static void ispstat_buf_release(struct ispstat *stat)
+static void isp_stat_buf_release(struct ispstat *stat)
 {
 	unsigned long flags;
 
-	ispstat_buf_sync_for_device(stat, stat->locked_buf);
+	isp_stat_buf_sync_for_device(stat, stat->locked_buf);
 	spin_lock_irqsave(&stat->isp->stat_lock, flags);
 	stat->locked_buf = NULL;
 	spin_unlock_irqrestore(&stat->isp->stat_lock, flags);
 }
 
 /* Get buffer to userspace. */
-static struct ispstat_buffer *ispstat_buf_get(struct ispstat *stat,
+static struct ispstat_buffer *isp_stat_buf_get(struct ispstat *stat,
 					       struct omap3isp_stat_data *data)
 {
 	int rval = 0;
@@ -305,14 +305,14 @@ static struct ispstat_buffer *ispstat_buf_get(struct ispstat *stat,
 	spin_lock_irqsave(&stat->isp->stat_lock, flags);
 
 	while (1) {
-		buf = ispstat_buf_find_oldest(stat);
+		buf = isp_stat_buf_find_oldest(stat);
 		if (!buf) {
 			spin_unlock_irqrestore(&stat->isp->stat_lock, flags);
 			dev_dbg(stat->isp->dev, "%s: cannot find a buffer.\n",
 				stat->subdev.name);
 			return ERR_PTR(-EBUSY);
 		}
-		if (ispstat_buf_check_magic(stat, buf)) {
+		if (isp_stat_buf_check_magic(stat, buf)) {
 			dev_dbg(stat->isp->dev, "%s: current buffer has "
 				"corrupted data\n.", stat->subdev.name);
 			/* Mark empty because it doesn't have valid data. */
@@ -330,11 +330,11 @@ static struct ispstat_buffer *ispstat_buf_get(struct ispstat *stat,
 	if (buf->buf_size > data->buf_size) {
 		dev_warn(stat->isp->dev, "%s: userspace's buffer size is "
 					 "not enough.\n", stat->subdev.name);
-		ispstat_buf_release(stat);
+		isp_stat_buf_release(stat);
 		return ERR_PTR(-EINVAL);
 	}
 
-	ispstat_buf_sync_for_cpu(stat, buf);
+	isp_stat_buf_sync_for_cpu(stat, buf);
 
 	rval = copy_to_user(data->buf,
 			    buf->virt_addr,
@@ -345,13 +345,13 @@ static struct ispstat_buffer *ispstat_buf_get(struct ispstat *stat,
 			 "%s: failed copying %d bytes of stat data\n",
 			 stat->subdev.name, rval);
 		buf = ERR_PTR(-EFAULT);
-		ispstat_buf_release(stat);
+		isp_stat_buf_release(stat);
 	}
 
 	return buf;
 }
 
-static void ispstat_bufs_free(struct ispstat *stat)
+static void isp_stat_bufs_free(struct ispstat *stat)
 {
 	struct isp_device *isp = stat->isp;
 	int i;
@@ -387,7 +387,7 @@ static void ispstat_bufs_free(struct ispstat *stat)
 	stat->active_buf = NULL;
 }
 
-static int ispstat_bufs_alloc_iommu(struct ispstat *stat, unsigned int size)
+static int isp_stat_bufs_alloc_iommu(struct ispstat *stat, unsigned int size)
 {
 	struct isp_device *isp = stat->isp;
 	int i;
@@ -405,7 +405,7 @@ static int ispstat_bufs_alloc_iommu(struct ispstat *stat, unsigned int size)
 			dev_err(stat->isp->dev,
 				 "%s: Can't acquire memory for "
 				 "buffer %d\n", stat->subdev.name, i);
-			ispstat_bufs_free(stat);
+			isp_stat_bufs_free(stat);
 			return -ENOMEM;
 		}
 
@@ -413,7 +413,7 @@ static int ispstat_bufs_alloc_iommu(struct ispstat *stat, unsigned int size)
 		if (!iovm ||
 		    !dma_map_sg(isp->dev, iovm->sgt->sgl, iovm->sgt->nents,
 				DMA_FROM_DEVICE)) {
-			ispstat_bufs_free(stat);
+			isp_stat_bufs_free(stat);
 			return -ENOMEM;
 		}
 		buf->iovm = iovm;
@@ -430,7 +430,7 @@ static int ispstat_bufs_alloc_iommu(struct ispstat *stat, unsigned int size)
 	return 0;
 }
 
-static int ispstat_bufs_alloc_dma(struct ispstat *stat, unsigned int size)
+static int isp_stat_bufs_alloc_dma(struct ispstat *stat, unsigned int size)
 {
 	int i;
 
@@ -447,7 +447,7 @@ static int ispstat_bufs_alloc_dma(struct ispstat *stat, unsigned int size)
 			dev_info(stat->isp->dev,
 				 "%s: Can't acquire memory for "
 				 "DMA buffer %d\n", stat->subdev.name, i);
-			ispstat_bufs_free(stat);
+			isp_stat_bufs_free(stat);
 			return -ENOMEM;
 		}
 		buf->empty = 1;
@@ -461,7 +461,7 @@ static int ispstat_bufs_alloc_dma(struct ispstat *stat, unsigned int size)
 	return 0;
 }
 
-static int ispstat_bufs_alloc(struct ispstat *stat, u32 size)
+static int isp_stat_bufs_alloc(struct ispstat *stat, u32 size)
 {
 	unsigned long flags;
 
@@ -485,15 +485,15 @@ static int ispstat_bufs_alloc(struct ispstat *stat, u32 size)
 
 	spin_unlock_irqrestore(&stat->isp->stat_lock, flags);
 
-	ispstat_bufs_free(stat);
+	isp_stat_bufs_free(stat);
 
 	if (IS_COHERENT_BUF(stat))
-		return ispstat_bufs_alloc_dma(stat, size);
+		return isp_stat_bufs_alloc_dma(stat, size);
 	else
-		return ispstat_bufs_alloc_iommu(stat, size);
+		return isp_stat_bufs_alloc_iommu(stat, size);
 }
 
-static void ispstat_queue_event(struct ispstat *stat, int err)
+static void isp_stat_queue_event(struct ispstat *stat, int err)
 {
 	struct video_device *vdev = &stat->subdev.devnode;
 	struct v4l2_event event;
@@ -512,12 +512,12 @@ static void ispstat_queue_event(struct ispstat *stat, int err)
 
 
 /*
- * ispstat_request_statistics - Request statistics.
+ * omap3isp_stat_request_statistics - Request statistics.
  * @data: Pointer to return statistics data.
  *
  * Returns 0 if successful.
  */
-int ispstat_request_statistics(struct ispstat *stat,
+int omap3isp_stat_request_statistics(struct ispstat *stat,
 				     struct omap3isp_stat_data *data)
 {
 	struct ispstat_buffer *buf;
@@ -529,7 +529,7 @@ int ispstat_request_statistics(struct ispstat *stat,
 	}
 
 	mutex_lock(&stat->ioctl_lock);
-	buf = ispstat_buf_get(stat, data);
+	buf = isp_stat_buf_get(stat, data);
 	if (IS_ERR(buf)) {
 		mutex_unlock(&stat->ioctl_lock);
 		return PTR_ERR(buf);
@@ -541,21 +541,21 @@ int ispstat_request_statistics(struct ispstat *stat,
 	data->buf_size = buf->buf_size;
 
 	buf->empty = 1;
-	ispstat_buf_release(stat);
+	isp_stat_buf_release(stat);
 	mutex_unlock(&stat->ioctl_lock);
 
 	return 0;
 }
 
 /*
- * ispstat_config - Receives new statistic engine configuration.
+ * omap3isp_stat_config - Receives new statistic engine configuration.
  * @new_conf: Pointer to config structure.
  *
  * Returns 0 if successful, -EINVAL if new_conf pointer is NULL, -ENOMEM if
  * was unable to allocate memory for the buffer, or other errors if parameters
  * are invalid.
  */
-int ispstat_config(struct ispstat *stat, void *new_conf)
+int omap3isp_stat_config(struct ispstat *stat, void *new_conf)
 {
 	int ret;
 	unsigned long irqflags;
@@ -616,7 +616,7 @@ int ispstat_config(struct ispstat *stat, void *new_conf)
 		buf_size = PAGE_ALIGN(user_cfg->buf_size + MAGIC_SIZE);
 	}
 
-	ret = ispstat_bufs_alloc(stat, buf_size);
+	ret = isp_stat_bufs_alloc(stat, buf_size);
 	if (ret) {
 		mutex_unlock(&stat->ioctl_lock);
 		return ret;
@@ -643,43 +643,43 @@ int ispstat_config(struct ispstat *stat, void *new_conf)
 }
 
 /*
- * ispstat_buf_process - Process statistic buffers.
+ * isp_stat_buf_process - Process statistic buffers.
  * @buf_state: points out if buffer is ready to be processed. It's necessary
  *	       because histogram needs to copy the data from internal memory
  *	       before be able to process the buffer.
  */
-static int ispstat_buf_process(struct ispstat *stat, int buf_state)
+static int isp_stat_buf_process(struct ispstat *stat, int buf_state)
 {
 	int ret = STAT_NO_BUF;
 
 	if (!atomic_add_unless(&stat->buf_err, -1, 0) &&
 	    buf_state == STAT_BUF_DONE && stat->state == ISPSTAT_ENABLED) {
-		ret = ispstat_buf_queue(stat);
-		ispstat_buf_next(stat);
+		ret = isp_stat_buf_queue(stat);
+		isp_stat_buf_next(stat);
 	}
 
 	return ret;
 }
 
-int ispstat_pcr_busy(struct ispstat *stat)
+int omap3isp_stat_pcr_busy(struct ispstat *stat)
 {
 	return stat->ops->busy(stat);
 }
 
-int ispstat_busy(struct ispstat *stat)
+int omap3isp_stat_busy(struct ispstat *stat)
 {
-	return ispstat_pcr_busy(stat) | stat->buf_processing |
+	return omap3isp_stat_pcr_busy(stat) | stat->buf_processing |
 		(stat->state != ISPSTAT_DISABLED);
 }
 
 /*
- * ispstat_pcr_enable - Disables/Enables statistic engines.
+ * isp_stat_pcr_enable - Disables/Enables statistic engines.
  * @pcr_enable: 0/1 - Disables/Enables the engine.
  *
  * Must be called from ISP driver when the module is idle and synchronized
  * with CCDC.
  */
-static void ispstat_pcr_enable(struct ispstat *stat, u8 pcr_enable)
+static void isp_stat_pcr_enable(struct ispstat *stat, u8 pcr_enable)
 {
 	if ((stat->state != ISPSTAT_ENABLING &&
 	     stat->state != ISPSTAT_ENABLED) && pcr_enable)
@@ -693,7 +693,7 @@ static void ispstat_pcr_enable(struct ispstat *stat, u8 pcr_enable)
 		stat->state = ISPSTAT_ENABLED;
 }
 
-void ispstat_suspend(struct ispstat *stat)
+void omap3isp_stat_suspend(struct ispstat *stat)
 {
 	unsigned long flags;
 
@@ -707,14 +707,14 @@ void ispstat_suspend(struct ispstat *stat)
 	spin_unlock_irqrestore(&stat->isp->stat_lock, flags);
 }
 
-void ispstat_resume(struct ispstat *stat)
+void omap3isp_stat_resume(struct ispstat *stat)
 {
 	/* Module will be re-enabled with its pipeline */
 	if (stat->state == ISPSTAT_SUSPENDED)
 		stat->state = ISPSTAT_ENABLING;
 }
 
-static void ispstat_try_enable(struct ispstat *stat)
+static void isp_stat_try_enable(struct ispstat *stat)
 {
 	unsigned long irqflags;
 
@@ -730,9 +730,9 @@ static void ispstat_try_enable(struct ispstat *stat)
 		 * Let's do that now.
 		 */
 		stat->update = 1;
-		ispstat_buf_next(stat);
+		isp_stat_buf_next(stat);
 		stat->ops->setup_regs(stat, stat->priv);
-		ispstat_buf_insert_magic(stat, stat->active_buf);
+		isp_stat_buf_insert_magic(stat, stat->active_buf);
 
 		/*
 		 * H3A module has some hw issues which forces the driver to
@@ -743,7 +743,7 @@ static void ispstat_try_enable(struct ispstat *stat)
 		if (!IS_H3A(stat))
 			atomic_set(&stat->buf_err, 0);
 
-		ispstat_pcr_enable(stat, 1);
+		isp_stat_pcr_enable(stat, 1);
 		spin_unlock_irqrestore(&stat->isp->stat_lock, irqflags);
 		dev_dbg(stat->isp->dev, "%s: module is enabled.\n",
 			stat->subdev.name);
@@ -752,12 +752,12 @@ static void ispstat_try_enable(struct ispstat *stat)
 	}
 }
 
-void ispstat_isr_frame_sync(struct ispstat *stat)
+void omap3isp_stat_isr_frame_sync(struct ispstat *stat)
 {
-	ispstat_try_enable(stat);
+	isp_stat_try_enable(stat);
 }
 
-void ispstat_sbl_overflow(struct ispstat *stat)
+void omap3isp_stat_sbl_overflow(struct ispstat *stat)
 {
 	unsigned long irqflags;
 
@@ -780,13 +780,13 @@ void ispstat_sbl_overflow(struct ispstat *stat)
 }
 
 /*
- * ispstat_enable - Disable/Enable statistic engine as soon as possible
+ * omap3isp_stat_enable - Disable/Enable statistic engine as soon as possible
  * @enable: 0/1 - Disables/Enables the engine.
  *
  * Client should configure all the module registers before this.
  * This function can be called from a userspace request.
  */
-int ispstat_enable(struct ispstat *stat, u8 enable)
+int omap3isp_stat_enable(struct ispstat *stat, u8 enable)
 {
 	unsigned long irqflags;
 
@@ -821,7 +821,7 @@ int ispstat_enable(struct ispstat *stat, u8 enable)
 		} else if (stat->state == ISPSTAT_ENABLED) {
 			/* Module is now being disabled */
 			stat->state = ISPSTAT_DISABLING;
-			ispstat_buf_clear(stat);
+			isp_stat_buf_clear(stat);
 		}
 	}
 
@@ -831,20 +831,20 @@ int ispstat_enable(struct ispstat *stat, u8 enable)
 	return 0;
 }
 
-int ispstat_s_stream(struct v4l2_subdev *subdev, int enable)
+int omap3isp_stat_s_stream(struct v4l2_subdev *subdev, int enable)
 {
 	struct ispstat *stat = v4l2_get_subdevdata(subdev);
 
 	if (enable) {
 		/*
 		 * Only set enable PCR bit if the module was previously
-		 * enabled through ioct.
+		 * enabled through ioctl.
 		 */
-		ispstat_try_enable(stat);
+		isp_stat_try_enable(stat);
 	} else {
 		unsigned long flags;
 		/* Disable PCR bit and config enable field */
-		ispstat_enable(stat, 0);
+		omap3isp_stat_enable(stat, 0);
 		spin_lock_irqsave(&stat->isp->stat_lock, flags);
 		stat->ops->enable(stat, 0);
 		spin_unlock_irqrestore(&stat->isp->stat_lock, flags);
@@ -860,8 +860,8 @@ int ispstat_s_stream(struct v4l2_subdev *subdev, int enable)
 		 * the module may be considered idle before last SDMA transfer
 		 * starts if we return here.
 		 */
-		if (!ispstat_pcr_busy(stat))
-			ispstat_isr(stat);
+		if (!omap3isp_stat_pcr_busy(stat))
+			omap3isp_stat_isr(stat);
 
 		dev_dbg(stat->isp->dev, "%s: module is being disabled\n",
 			stat->subdev.name);
@@ -871,9 +871,9 @@ int ispstat_s_stream(struct v4l2_subdev *subdev, int enable)
 }
 
 /*
- * __ispstat_isr - Interrupt handler for statistic drivers
+ * __stat_isr - Interrupt handler for statistic drivers
  */
-static void __ispstat_isr(struct ispstat *stat, int from_dma)
+static void __stat_isr(struct ispstat *stat, int from_dma)
 {
 	int ret = STAT_BUF_DONE;
 	int buf_processing;
@@ -917,7 +917,7 @@ static void __ispstat_isr(struct ispstat *stat, int from_dma)
 	spin_unlock_irqrestore(&stat->isp->stat_lock, irqflags);
 
 	/* If it's busy we can't process this buffer anymore */
-	if (!ispstat_pcr_busy(stat)) {
+	if (!omap3isp_stat_pcr_busy(stat)) {
 		if (!from_dma && stat->ops->buf_process)
 			/* Module still need to copy data to buffer. */
 			ret = stat->ops->buf_process(stat);
@@ -946,7 +946,7 @@ static void __ispstat_isr(struct ispstat *stat, int from_dma)
 		 * ready to be processed. Afterwards, it holds the status if
 		 * it was processed successfully.
 		 */
-		ret = ispstat_buf_process(stat, ret);
+		ret = isp_stat_buf_process(stat, ret);
 
 		if (likely(!stat->sbl_ovl_recover)) {
 			stat->ops->setup_regs(stat, stat->priv);
@@ -967,7 +967,7 @@ static void __ispstat_isr(struct ispstat *stat, int from_dma)
 			stat->update = 1;
 		}
 
-		ispstat_buf_insert_magic(stat, stat->active_buf);
+		isp_stat_buf_insert_magic(stat, stat->active_buf);
 
 		/*
 		 * Hack: H3A modules may access invalid memory address or send
@@ -980,7 +980,7 @@ static void __ispstat_isr(struct ispstat *stat, int from_dma)
 		 * block. But the next interruption will still happen as during
 		 * pcr_enable(0) the module was busy.
 		 */
-		ispstat_pcr_enable(stat, 1);
+		isp_stat_pcr_enable(stat, 1);
 		spin_unlock_irqrestore(&stat->isp->stat_lock, irqflags);
 	} else {
 		/*
@@ -1009,20 +1009,20 @@ static void __ispstat_isr(struct ispstat *stat, int from_dma)
 
 out:
 	stat->buf_processing = 0;
-	ispstat_queue_event(stat, ret != STAT_BUF_DONE);
+	isp_stat_queue_event(stat, ret != STAT_BUF_DONE);
 }
 
-void ispstat_isr(struct ispstat *stat)
+void omap3isp_stat_isr(struct ispstat *stat)
 {
-	__ispstat_isr(stat, 0);
+	__stat_isr(stat, 0);
 }
 
-void ispstat_dma_isr(struct ispstat *stat)
+void omap3isp_stat_dma_isr(struct ispstat *stat)
 {
-	__ispstat_isr(stat, 1);
+	__stat_isr(stat, 1);
 }
 
-int ispstat_subscribe_event(struct v4l2_subdev *subdev,
+int omap3isp_stat_subscribe_event(struct v4l2_subdev *subdev,
 				  struct v4l2_fh *fh,
 				  struct v4l2_event_subscription *sub)
 {
@@ -1034,26 +1034,26 @@ int ispstat_subscribe_event(struct v4l2_subdev *subdev,
 	return v4l2_event_subscribe(fh, sub);
 }
 
-int ispstat_unsubscribe_event(struct v4l2_subdev *subdev,
+int omap3isp_stat_unsubscribe_event(struct v4l2_subdev *subdev,
 				    struct v4l2_fh *fh,
 				    struct v4l2_event_subscription *sub)
 {
 	return v4l2_event_unsubscribe(fh, sub);
 }
 
-void ispstat_unregister_entities(struct ispstat *stat)
+void omap3isp_stat_unregister_entities(struct ispstat *stat)
 {
 	media_entity_cleanup(&stat->subdev.entity);
 	v4l2_device_unregister_subdev(&stat->subdev);
 }
 
-int ispstat_register_entities(struct ispstat *stat,
+int omap3isp_stat_register_entities(struct ispstat *stat,
 				    struct v4l2_device *vdev)
 {
 	return v4l2_device_register_subdev(vdev, &stat->subdev);
 }
 
-static int ispstat_init_entities(struct ispstat *stat, const char *name,
+static int isp_stat_init_entities(struct ispstat *stat, const char *name,
 				  const struct v4l2_subdev_ops *sd_ops)
 {
 	struct v4l2_subdev *subdev = &stat->subdev;
@@ -1071,7 +1071,7 @@ static int ispstat_init_entities(struct ispstat *stat, const char *name,
 	return media_entity_init(me, 1, &stat->pad, 0);
 }
 
-int ispstat_init(struct ispstat *stat, const char *name,
+int omap3isp_stat_init(struct ispstat *stat, const char *name,
 		       const struct v4l2_subdev_ops *sd_ops)
 {
 	int ret;
@@ -1080,11 +1080,11 @@ int ispstat_init(struct ispstat *stat, const char *name,
 	if (!stat->buf)
 		return -ENOMEM;
 
-	ispstat_buf_clear(stat);
+	isp_stat_buf_clear(stat);
 	mutex_init(&stat->ioctl_lock);
 	atomic_set(&stat->buf_err, 0);
 
-	ret = ispstat_init_entities(stat, name, sd_ops);
+	ret = isp_stat_init_entities(stat, name, sd_ops);
 	if (ret < 0) {
 		mutex_destroy(&stat->ioctl_lock);
 		kfree(stat->buf);
@@ -1093,10 +1093,10 @@ int ispstat_init(struct ispstat *stat, const char *name,
 	return ret;
 }
 
-void ispstat_cleanup(struct ispstat *stat)
+void omap3isp_stat_cleanup(struct ispstat *stat)
 {
 	media_entity_cleanup(&stat->subdev.entity);
 	mutex_destroy(&stat->ioctl_lock);
-	ispstat_bufs_free(stat);
+	isp_stat_bufs_free(stat);
 	kfree(stat->buf);
 }

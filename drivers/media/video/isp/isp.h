@@ -221,32 +221,36 @@ struct isp_device {
 #define v4l2_dev_to_isp_device(dev) \
 	container_of(dev, struct isp_device, v4l2_dev)
 
-void isphist_dma_done(struct isp_device *isp);
+void omap3isp_hist_dma_done(struct isp_device *isp);
 
-void isp_flush(struct isp_device *isp);
+void omap3isp_flush(struct isp_device *isp);
 
-int isp_module_sync_idle(struct media_entity *me, wait_queue_head_t *wait,
-			 atomic_t *stopping);
+int omap3isp_module_sync_idle(struct media_entity *me, wait_queue_head_t *wait,
+			      atomic_t *stopping);
 
-int isp_module_sync_is_stopping(wait_queue_head_t *wait, atomic_t *stopping);
+int omap3isp_module_sync_is_stopping(wait_queue_head_t *wait,
+				     atomic_t *stopping);
 
-int isp_pipeline_set_stream(struct isp_pipeline *pipe,
+int omap3isp_pipeline_set_stream(struct isp_pipeline *pipe,
 				 enum isp_pipeline_stream_state state);
-void isp_configure_bridge(struct isp_device *isp,
+void omap3isp_pipeline_cancel_stream(struct isp_pipeline *pipe);
+void omap3isp_configure_bridge(struct isp_device *isp,
 			       enum ccdc_input_entity input,
 			       const struct isp_parallel_platform_data *pdata,
 			       unsigned int shift, unsigned int bridge);
 
-struct isp_device *isp_get(struct isp_device *isp);
-void isp_put(struct isp_device *isp);
+struct isp_device *omap3isp_get(struct isp_device *isp);
+void omap3isp_put(struct isp_device *isp);
 
-void isp_print_status(struct isp_device *isp);
+void omap3isp_print_status(struct isp_device *isp);
 
-void isp_sbl_enable(struct isp_device *isp, enum isp_sbl_resource res);
-void isp_sbl_disable(struct isp_device *isp, enum isp_sbl_resource res);
+void omap3isp_sbl_enable(struct isp_device *isp, enum isp_sbl_resource res);
+void omap3isp_sbl_disable(struct isp_device *isp, enum isp_sbl_resource res);
 
-void isp_subclk_enable(struct isp_device *isp, enum isp_subclk_resource res);
-void isp_subclk_disable(struct isp_device *isp, enum isp_subclk_resource res);
+void omap3isp_subclk_enable(struct isp_device *isp,
+			    enum isp_subclk_resource res);
+void omap3isp_subclk_disable(struct isp_device *isp,
+			     enum isp_subclk_resource res);
 
 int omap3isp_pipeline_pm_use(struct media_entity *entity, int use);
 
@@ -256,7 +260,7 @@ void omap3isp_unregister_entities(struct platform_device *pdev);
 
 /*
  * isp_reg_readl - Read value of an OMAP3 ISP register
- * @dev: Device pointer specific to the OMAP3 ISP.
+ * @isp: Device pointer specific to the OMAP3 ISP.
  * @isp_mmio_range: Range to which the register offset refers to.
  * @reg_offset: Register offset to read from.
  *
@@ -271,7 +275,7 @@ u32 isp_reg_readl(struct isp_device *isp, enum isp_mem_resources isp_mmio_range,
 
 /*
  * isp_reg_writel - Write value to an OMAP3 ISP register
- * @dev: Device pointer specific to the OMAP3 ISP.
+ * @isp: Device pointer specific to the OMAP3 ISP.
  * @reg_value: 32 bit value to write to the register.
  * @isp_mmio_range: Range to which the register offset refers to.
  * @reg_offset: Register offset to write into.
@@ -284,8 +288,8 @@ void isp_reg_writel(struct isp_device *isp, u32 reg_value,
 }
 
 /*
- * isp_reg_and - Clear individual bits in an OMAP3 ISP register
- * @dev: Device pointer specific to the OMAP3 ISP.
+ * isp_reg_clr - Clear individual bits in an OMAP3 ISP register
+ * @isp: Device pointer specific to the OMAP3 ISP.
  * @mmio_range: Range to which the register offset refers to.
  * @reg: Register offset to work on.
  * @clr_bits: 32 bit value which would be cleared in the register.
@@ -301,7 +305,7 @@ void isp_reg_clr(struct isp_device *isp, enum isp_mem_resources mmio_range,
 
 /*
  * isp_reg_set - Set individual bits in an OMAP3 ISP register
- * @dev: Device pointer specific to the OMAP3 ISP.
+ * @isp: Device pointer specific to the OMAP3 ISP.
  * @mmio_range: Range to which the register offset refers to.
  * @reg: Register offset to work on.
  * @set_bits: 32 bit value which would be set in the register.
@@ -317,7 +321,7 @@ void isp_reg_set(struct isp_device *isp, enum isp_mem_resources mmio_range,
 
 /*
  * isp_reg_clr_set - Clear and set invidial bits in an OMAP3 ISP register
- * @dev: Device pointer specific to the OMAP3 ISP.
+ * @isp: Device pointer specific to the OMAP3 ISP.
  * @mmio_range: Range to which the register offset refers to.
  * @reg: Register offset to work on.
  * @clr_bits: 32 bit value which would be cleared in the register.

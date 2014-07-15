@@ -91,11 +91,11 @@ struct isp_ccp2_device {
 };
 
 /* Function declarations */
-int ispccp2_init(struct isp_device *isp);
-void ispccp2_cleanup(struct isp_device *isp);
-int ispccp2_register_entities(struct isp_ccp2_device *ccp2,
+int omap3isp_ccp2_init(struct isp_device *isp);
+void omap3isp_ccp2_cleanup(struct isp_device *isp);
+int omap3isp_ccp2_register_entities(struct isp_ccp2_device *ccp2,
 			struct v4l2_device *vdev);
-void ispccp2_unregister_entities(struct isp_ccp2_device *ccp2);
-void ispccp2_isr(struct isp_ccp2_device *ccp2);
+void omap3isp_ccp2_unregister_entities(struct isp_ccp2_device *ccp2);
+void omap3isp_ccp2_isr(struct isp_ccp2_device *ccp2);
 
 #endif	/* OMAP3_ISP_CCP2_H */

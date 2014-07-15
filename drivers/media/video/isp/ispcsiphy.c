@@ -99,7 +99,7 @@ static int csiphy_set_power(struct isp_csiphy *phy, u32 power)
 	} while ((reg != power >> 2) && (retry_count < 100));
 
 	if (retry_count == 100) {
-		printk(KERN_ERR "CSI2 CIO set power failed!\n");
+		dev_err(phy->isp->dev, "CSI2 CIO set power failed!\n");
 		return -EBUSY;
 	}
 
@@ -170,7 +170,7 @@ static int isp_csiphy_config(struct isp_csiphy *phy,
 	return 0;
 }
 
-int ispcsiphy_acquire(struct isp_csiphy *phy)
+int omap3isp_csiphy_acquire(struct isp_csiphy *phy)
 {
 	int rval;
 
@@ -186,7 +186,7 @@ int ispcsiphy_acquire(struct isp_csiphy *phy)
 	if (rval < 0)
 		goto done;
 
-	rval = ispcsi2_reset(phy->csi2);
+	rval = omap3isp_csi2_reset(phy->csi2);
 	if (rval < 0)
 		goto done;
 
@@ -207,7 +207,7 @@ done:
 	return rval;
 }
 
-void ispcsiphy_release(struct isp_csiphy *phy)
+void omap3isp_csiphy_release(struct isp_csiphy *phy)
 {
 	mutex_lock(&phy->mutex);
 	if (phy->phy_in_use) {
@@ -220,9 +220,9 @@ void ispcsiphy_release(struct isp_csiphy *phy)
 }
 
 /*
- * isp_csiphy_init - Initialize the CSI PHY frontends
+ * omap3isp_csiphy_init - Initialize the CSI PHY frontends
  */
-int ispcsiphy_init(struct isp_device *isp)
+int omap3isp_csiphy_init(struct isp_device *isp)
 {
 	struct isp_csiphy *phy1 = &isp->isp_csiphy1;
 	struct isp_csiphy *phy2 = &isp->isp_csiphy2;

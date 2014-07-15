@@ -108,10 +108,10 @@
 #define AF_COEF_SHIFT			16
 
 /* Init and cleanup functions */
-int isph3a_aewb_init(struct isp_device *isp);
-int isph3a_af_init(struct isp_device *isp);
+int omap3isp_h3a_aewb_init(struct isp_device *isp);
+int omap3isp_h3a_af_init(struct isp_device *isp);
 
-void isph3a_aewb_cleanup(struct isp_device *isp);
-void isph3a_af_cleanup(struct isp_device *isp);
+void omap3isp_h3a_aewb_cleanup(struct isp_device *isp);
+void omap3isp_h3a_af_cleanup(struct isp_device *isp);
 
 #endif /* OMAP3_ISP_H3A_H */

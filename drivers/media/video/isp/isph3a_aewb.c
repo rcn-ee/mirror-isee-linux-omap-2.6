@@ -33,9 +33,9 @@
 #include "ispstat.h"
 
 /*
- * isph3a_aewb_update_regs - Helper function to update h3a registers.
+ * h3a_aewb_update_regs - Helper function to update h3a registers.
  */
-static void isph3a_aewb_setup_regs(struct ispstat *aewb, void *priv)
+static void h3a_aewb_setup_regs(struct ispstat *aewb, void *priv)
 {
 	struct omap3isp_h3a_aewb_config *conf = priv;
 	u32 pcr;
@@ -88,26 +88,26 @@ static void isph3a_aewb_setup_regs(struct ispstat *aewb, void *priv)
 	aewb->buf_size = conf->buf_size;
 }
 
-static void isph3a_aewb_enable(struct ispstat *aewb, int enable)
+static void h3a_aewb_enable(struct ispstat *aewb, int enable)
 {
 	if (enable) {
 		isp_reg_set(aewb->isp, OMAP3_ISP_IOMEM_H3A, ISPH3A_PCR,
 			    ISPH3A_PCR_AEW_EN);
-		isp_subclk_enable(aewb->isp, OMAP3_ISP_SUBCLK_AEWB);
+		omap3isp_subclk_enable(aewb->isp, OMAP3_ISP_SUBCLK_AEWB);
 	} else {
 		isp_reg_clr(aewb->isp, OMAP3_ISP_IOMEM_H3A, ISPH3A_PCR,
 			    ISPH3A_PCR_AEW_EN);
-		isp_subclk_disable(aewb->isp, OMAP3_ISP_SUBCLK_AEWB);
+		omap3isp_subclk_disable(aewb->isp, OMAP3_ISP_SUBCLK_AEWB);
 	}
 }
 
-static int isph3a_aewb_busy(struct ispstat *aewb)
+static int h3a_aewb_busy(struct ispstat *aewb)
 {
 	return isp_reg_readl(aewb->isp, OMAP3_ISP_IOMEM_H3A, ISPH3A_PCR)
 						& ISPH3A_PCR_BUSYAEAWB;
 }
 
-static u32 isph3a_aewb_get_buf_size(struct omap3isp_h3a_aewb_config *conf)
+static u32 h3a_aewb_get_buf_size(struct omap3isp_h3a_aewb_config *conf)
 {
 	/* Number of configured windows + extra row for black data */
 	u32 win_count = (conf->ver_win_count + 1) * conf->hor_win_count;
@@ -122,7 +122,7 @@ static u32 isph3a_aewb_get_buf_size(struct omap3isp_h3a_aewb_config *conf)
 	return win_count * AEWB_PACKET_SIZE;
 }
 
-static int isph3a_aewb_validate_params(struct ispstat *aewb, void *new_conf)
+static int h3a_aewb_validate_params(struct ispstat *aewb, void *new_conf)
 {
 	struct omap3isp_h3a_aewb_config *user_cfg = new_conf;
 	u32 buf_size;
@@ -173,7 +173,7 @@ static int isph3a_aewb_validate_params(struct ispstat *aewb, void *new_conf)
 		     user_cfg->subsample_hor_inc & 0x01))
 		return -EINVAL;
 
-	buf_size = isph3a_aewb_get_buf_size(user_cfg);
+	buf_size = h3a_aewb_get_buf_size(user_cfg);
 	if (buf_size > user_cfg->buf_size)
 		user_cfg->buf_size = buf_size;
 	else if (user_cfg->buf_size > OMAP3ISP_AEWB_MAX_BUF_SIZE)
@@ -183,13 +183,13 @@ static int isph3a_aewb_validate_params(struct ispstat *aewb, void *new_conf)
 }
 
 /*
- * isph3a_aewb_set_params - Helper function to check & store user given params.
+ * h3a_aewb_set_params - Helper function to check & store user given params.
  * @new_conf: Pointer to AE and AWB parameters struct.
  *
  * As most of them are busy-lock registers, need to wait until AEW_BUSY = 0 to
  * program them during ISR.
  */
-static void isph3a_aewb_set_params(struct ispstat *aewb, void *new_conf)
+static void h3a_aewb_set_params(struct ispstat *aewb, void *new_conf)
 {
 	struct omap3isp_h3a_aewb_config *user_cfg = new_conf;
 	struct omap3isp_h3a_aewb_config *cur_cfg = aewb->priv;
@@ -247,56 +247,55 @@ static void isph3a_aewb_set_params(struct ispstat *aewb, void *new_conf)
 	if (update || !aewb->configured) {
 		aewb->inc_config++;
 		aewb->update = 1;
-		cur_cfg->buf_size = isph3a_aewb_get_buf_size(cur_cfg);
+		cur_cfg->buf_size = h3a_aewb_get_buf_size(cur_cfg);
 	}
 }
 
-static long isph3a_aewb_ioctl(struct v4l2_subdev *sd, unsigned int cmd,
-			      void *arg)
+static long h3a_aewb_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct ispstat *stat = v4l2_get_subdevdata(sd);
 
 	switch (cmd) {
 	case VIDIOC_OMAP3ISP_AEWB_CFG:
-		return ispstat_config(stat, arg);
+		return omap3isp_stat_config(stat, arg);
 	case VIDIOC_OMAP3ISP_STAT_REQ:
-		return ispstat_request_statistics(stat, arg);
+		return omap3isp_stat_request_statistics(stat, arg);
 	case VIDIOC_OMAP3ISP_STAT_EN: {
 		unsigned long *en = arg;
-		return ispstat_enable(stat, !!*en);
+		return omap3isp_stat_enable(stat, !!*en);
 	}
 	}
 
 	return -ENOIOCTLCMD;
 }
 
-static const struct ispstat_ops isph3a_aewb_ops = {
-	.validate_params	= isph3a_aewb_validate_params,
-	.set_params		= isph3a_aewb_set_params,
-	.setup_regs		= isph3a_aewb_setup_regs,
-	.enable			= isph3a_aewb_enable,
-	.busy			= isph3a_aewb_busy,
+static const struct ispstat_ops h3a_aewb_ops = {
+	.validate_params	= h3a_aewb_validate_params,
+	.set_params		= h3a_aewb_set_params,
+	.setup_regs		= h3a_aewb_setup_regs,
+	.enable			= h3a_aewb_enable,
+	.busy			= h3a_aewb_busy,
 };
 
-static const struct v4l2_subdev_core_ops isph3a_aewb_subdev_core_ops = {
-	.ioctl = isph3a_aewb_ioctl,
-	.subscribe_event = ispstat_subscribe_event,
-	.unsubscribe_event = ispstat_unsubscribe_event,
+static const struct v4l2_subdev_core_ops h3a_aewb_subdev_core_ops = {
+	.ioctl = h3a_aewb_ioctl,
+	.subscribe_event = omap3isp_stat_subscribe_event,
+	.unsubscribe_event = omap3isp_stat_unsubscribe_event,
 };
 
-static const struct v4l2_subdev_video_ops isph3a_aewb_subdev_video_ops = {
-	.s_stream = ispstat_s_stream,
+static const struct v4l2_subdev_video_ops h3a_aewb_subdev_video_ops = {
+	.s_stream = omap3isp_stat_s_stream,
 };
 
-static const struct v4l2_subdev_ops isph3a_aewb_subdev_ops = {
-	.core = &isph3a_aewb_subdev_core_ops,
-	.video = &isph3a_aewb_subdev_video_ops,
+static const struct v4l2_subdev_ops h3a_aewb_subdev_ops = {
+	.core = &h3a_aewb_subdev_core_ops,
+	.video = &h3a_aewb_subdev_video_ops,
 };
 
 /*
- * isph3a_aewb_init - Module Initialisation.
+ * omap3isp_h3a_aewb_init - Module Initialisation.
  */
-int isph3a_aewb_init(struct isp_device *isp)
+int omap3isp_h3a_aewb_init(struct isp_device *isp)
 {
 	struct ispstat *aewb = &isp->isp_aewb;
 	struct omap3isp_h3a_aewb_config *aewb_cfg;
@@ -308,7 +307,7 @@ int isph3a_aewb_init(struct isp_device *isp)
 		return -ENOMEM;
 
 	memset(aewb, 0, sizeof(*aewb));
-	aewb->ops = &isph3a_aewb_ops;
+	aewb->ops = &h3a_aewb_ops;
 	aewb->priv = aewb_cfg;
 	aewb->dma_ch = -1;
 	aewb->event_type = V4L2_EVENT_OMAP3ISP_AEWB;
@@ -334,17 +333,17 @@ int isph3a_aewb_init(struct isp_device *isp)
 	aewb_recover_cfg->subsample_ver_inc = OMAP3ISP_AEWB_MIN_SUB_INC;
 	aewb_recover_cfg->subsample_hor_inc = OMAP3ISP_AEWB_MIN_SUB_INC;
 
-	if (isph3a_aewb_validate_params(aewb, aewb_recover_cfg)) {
+	if (h3a_aewb_validate_params(aewb, aewb_recover_cfg)) {
 		dev_err(aewb->isp->dev, "AEWB: recover configuration is "
 					"invalid.\n");
 		ret = -EINVAL;
 		goto err_conf;
 	}
 
-	aewb_recover_cfg->buf_size = isph3a_aewb_get_buf_size(aewb_recover_cfg);
+	aewb_recover_cfg->buf_size = h3a_aewb_get_buf_size(aewb_recover_cfg);
 	aewb->recover_priv = aewb_recover_cfg;
 
-	ret = ispstat_init(aewb, "AEWB", &isph3a_aewb_subdev_ops);
+	ret = omap3isp_stat_init(aewb, "AEWB", &h3a_aewb_subdev_ops);
 	if (ret)
 		goto err_conf;
 
@@ -359,11 +358,11 @@ err_recover_alloc:
 }
 
 /*
- * isph3a_aewb_cleanup - Module exit.
+ * omap3isp_h3a_aewb_cleanup - Module exit.
  */
-void isph3a_aewb_cleanup(struct isp_device *isp)
+void omap3isp_h3a_aewb_cleanup(struct isp_device *isp)
 {
 	kfree(isp->isp_aewb.priv);
 	kfree(isp->isp_aewb.recover_priv);
-	ispstat_cleanup(&isp->isp_aewb);
+	omap3isp_stat_cleanup(&isp->isp_aewb);
 }

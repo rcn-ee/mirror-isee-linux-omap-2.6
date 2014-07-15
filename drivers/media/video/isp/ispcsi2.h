@@ -158,11 +158,11 @@ struct isp_csi2_device {
 	atomic_t stopping;
 };
 
-void ispcsi2_isr(struct isp_csi2_device *csi2);
-int ispcsi2_reset(struct isp_csi2_device *csi2);
-int ispcsi2_init(struct isp_device *isp);
-void ispcsi2_cleanup(struct isp_device *isp);
-void ispcsi2_unregister_entities(struct isp_csi2_device *csi2);
-int ispcsi2_register_entities(struct isp_csi2_device *csi2,
-			       struct v4l2_device *vdev);
+void omap3isp_csi2_isr(struct isp_csi2_device *csi2);
+int omap3isp_csi2_reset(struct isp_csi2_device *csi2);
+int omap3isp_csi2_init(struct isp_device *isp);
+void omap3isp_csi2_cleanup(struct isp_device *isp);
+void omap3isp_csi2_unregister_entities(struct isp_csi2_device *csi2);
+int omap3isp_csi2_register_entities(struct isp_csi2_device *csi2,
+				    struct v4l2_device *vdev);
 #endif	/* OMAP3_ISP_CSI2_H */

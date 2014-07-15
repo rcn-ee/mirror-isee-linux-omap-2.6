@@ -39,9 +39,9 @@
 #define HIST_USING_DMA(hist) ((hist)->dma_ch >= 0)
 
 /*
- * isphist_reset_mem - clear Histogram memory before start stats engine.
+ * hist_reset_mem - clear Histogram memory before start stats engine.
  */
-static void isphist_reset_mem(struct ispstat *hist)
+static void hist_reset_mem(struct ispstat *hist)
 {
 	struct isp_device *isp = hist->isp;
 	struct omap3isp_hist_config *conf = hist->priv;
@@ -70,7 +70,7 @@ static void isphist_reset_mem(struct ispstat *hist)
 	hist->wait_acc_frames = conf->num_acc_frames;
 }
 
-static void isphist_dma_config(struct ispstat *hist)
+static void hist_dma_config(struct ispstat *hist)
 {
 	hist->dma_config.data_type = OMAP_DMA_DATA_TYPE_S32;
 	hist->dma_config.sync_mode = OMAP_DMA_SYNC_ELEMENT;
@@ -82,9 +82,9 @@ static void isphist_dma_config(struct ispstat *hist)
 }
 
 /*
- * isphist_setup_regs - Helper function to update Histogram registers.
+ * hist_setup_regs - Helper function to update Histogram registers.
  */
-static void isphist_setup_regs(struct ispstat *hist, void *priv)
+static void hist_setup_regs(struct ispstat *hist, void *priv)
 {
 	struct isp_device *isp = hist->isp;
 	struct omap3isp_hist_config *conf = priv;
@@ -143,7 +143,7 @@ static void isphist_setup_regs(struct ispstat *hist, void *priv)
 		break;
 	}
 
-	isphist_reset_mem(hist);
+	hist_reset_mem(hist);
 
 	isp_reg_writel(isp, cnt, OMAP3_ISP_IOMEM_HIST, ISPHIST_CNT);
 	isp_reg_writel(isp, wb_gain,  OMAP3_ISP_IOMEM_HIST, ISPHIST_WB_GAIN);
@@ -162,26 +162,26 @@ static void isphist_setup_regs(struct ispstat *hist, void *priv)
 	hist->buf_size = conf->buf_size;
 }
 
-static void isphist_enable(struct ispstat *hist, int enable)
+static void hist_enable(struct ispstat *hist, int enable)
 {
 	if (enable) {
 		isp_reg_set(hist->isp, OMAP3_ISP_IOMEM_HIST, ISPHIST_PCR,
 			    ISPHIST_PCR_ENABLE);
-		isp_subclk_enable(hist->isp, OMAP3_ISP_SUBCLK_HIST);
+		omap3isp_subclk_enable(hist->isp, OMAP3_ISP_SUBCLK_HIST);
 	} else {
 		isp_reg_clr(hist->isp, OMAP3_ISP_IOMEM_HIST, ISPHIST_PCR,
 			    ISPHIST_PCR_ENABLE);
-		isp_subclk_disable(hist->isp, OMAP3_ISP_SUBCLK_HIST);
+		omap3isp_subclk_disable(hist->isp, OMAP3_ISP_SUBCLK_HIST);
 	}
 }
 
-static int isphist_busy(struct ispstat *hist)
+static int hist_busy(struct ispstat *hist)
 {
 	return isp_reg_readl(hist->isp, OMAP3_ISP_IOMEM_HIST, ISPHIST_PCR)
 						& ISPHIST_PCR_BUSY;
 }
 
-static void isphist_dma_cb(int lch, u16 ch_status, void *data)
+static void hist_dma_cb(int lch, u16 ch_status, void *data)
 {
 	struct ispstat *hist = data;
 
@@ -189,31 +189,31 @@ static void isphist_dma_cb(int lch, u16 ch_status, void *data)
 		dev_dbg(hist->isp->dev, "hist: DMA error. status = 0x%04x\n",
 			ch_status);
 		omap_stop_dma(lch);
-		isphist_reset_mem(hist);
+		hist_reset_mem(hist);
 		atomic_set(&hist->buf_err, 1);
 	}
 	isp_reg_clr(hist->isp, OMAP3_ISP_IOMEM_HIST, ISPHIST_CNT,
 		    ISPHIST_CNT_CLEAR);
 
-	ispstat_dma_isr(hist);
+	omap3isp_stat_dma_isr(hist);
 	if (hist->state != ISPSTAT_DISABLED)
-		isphist_dma_done(hist->isp);
+		omap3isp_hist_dma_done(hist->isp);
 }
 
-static int isphist_buf_dma(struct ispstat *hist)
+static int hist_buf_dma(struct ispstat *hist)
 {
 	dma_addr_t dma_addr = hist->active_buf->dma_addr;
 
 	if (unlikely(!dma_addr)) {
 		dev_dbg(hist->isp->dev, "hist: invalid DMA buffer address\n");
-		isphist_reset_mem(hist);
+		hist_reset_mem(hist);
 		return STAT_NO_BUF;
 	}
 
 	isp_reg_writel(hist->isp, 0, OMAP3_ISP_IOMEM_HIST, ISPHIST_ADDR);
 	isp_reg_set(hist->isp, OMAP3_ISP_IOMEM_HIST, ISPHIST_CNT,
 		    ISPHIST_CNT_CLEAR);
-	isp_flush(hist->isp);
+	omap3isp_flush(hist->isp);
 	hist->dma_config.dst_start = dma_addr;
 	hist->dma_config.elem_count = hist->buf_size / sizeof(u32);
 	omap_set_dma_params(hist->dma_ch, &hist->dma_config);
@@ -223,7 +223,7 @@ static int isphist_buf_dma(struct ispstat *hist)
 	return STAT_BUF_WAITING_DMA;
 }
 
-static int isphist_buf_pio(struct ispstat *hist)
+static int hist_buf_pio(struct ispstat *hist)
 {
 	struct isp_device *isp = hist->isp;
 	u32 *buf = hist->active_buf->virt_addr;
@@ -231,7 +231,7 @@ static int isphist_buf_pio(struct ispstat *hist)
 
 	if (!buf) {
 		dev_dbg(isp->dev, "hist: invalid PIO buffer address\n");
-		isphist_reset_mem(hist);
+		hist_reset_mem(hist);
 		return STAT_NO_BUF;
 	}
 
@@ -262,15 +262,15 @@ static int isphist_buf_pio(struct ispstat *hist)
 }
 
 /*
- * isphist_buf_process - Callback from ISP driver for HIST interrupt.
+ * hist_buf_process - Callback from ISP driver for HIST interrupt.
  */
-static int isphist_buf_process(struct ispstat *hist)
+static int hist_buf_process(struct ispstat *hist)
 {
 	struct omap3isp_hist_config *user_cfg = hist->priv;
 	int ret;
 
 	if (atomic_read(&hist->buf_err) || hist->state != ISPSTAT_ENABLED) {
-		isphist_reset_mem(hist);
+		hist_reset_mem(hist);
 		return STAT_NO_BUF;
 	}
 
@@ -278,27 +278,27 @@ static int isphist_buf_process(struct ispstat *hist)
 		return STAT_NO_BUF;
 
 	if (HIST_USING_DMA(hist))
-		ret = isphist_buf_dma(hist);
+		ret = hist_buf_dma(hist);
 	else
-		ret = isphist_buf_pio(hist);
+		ret = hist_buf_pio(hist);
 
 	hist->wait_acc_frames = user_cfg->num_acc_frames;
 
 	return ret;
 }
 
-static u32 isphist_get_buf_size(struct omap3isp_hist_config *conf)
+static u32 hist_get_buf_size(struct omap3isp_hist_config *conf)
 {
 	return OMAP3ISP_HIST_MEM_SIZE_BINS(conf->hist_bins) * conf->num_regions;
 }
 
 /*
- * isphist_validate_params - Helper function to check user given params.
- * @user_cfg: Pointer to user configuration structure.
+ * hist_validate_params - Helper function to check user given params.
+ * @new_conf: Pointer to user configuration structure.
  *
  * Returns 0 on success configuration.
  */
-static int isphist_validate_params(struct ispstat *hist, void *new_conf)
+static int hist_validate_params(struct ispstat *hist, void *new_conf)
 {
 	struct omap3isp_hist_config *user_cfg = new_conf;
 	int c;
@@ -344,9 +344,9 @@ static int isphist_validate_params(struct ispstat *hist, void *new_conf)
 		break;
 	}
 
-	buf_size = isphist_get_buf_size(user_cfg);
+	buf_size = hist_get_buf_size(user_cfg);
 	if (buf_size > user_cfg->buf_size)
-		/* User's buf_size request wasn't enoght */
+		/* User's buf_size request wasn't enough */
 		user_cfg->buf_size = buf_size;
 	else if (user_cfg->buf_size > OMAP3ISP_HIST_MAX_BUF_SIZE)
 		user_cfg->buf_size = OMAP3ISP_HIST_MAX_BUF_SIZE;
@@ -354,8 +354,8 @@ static int isphist_validate_params(struct ispstat *hist, void *new_conf)
 	return 0;
 }
 
-static int isphist_comp_params(struct ispstat *hist,
-			       struct omap3isp_hist_config *user_cfg)
+static int hist_comp_params(struct ispstat *hist,
+			    struct omap3isp_hist_config *user_cfg)
 {
 	struct omap3isp_hist_config *cur_cfg = hist->priv;
 	int c;
@@ -395,15 +395,15 @@ static int isphist_comp_params(struct ispstat *hist,
 }
 
 /*
- * isphist_update_params - Helper function to check and store user given params.
+ * hist_update_params - Helper function to check and store user given params.
  * @new_conf: Pointer to user configuration structure.
  */
-static void isphist_set_params(struct ispstat *hist, void *new_conf)
+static void hist_set_params(struct ispstat *hist, void *new_conf)
 {
 	struct omap3isp_hist_config *user_cfg = new_conf;
 	struct omap3isp_hist_config *cur_cfg = hist->priv;
 
-	if (!hist->configured || isphist_comp_params(hist, user_cfg)) {
+	if (!hist->configured || hist_comp_params(hist, user_cfg)) {
 		memcpy(cur_cfg, user_cfg, sizeof(*user_cfg));
 		if (user_cfg->num_acc_frames == 0)
 			user_cfg->num_acc_frames = 1;
@@ -415,23 +415,23 @@ static void isphist_set_params(struct ispstat *hist, void *new_conf)
 		 * data during buffer request, let's calculate the size here
 		 * instead of stick with user_cfg->buf_size.
 		 */
-		cur_cfg->buf_size = isphist_get_buf_size(cur_cfg);
+		cur_cfg->buf_size = hist_get_buf_size(cur_cfg);
 
 	}
 }
 
-static long isphist_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+static long hist_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 {
 	struct ispstat *stat = v4l2_get_subdevdata(sd);
 
 	switch (cmd) {
 	case VIDIOC_OMAP3ISP_HIST_CFG:
-		return ispstat_config(stat, arg);
+		return omap3isp_stat_config(stat, arg);
 	case VIDIOC_OMAP3ISP_STAT_REQ:
-		return ispstat_request_statistics(stat, arg);
+		return omap3isp_stat_request_statistics(stat, arg);
 	case VIDIOC_OMAP3ISP_STAT_EN: {
 		int *en = arg;
-		return ispstat_enable(stat, !!*en);
+		return omap3isp_stat_enable(stat, !!*en);
 	}
 	}
 
@@ -439,47 +439,47 @@ static long isphist_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 
 }
 
-static const struct ispstat_ops isphist_ops = {
-	.validate_params	= isphist_validate_params,
-	.set_params		= isphist_set_params,
-	.setup_regs		= isphist_setup_regs,
-	.enable			= isphist_enable,
-	.busy			= isphist_busy,
-	.buf_process		= isphist_buf_process,
+static const struct ispstat_ops hist_ops = {
+	.validate_params	= hist_validate_params,
+	.set_params		= hist_set_params,
+	.setup_regs		= hist_setup_regs,
+	.enable			= hist_enable,
+	.busy			= hist_busy,
+	.buf_process		= hist_buf_process,
 };
 
-static const struct v4l2_subdev_core_ops isphist_subdev_core_ops = {
-	.ioctl = isphist_ioctl,
-	.subscribe_event = ispstat_subscribe_event,
-	.unsubscribe_event = ispstat_unsubscribe_event,
+static const struct v4l2_subdev_core_ops hist_subdev_core_ops = {
+	.ioctl = hist_ioctl,
+	.subscribe_event = omap3isp_stat_subscribe_event,
+	.unsubscribe_event = omap3isp_stat_unsubscribe_event,
 };
 
-static const struct v4l2_subdev_video_ops isphist_subdev_video_ops = {
-	.s_stream = ispstat_s_stream,
+static const struct v4l2_subdev_video_ops hist_subdev_video_ops = {
+	.s_stream = omap3isp_stat_s_stream,
 };
 
-static const struct v4l2_subdev_ops isphist_subdev_ops = {
-	.core = &isphist_subdev_core_ops,
-	.video = &isphist_subdev_video_ops,
+static const struct v4l2_subdev_ops hist_subdev_ops = {
+	.core = &hist_subdev_core_ops,
+	.video = &hist_subdev_video_ops,
 };
 
 /*
- * isphist_init - Module Initialization.
+ * omap3isp_hist_init - Module Initialization.
  */
-int isphist_init(struct isp_device *isp)
+int omap3isp_hist_init(struct isp_device *isp)
 {
 	struct ispstat *hist = &isp->isp_hist;
 	struct omap3isp_hist_config *hist_cfg;
 	int ret = -1;
 
-	hist_cfg = kzalloc(sizeof(*hist_cfg), GFP_KERNEL);
+	hist_cfg = devm_kzalloc(isp->dev, sizeof(*hist_cfg), GFP_KERNEL);
 	if (hist_cfg == NULL)
 		return -ENOMEM;
 
 	memset(hist, 0, sizeof(*hist));
 	if (HIST_CONFIG_DMA)
 		ret = omap_request_dma(OMAP24XX_DMA_NO_DEVICE, "DMA_ISP_HIST",
-				       isphist_dma_cb, hist, &hist->dma_ch);
+				       hist_dma_cb, hist, &hist->dma_ch);
 	if (ret) {
 		if (HIST_CONFIG_DMA)
 			dev_warn(isp->dev, "hist: DMA request channel failed. "
@@ -487,16 +487,16 @@ int isphist_init(struct isp_device *isp)
 		hist->dma_ch = -1;
 	} else {
 		dev_dbg(isp->dev, "hist: DMA channel = %d\n", hist->dma_ch);
-		isphist_dma_config(hist);
+		hist_dma_config(hist);
 		omap_enable_dma_irq(hist->dma_ch, OMAP_DMA_BLOCK_IRQ);
 	}
 
-	hist->ops = &isphist_ops;
+	hist->ops = &hist_ops;
 	hist->priv = hist_cfg;
 	hist->event_type = V4L2_EVENT_OMAP3ISP_HIST;
 	hist->isp = isp;
 
-	ret = ispstat_init(hist, "histogram", &isphist_subdev_ops);
+	ret = omap3isp_stat_init(hist, "histogram", &hist_subdev_ops);
 	if (ret) {
 		kfree(hist_cfg);
 		if (HIST_USING_DMA(hist))
@@ -507,12 +507,12 @@ int isphist_init(struct isp_device *isp)
 }
 
 /*
- * isphist_cleanup - Module cleanup.
+ * omap3isp_hist_cleanup - Module cleanup.
  */
-void isphist_cleanup(struct isp_device *isp)
+void omap3isp_hist_cleanup(struct isp_device *isp)
 {
 	if (HIST_USING_DMA(&isp->isp_hist))
 		omap_free_dma(isp->isp_hist.dma_ch);
 	kfree(isp->isp_hist.priv);
-	ispstat_cleanup(&isp->isp_hist);
+	omap3isp_stat_cleanup(&isp->isp_hist);
 }
