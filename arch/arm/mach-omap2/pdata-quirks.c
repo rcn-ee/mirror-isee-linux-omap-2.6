@@ -10,10 +10,17 @@
 #include <linux/clk.h>
 #include <linux/davinci_emac.h>
 #include <linux/gpio.h>
+#include <linux/i2c.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/of_platform.h>
+#include <linux/regulator/fixed.h>
+#include <linux/regulator/machine.h>
 #include <linux/wl12xx.h>
+
+#include <media/mt9p031.h>
+#include <media/mt9v032.h>
+#include <media/omap3isp.h>
 
 #include <linux/platform_data/pinctrl-single.h>
 #include <linux/platform_data/iommu-omap.h>
@@ -21,6 +28,7 @@
 #include "am35xx.h"
 #include "common.h"
 #include "common-board-devices.h"
+#include "devices.h"
 #include "dss-common.h"
 #include "control.h"
 #include "omap_device.h"
@@ -34,6 +42,57 @@ struct pdata_init {
 
 struct of_dev_auxdata omap_auxdata_lookup[];
 static struct twl4030_gpio_platform_data twl_gpio_auxdata;
+
+#define CAMR0020_MT9P031_RESET_GPIO	98
+#define CAMR0020_MT9P031_STANDBY_GPIO	111
+
+static struct regulator_consumer_supply mt9p031_dummy_supplies[] = {
+	REGULATOR_SUPPLY("vaa", "1-005d"),
+};
+
+static struct mt9p031_platform_data camr0020_mt9p031_pdata = {
+	.reset		= CAMR0020_MT9P031_RESET_GPIO,
+	.ext_freq	= 21000000,
+	.target_freq	= 48000000,
+};
+
+static struct i2c_board_info camr0020_i2c_device = {
+	I2C_BOARD_INFO("mt9p031", 0x5d),
+	.platform_data = &camr0020_mt9p031_pdata,
+};
+
+static struct isp_subdev_i2c_board_info cam0020_primary_subdevs[] = {
+	{
+		.board_info = &camr0020_i2c_device,
+		.i2c_adapter_id = 1, /* adapter 1 is am335x i2c2 */
+	},
+	{ NULL, 0, },
+};
+
+static struct isp_v4l2_subdevs_group igep00x0_camera_subdevs[] = {
+	{
+		.subdevs = cam0020_primary_subdevs,
+		.interface = ISP_INTERFACE_PARALLEL,
+		.bus = {
+			.parallel = {
+				.data_lane_shift = ISP_LANE_SHIFT_0,
+				/* Sample on falling edge */
+				.clk_pol = 1,
+			}
+		},
+	},
+	{ },
+};
+
+static struct isp_platform_data igep00x0_isp_pdata = {
+	.xclks = {
+		[0] = {
+			.dev_id = "1-005d",
+		},
+	},
+        .subdevs = igep00x0_camera_subdevs,
+};
+
 
 #if IS_ENABLED(CONFIG_WL12XX)
 
@@ -141,6 +200,18 @@ static void __init omap3_sbc_t3530_legacy_init(void)
 
 static void __init omap3_igep0020_legacy_init(void)
 {
+	if (gpio_request_one(CAMR0020_MT9P031_STANDBY_GPIO,
+	    GPIOF_OUT_INIT_HIGH, "mt9p031 standby"))
+		pr_warning("Could not obtain gpio cam standby\n");
+	else
+		gpio_export(CAMR0020_MT9P031_STANDBY_GPIO, 0);
+
+	clk_add_alias(NULL, "2-005d", "cam_xclka", NULL);
+
+	regulator_register_fixed(0, mt9p031_dummy_supplies,
+				ARRAY_SIZE(mt9p031_dummy_supplies));
+
+	omap3_init_camera(&igep00x0_isp_pdata);
 }
 
 static void __init omap3_evm_legacy_init(void)
