@@ -54,9 +54,9 @@
 #define		MT9P031_HORIZONTAL_BLANK_MIN		0
 #define		MT9P031_HORIZONTAL_BLANK_MAX		4095
 #define MT9P031_VERTICAL_BLANK				0x06
-#define		MT9P031_VERTICAL_BLANK_MIN		0
-#define		MT9P031_VERTICAL_BLANK_MAX		4095
-#define		MT9P031_VERTICAL_BLANK_DEF		25
+#define		MT9P031_VERTICAL_BLANK_MIN		1
+#define		MT9P031_VERTICAL_BLANK_MAX		4096
+#define		MT9P031_VERTICAL_BLANK_DEF		26
 #define MT9P031_OUTPUT_CONTROL				0x07
 #define		MT9P031_OUTPUT_CONTROL_CEN		2
 #define		MT9P031_OUTPUT_CONTROL_SYN		1
@@ -73,6 +73,9 @@
 #define	MT9P031_PLL_CONFIG_1				0x11
 #define	MT9P031_PLL_CONFIG_2				0x12
 #define MT9P031_PIXEL_CLOCK_CONTROL			0x0a
+#define		MT9P031_PIXEL_CLOCK_INVERT		(1 << 15)
+#define		MT9P031_PIXEL_CLOCK_SHIFT(n)		((n) << 8)
+#define		MT9P031_PIXEL_CLOCK_DIVIDE(n)		((n) << 0)
 #define MT9P031_FRAME_RESTART				0x0b
 #define MT9P031_SHUTTER_DELAY				0x0c
 #define MT9P031_RST					0x0d
@@ -90,7 +93,14 @@
 #define		MT9P031_GLOBAL_GAIN_MAX			1024
 #define		MT9P031_GLOBAL_GAIN_DEF			8
 #define		MT9P031_GLOBAL_GAIN_MULT		(1 << 6)
+#define MT9P031_ROW_BLACK_TARGET			0x49
 #define MT9P031_ROW_BLACK_DEF_OFFSET			0x4b
+#define MT9P031_GREEN1_OFFSET				0x60
+#define MT9P031_GREEN2_OFFSET				0x61
+#define MT9P031_BLACK_LEVEL_CALIBRATION			0x62
+#define		MT9P031_BLC_MANUAL_BLC			(1 << 0)
+#define MT9P031_RED_OFFSET				0x63
+#define MT9P031_BLUE_OFFSET				0x64
 #define MT9P031_TEST_PATTERN				0xa0
 #define		MT9P031_TEST_PATTERN_SHIFT		3
 #define		MT9P031_TEST_PATTERN_ENABLE		(1 << 0)
@@ -107,6 +117,10 @@ struct mt9p031_pll_divs {
 	u8 p1;
 };
 
+enum mt9p031_model {
+	MT9P031_MODEL_COLOR,
+};
+
 struct mt9p031 {
 	struct v4l2_subdev subdev;
 	struct media_pad pad;
@@ -118,12 +132,11 @@ struct mt9p031 {
 	struct mt9p031_platform_data *pdata;
 	struct mutex power_lock; /* lock to protect power_count */
 	int power_count;
-	u16 xskip;
-	u16 yskip;
 
-	int reset;
+
 
 	bool use_pll;
+	int reset;
 	const struct mt9p031_pll_divs *pll;
 
 	/* Registers cache */
@@ -264,18 +277,18 @@ static inline int mt9p031_pll_disable(struct mt9p031 *mt9p031)
 static int mt9p031_power_on(struct mt9p031 *mt9p031)
 {
 	/* Ensure RESET_BAR is low */
-	if (mt9p031->reset != -1) {
+	if (gpio_is_valid(mt9p031->reset)) {
 		gpio_set_value(mt9p031->reset, 0);
 		usleep_range(1000, 2000);
 	}
 
-	/* Emable clock */
+	/* Enable clock */
 	if (mt9p031->pdata->set_xclk)
 		mt9p031->pdata->set_xclk(&mt9p031->subdev,
 					 mt9p031->pdata->ext_freq);
 
 	/* Now RESET_BAR must be high */
-	if (mt9p031->reset != -1) {
+	if (gpio_is_valid(mt9p031->reset)) {
 		gpio_set_value(mt9p031->reset, 1);
 		usleep_range(1000, 2000);
 	}
@@ -285,7 +298,7 @@ static int mt9p031_power_on(struct mt9p031 *mt9p031)
 
 static void mt9p031_power_off(struct mt9p031 *mt9p031)
 {
-	if (mt9p031->reset != -1) {
+	if (gpio_is_valid(mt9p031->reset)) {
 		gpio_set_value(mt9p031->reset, 0);
 		usleep_range(1000, 2000);
 	}
@@ -373,13 +386,13 @@ static int mt9p031_set_params(struct mt9p031 *mt9p031)
 	/* Blanking - use minimum value for horizontal blanking and default
 	 * value for vertical blanking.
 	 */
-	hblank = 346 * ybin + 64 + (80 >> max_t(unsigned int, xbin, 3));
+	hblank = 346 * ybin + 64 + (80 >> min_t(unsigned int, xbin, 3));
 	vblank = MT9P031_VERTICAL_BLANK_DEF;
 
-	ret = mt9p031_write(client, MT9P031_HORIZONTAL_BLANK, hblank);
+	ret = mt9p031_write(client, MT9P031_HORIZONTAL_BLANK, hblank - 1);
 	if (ret < 0)
 		return ret;
-	ret = mt9p031_write(client, MT9P031_VERTICAL_BLANK, vblank);
+	ret = mt9p031_write(client, MT9P031_VERTICAL_BLANK, vblank - 1);
 	if (ret < 0)
 		return ret;
 
@@ -410,7 +423,6 @@ static int mt9p031_s_stream(struct v4l2_subdev *subdev, int enable)
 	/* Switch to master "normal" mode */
 	ret = mt9p031_set_output_control(mt9p031, 0,
 					 MT9P031_OUTPUT_CONTROL_CEN);
-
 	if (ret < 0)
 		return ret;
 
@@ -507,11 +519,13 @@ static int mt9p031_set_format(struct v4l2_subdev *subdev,
 
 	/* Clamp the width and height to avoid dividing by zero. */
 	width = clamp_t(unsigned int, ALIGN(format->format.width, 2),
-			max(__crop->width / 7, MT9P031_WINDOW_WIDTH_MIN),
+			max_t(unsigned int, __crop->width / 7,
+			      MT9P031_WINDOW_WIDTH_MIN),
 			__crop->width);
 	height = clamp_t(unsigned int, ALIGN(format->format.height, 2),
-			max(__crop->height / 8, MT9P031_WINDOW_HEIGHT_MIN),
-			__crop->height);
+			 max_t(unsigned int, __crop->height / 8,
+			       MT9P031_WINDOW_HEIGHT_MIN),
+			 __crop->height);
 
 	hratio = DIV_ROUND_CLOSEST(__crop->width, width);
 	vratio = DIV_ROUND_CLOSEST(__crop->height, height);
@@ -553,15 +567,17 @@ static int mt9p031_set_crop(struct v4l2_subdev *subdev,
 			  MT9P031_COLUMN_START_MAX);
 	rect.top = clamp(ALIGN(crop->rect.top, 2), MT9P031_ROW_START_MIN,
 			 MT9P031_ROW_START_MAX);
-	rect.width = clamp(ALIGN(crop->rect.width, 2),
-			   MT9P031_WINDOW_WIDTH_MIN,
-			   MT9P031_WINDOW_WIDTH_MAX);
-	rect.height = clamp(ALIGN(crop->rect.height, 2),
-			    MT9P031_WINDOW_HEIGHT_MIN,
-			    MT9P031_WINDOW_HEIGHT_MAX);
+	rect.width = clamp_t(unsigned int, ALIGN(crop->rect.width, 2),
+			     MT9P031_WINDOW_WIDTH_MIN,
+			     MT9P031_WINDOW_WIDTH_MAX);
+	rect.height = clamp_t(unsigned int, ALIGN(crop->rect.height, 2),
+			      MT9P031_WINDOW_HEIGHT_MIN,
+			      MT9P031_WINDOW_HEIGHT_MAX);
 
-	rect.width = min(rect.width, MT9P031_PIXEL_ARRAY_WIDTH - rect.left);
-	rect.height = min(rect.height, MT9P031_PIXEL_ARRAY_HEIGHT - rect.top);
+	rect.width = min_t(unsigned int, rect.width,
+			   MT9P031_PIXEL_ARRAY_WIDTH - rect.left);
+	rect.height = min_t(unsigned int, rect.height,
+			    MT9P031_PIXEL_ARRAY_HEIGHT - rect.top);
 
 	__crop = __mt9p031_get_pad_crop(mt9p031, fh, crop->pad, crop->which);
 
@@ -669,10 +685,12 @@ static int mt9p031_s_ctrl(struct v4l2_ctrl *ctrl)
 		if (ret < 0)
 			return ret;
 
+		/* Disable digital BLC when generating a test pattern. */
 		ret = mt9p031_set_mode2(mt9p031, MT9P031_READ_MODE_2_ROW_BLC,
 					0);
 		if (ret < 0)
 			return ret;
+
 		ret = mt9p031_write(client, MT9P031_ROW_BLACK_DEF_OFFSET, 0);
 		if (ret < 0)
 			return ret;
@@ -681,6 +699,7 @@ static int mt9p031_s_ctrl(struct v4l2_ctrl *ctrl)
 				((ctrl->val - 1) << MT9P031_TEST_PATTERN_SHIFT)
 				| MT9P031_TEST_PATTERN_ENABLE);
 	}
+
 	return 0;
 }
 
@@ -764,18 +783,18 @@ static int mt9p031_set_config(struct v4l2_subdev *subdev, int irq, void *pdata)
 
 	/* Read out the chip version register */
 	data = mt9p031_read(client, MT9P031_CHIP_VERSION);
+	mt9p031_power_off(mt9p031);
+
 	if (data != MT9P031_CHIP_VERSION_VALUE) {
 		dev_err(&client->dev, "MT9P031 not detected, wrong version "
 			"0x%04x\n", data);
 		return -ENODEV;
 	}
 
-	mt9p031_power_off(mt9p031);
-
 	dev_info(&client->dev, "MT9P031 detected at address 0x%02x\n",
 		 client->addr);
 
-	return ret;
+	return 0;
 }
 
 static int mt9p031_open(struct v4l2_subdev *subdev, struct v4l2_subdev_fh *fh)
@@ -799,8 +818,6 @@ static int mt9p031_open(struct v4l2_subdev *subdev, struct v4l2_subdev_fh *fh)
 	format->field = V4L2_FIELD_NONE;
 	format->colorspace = V4L2_COLORSPACE_SRGB;
 
-	mt9p031->xskip = 1;
-	mt9p031->yskip = 1;
 	return mt9p031_set_power(subdev, 1);
 }
 
@@ -864,7 +881,7 @@ static int mt9p031_probe(struct i2c_client *client,
 		return -EIO;
 	}
 
-	mt9p031 = kzalloc(sizeof(*mt9p031), GFP_KERNEL);
+	mt9p031 = devm_kzalloc(&client->dev, sizeof(*mt9p031), GFP_KERNEL);
 	if (mt9p031 == NULL)
 		return -ENOMEM;
 
@@ -921,7 +938,7 @@ static int mt9p031_probe(struct i2c_client *client,
 	mt9p031->format.field = V4L2_FIELD_NONE;
 	mt9p031->format.colorspace = V4L2_COLORSPACE_SRGB;
 
-	if (pdata->reset != -1) {
+	if (gpio_is_valid(pdata->reset)) {
 		ret = gpio_request_one(pdata->reset, GPIOF_OUT_INIT_LOW,
 					"mt9p031_rst");
 		if (ret < 0) {
@@ -939,7 +956,6 @@ done:
 	if (ret < 0) {
 		v4l2_ctrl_handler_free(&mt9p031->ctrls);
 		media_entity_cleanup(&mt9p031->subdev.entity);
-		kfree(mt9p031);
 	}
 
 	return ret;
@@ -953,13 +969,12 @@ static int mt9p031_remove(struct i2c_client *client)
 	v4l2_ctrl_handler_free(&mt9p031->ctrls);
 	v4l2_device_unregister_subdev(subdev);
 	media_entity_cleanup(&subdev->entity);
-	kfree(mt9p031);
 
 	return 0;
 }
 
 static const struct i2c_device_id mt9p031_id[] = {
-	{ "mt9p031", 0 },
+	{ "mt9p031", MT9P031_MODEL_COLOR },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, mt9p031_id);
