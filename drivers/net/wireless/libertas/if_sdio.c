@@ -60,12 +60,6 @@
  */
 static u8 user_rmmod;
 
-static char *lbs_helper_name = NULL;
-module_param_named(helper_name, lbs_helper_name, charp, 0644);
-
-static char *lbs_fw_name = NULL;
-module_param_named(fw_name, lbs_fw_name, charp, 0644);
-
 static const struct sdio_device_id if_sdio_ids[] = {
 	{ SDIO_DEVICE(SDIO_VENDOR_ID_MARVELL,
 			SDIO_DEVICE_ID_MARVELL_LIBERTAS) },
@@ -118,11 +112,6 @@ struct if_sdio_card {
 	int			model;
 	unsigned long		ioport;
 	unsigned int		scratch_reg;
-
-	const char		*helper;
-	const char		*firmware;
-	bool			helper_allocated;
-	bool			firmware_allocated;
 
 	u8			buffer[65536] __attribute__((aligned(4)));
 
@@ -720,8 +709,8 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 		goto success;
 	}
 
-	ret = lbs_get_firmware(&card->func->dev, lbs_helper_name, lbs_fw_name,
-				card->model, &fw_table[0], &helper, &mainfw);
+	ret = lbs_get_firmware(&card->func->dev, card->model, &fw_table[0],
+				&helper, &mainfw);
 	if (ret) {
 		lbs_pr_err("failed to find firmware (%d)\n", ret);
 		goto out;
@@ -1143,10 +1132,6 @@ free:
 		kfree(packet);
 	}
 
-	if (card->helper_allocated)
-		kfree(card->helper);
-	if (card->firmware_allocated)
-		kfree(card->firmware);
 	kfree(card);
 
 	goto out;
@@ -1195,12 +1180,6 @@ static void if_sdio_remove(struct sdio_func *func)
 		card->packets = card->packets->next;
 		kfree(packet);
 	}
-
-	if (card->helper_allocated)
-		kfree(card->helper);
-	if (card->firmware_allocated)
-		kfree(card->firmware);
-	kfree(card);
 
 	lbs_deb_leave(LBS_DEB_SDIO);
 }

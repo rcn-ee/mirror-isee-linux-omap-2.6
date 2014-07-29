@@ -26,9 +26,6 @@
 
 #define MESSAGE_HEADER_LEN	4
 
-static char *lbs_fw_name = NULL;
-module_param_named(fw_name, lbs_fw_name, charp, 0644);
-
 MODULE_FIRMWARE("libertas/usb8388_v9.bin");
 MODULE_FIRMWARE("libertas/usb8388_v5.bin");
 MODULE_FIRMWARE("libertas/usb8388.bin");
@@ -52,10 +49,7 @@ MODULE_DEVICE_TABLE(usb, if_usb_table);
 
 static void if_usb_receive(struct urb *urb);
 static void if_usb_receive_fwload(struct urb *urb);
-static int __if_usb_prog_firmware(struct if_usb_card *cardp,
-					const char *fwname, int cmd);
-static int if_usb_prog_firmware(struct if_usb_card *cardp,
-					const char *fwname, int cmd);
+static int if_usb_prog_firmware(struct if_usb_card *cardp);
 static int if_usb_host_to_card(struct lbs_private *priv, uint8_t type,
 			       uint8_t *payload, uint16_t nb);
 static int usb_tx_block(struct if_usb_card *cardp, uint8_t *payload,
@@ -63,62 +57,6 @@ static int usb_tx_block(struct if_usb_card *cardp, uint8_t *payload,
 static void if_usb_free(struct if_usb_card *cardp);
 static int if_usb_submit_rx_urb(struct if_usb_card *cardp);
 static int if_usb_reset_device(struct if_usb_card *cardp);
-
-/* sysfs hooks */
-
-/**
- *  Set function to write firmware to device's persistent memory
- */
-static ssize_t if_usb_firmware_set(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct lbs_private *priv = to_net_dev(dev)->ml_priv;
-	struct if_usb_card *cardp = priv->card;
-	int ret;
-
-	BUG_ON(buf == NULL);
-
-	ret = if_usb_prog_firmware(cardp, buf, BOOT_CMD_UPDATE_FW);
-	if (ret == 0)
-		return count;
-
-	return ret;
-}
-
-/**
- * lbs_flash_fw attribute to be exported per ethX interface through sysfs
- * (/sys/class/net/ethX/lbs_flash_fw).  Use this like so to write firmware to
- * the device's persistent memory:
- * echo usb8388-5.126.0.p5.bin > /sys/class/net/ethX/lbs_flash_fw
- */
-static DEVICE_ATTR(lbs_flash_fw, 0200, NULL, if_usb_firmware_set);
-
-/**
- *  Set function to write firmware to device's persistent memory
- */
-static ssize_t if_usb_boot2_set(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct lbs_private *priv = to_net_dev(dev)->ml_priv;
-	struct if_usb_card *cardp = priv->card;
-	int ret;
-
-	BUG_ON(buf == NULL);
-
-	ret = if_usb_prog_firmware(cardp, buf, BOOT_CMD_UPDATE_BOOT2);
-	if (ret == 0)
-		return count;
-
-	return ret;
-}
-
-/**
- * lbs_flash_boot2 attribute to be exported per ethX interface through sysfs
- * (/sys/class/net/ethX/lbs_flash_boot2).  Use this like so to write firmware
- * to the device's persistent memory:
- * echo usb8388-5.126.0.p5.bin > /sys/class/net/ethX/lbs_flash_boot2
- */
-static DEVICE_ATTR(lbs_flash_boot2, 0200, NULL, if_usb_boot2_set);
 
 /**
  *  @brief  call back function to handle the status of the URB
@@ -304,13 +242,10 @@ static int if_usb_probe(struct usb_interface *intf,
 	}
 
 	/* Upload firmware */
-	kparam_block_sysfs_write(fw_name);
-	if (__if_usb_prog_firmware(cardp, lbs_fw_name, BOOT_CMD_FW_BY_USB)) {
-		kparam_unblock_sysfs_write(fw_name);
+	if (if_usb_prog_firmware(cardp)) {
 		lbs_deb_usbd(&udev->dev, "FW upload failed\n");
 		goto err_prog_firmware;
 	}
-	kparam_unblock_sysfs_write(fw_name);
 
 	if (!(priv = lbs_add_card(cardp, &udev->dev)))
 		goto err_prog_firmware;
@@ -339,12 +274,6 @@ static int if_usb_probe(struct usb_interface *intf,
 	usb_get_dev(udev);
 	usb_set_intfdata(intf, cardp);
 
-	if (device_create_file(&priv->dev->dev, &dev_attr_lbs_flash_fw))
-		lbs_pr_err("cannot register lbs_flash_fw attribute\n");
-
-	if (device_create_file(&priv->dev->dev, &dev_attr_lbs_flash_boot2))
-		lbs_pr_err("cannot register lbs_flash_boot2 attribute\n");
-
 	return 0;
 
 err_start_card:
@@ -369,9 +298,6 @@ static void if_usb_disconnect(struct usb_interface *intf)
 	struct lbs_private *priv = (struct lbs_private *) cardp->priv;
 
 	lbs_deb_enter(LBS_DEB_MAIN);
-
-	device_remove_file(&priv->dev->dev, &dev_attr_lbs_flash_boot2);
-	device_remove_file(&priv->dev->dev, &dev_attr_lbs_flash_fw);
 
 	cardp->surprise_removed = 1;
 
@@ -892,53 +818,6 @@ static int check_fwfile_format(const uint8_t *data, uint32_t totlen)
 	return ret;
 }
 
-
-/**
-*  @brief This function programs the firmware subject to cmd
-*
-*  @param cardp             the if_usb_card descriptor
-*         fwname            firmware or boot2 image file name
-*         cmd               either BOOT_CMD_FW_BY_USB, BOOT_CMD_UPDATE_FW,
-*                           or BOOT_CMD_UPDATE_BOOT2.
-*  @return     0 or error code
-*/
-static int if_usb_prog_firmware(struct if_usb_card *cardp,
-				const char *fwname, int cmd)
-{
-	struct lbs_private *priv = cardp->priv;
-	unsigned long flags, caps;
-	int ret;
-
-	caps = priv->fwcapinfo;
-	if (((cmd == BOOT_CMD_UPDATE_FW) && !(caps & FW_CAPINFO_FIRMWARE_UPGRADE)) ||
-	    ((cmd == BOOT_CMD_UPDATE_BOOT2) && !(caps & FW_CAPINFO_BOOT2_UPGRADE)))
-		return -EOPNOTSUPP;
-
-	/* Ensure main thread is idle. */
-	spin_lock_irqsave(&priv->driver_lock, flags);
-	while (priv->cur_cmd != NULL || priv->dnld_sent != DNLD_RES_RECEIVED) {
-		spin_unlock_irqrestore(&priv->driver_lock, flags);
-		if (wait_event_interruptible(priv->waitq,
-				(priv->cur_cmd == NULL &&
-				priv->dnld_sent == DNLD_RES_RECEIVED))) {
-			return -ERESTARTSYS;
-		}
-		spin_lock_irqsave(&priv->driver_lock, flags);
-	}
-	priv->dnld_sent = DNLD_BOOTCMD_SENT;
-	spin_unlock_irqrestore(&priv->driver_lock, flags);
-
-	ret = __if_usb_prog_firmware(cardp, fwname, cmd);
-
-	spin_lock_irqsave(&priv->driver_lock, flags);
-	priv->dnld_sent = DNLD_RES_RECEIVED;
-	spin_unlock_irqrestore(&priv->driver_lock, flags);
-
-	wake_up_interruptible(&priv->waitq);
-
-	return ret;
-}
-
 /* table of firmware file names */
 static const struct {
 	u32 model;
@@ -951,13 +830,9 @@ static const struct {
 	{ MODEL_8682, "libertas/usb8682.bin" }
 };
 
-static int get_fw(struct if_usb_card *cardp, const char *fwname)
+static int get_fw(struct if_usb_card *cardp)
 {
 	int i;
-
-	/* Try user-specified firmware first */
-	if (fwname)
-		return request_firmware(&cardp->fw, fwname, &cardp->udev->dev);
 
 	/* Otherwise search for firmware to use */
 	for (i = 0; i < ARRAY_SIZE(fw_table); i++) {
@@ -971,8 +846,7 @@ static int get_fw(struct if_usb_card *cardp, const char *fwname)
 	return -ENOENT;
 }
 
-static int __if_usb_prog_firmware(struct if_usb_card *cardp,
-					const char *fwname, int cmd)
+static int if_usb_prog_firmware(struct if_usb_card *cardp)
 {
 	int i = 0;
 	static int reset_count = 10;
@@ -980,7 +854,7 @@ static int __if_usb_prog_firmware(struct if_usb_card *cardp,
 
 	lbs_deb_enter(LBS_DEB_USB);
 
-	ret = get_fw(cardp, fwname);
+	ret = get_fw(cardp);
 	if (ret) {
 		lbs_pr_err("failed to find firmware (%d)\n", ret);
 		goto done;
@@ -1012,7 +886,7 @@ restart:
 	do {
 		int j = 0;
 		i++;
-		if_usb_issue_boot_command(cardp, cmd);
+		if_usb_issue_boot_command(cardp, BOOT_CMD_FW_BY_USB);
 		/* wait for command response */
 		do {
 			j++;

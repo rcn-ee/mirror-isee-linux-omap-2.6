@@ -949,9 +949,8 @@ static int __devinit if_spi_probe(struct spi_device *spi)
 			goto free_card;
 		}
 
-		err = lbs_get_firmware(&card->spi->dev, NULL, NULL,
-					card->card_id, &fw_table[0], &helper,
-					&mainfw);
+		err = lbs_get_firmware(&card->spi->dev, card->card_id,
+					&fw_table[0], &helper, &mainfw);
 		if (err) {
 			lbs_pr_err("failed to find firmware (%d)\n", err);
 			goto free_card;
