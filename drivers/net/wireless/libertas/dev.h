@@ -8,6 +8,7 @@
 
 #include "mesh.h"
 #include "defs.h"
+#include "decl.h"
 #include "host.h"
 
 #include <linux/kfifo.h>
@@ -168,6 +169,15 @@ struct lbs_private {
 	/* Whether the scan was initiated internally and not by cfg80211 */
 	bool internal_scan;
 	unsigned long last_scan;
+
+	/* Firmware load */
+	u32 fw_model;
+	wait_queue_head_t fw_waitq;
+	struct device *fw_device;
+	const struct firmware *helper_fw;
+	const struct lbs_fw_table *fw_table;
+	const struct lbs_fw_table *fw_iter;
+	lbs_fw_cb fw_callback;
 };
 
 extern struct cmd_confirm_sleep confirm_sleep;
