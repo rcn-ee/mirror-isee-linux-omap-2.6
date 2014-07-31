@@ -45,6 +45,8 @@
 #include "cmd.h"
 #include "if_sdio.h"
 
+static void if_sdio_interrupt(struct sdio_func *func);
+
 /* The if_sdio_remove() callback function is called when
  * user removes this module from kernel space or ejects
  * the card from the slot. The driver handles these 2 cases
@@ -112,6 +114,8 @@ struct if_sdio_card {
 	int			model;
 	unsigned long		ioport;
 	unsigned int		scratch_reg;
+	bool			started;
+	wait_queue_head_t	pwron_waitq;
 
 	u8			buffer[65536] __attribute__((aligned(4)));
 
@@ -123,6 +127,9 @@ struct if_sdio_card {
 
 	u8			rx_unit;
 };
+
+static void if_sdio_finish_power_on(struct if_sdio_card *card);
+static int if_sdio_power_off(struct if_sdio_card *card);
 
 /********************************************************************/
 /* I/O                                                              */
@@ -664,12 +671,39 @@ out:
 	return ret;
 }
 
+static void if_sdio_do_prog_firmware(struct lbs_private *priv, int ret,
+				     const struct firmware *helper,
+				     const struct firmware *mainfw)
+{
+	struct if_sdio_card *card = priv->card;
+
+	if (ret) {
+		pr_err("failed to find firmware (%d)\n", ret);
+		return;
+	}
+
+	ret = if_sdio_prog_helper(card, helper);
+	if (ret)
+		goto out;
+
+	lbs_deb_sdio("Helper firmware loaded\n");
+
+	ret = if_sdio_prog_real(card, mainfw);
+	if (ret)
+		goto out;
+
+	lbs_deb_sdio("Firmware loaded\n");
+	if_sdio_finish_power_on(card);
+
+out:
+	release_firmware(helper);
+	release_firmware(mainfw);
+}
+
 static int if_sdio_prog_firmware(struct if_sdio_card *card)
 {
 	int ret;
 	u16 scratch;
-	const struct firmware *helper = NULL;
-	const struct firmware *mainfw = NULL;
 
 	lbs_deb_enter(LBS_DEB_SDIO);
 
@@ -703,46 +737,172 @@ static int if_sdio_prog_firmware(struct if_sdio_card *card)
 	 */
 	if (scratch == IF_SDIO_FIRMWARE_OK) {
 		lbs_deb_sdio("firmware already loaded\n");
-		goto success;
+		if_sdio_finish_power_on(card);
+		return 0;
 	} else if ((card->model == MODEL_8686) && (scratch & 0x7fff)) {
 		lbs_deb_sdio("firmware may be running\n");
-		goto success;
+		if_sdio_finish_power_on(card);
+		return 0;
 	}
 
-	ret = lbs_get_firmware(&card->func->dev, card->model, &fw_table[0],
-				&helper, &mainfw);
-	if (ret) {
-		lbs_pr_err("failed to find firmware (%d)\n", ret);
-		goto out;
-	}
-
-	ret = if_sdio_prog_helper(card, helper);
-	if (ret)
-		goto out;
-
-	lbs_deb_sdio("Helper firmware loaded\n");
-
-	ret = if_sdio_prog_real(card, mainfw);
-	if (ret)
-		goto out;
-
-	lbs_deb_sdio("Firmware loaded\n");
-
-success:
-	sdio_claim_host(card->func);
-	sdio_set_block_size(card->func, IF_SDIO_BLOCK_SIZE);
-	sdio_release_host(card->func);
-	ret = 0;
+	ret = lbs_get_firmware_async(card->priv, &card->func->dev, card->model,
+				     fw_table, if_sdio_do_prog_firmware);
 
 out:
-	if (helper)
-		release_firmware(helper);
-	if (mainfw)
-		release_firmware(mainfw);
-
 	lbs_deb_leave_args(LBS_DEB_SDIO, "ret %d", ret);
 	return ret;
 }
+
+/********************************************************************/
+/* Power management                                                 */
+/********************************************************************/
+
+/* Finish power on sequence (after firmware is loaded) */
+static void if_sdio_finish_power_on(struct if_sdio_card *card)
+{
+	struct sdio_func *func = card->func;
+	struct lbs_private *priv = card->priv;
+	int ret;
+
+	sdio_claim_host(func);
+	sdio_set_block_size(card->func, IF_SDIO_BLOCK_SIZE);
+
+	/*
+	 * Get rx_unit if the chip is SD8688 or newer.
+	 * SD8385 & SD8686 do not have rx_unit.
+	 */
+	if ((card->model != MODEL_8385)
+			&& (card->model != MODEL_8686))
+		card->rx_unit = if_sdio_read_rx_unit(card);
+	else
+		card->rx_unit = 0;
+
+	/*
+	 * Set up the interrupt handler late.
+	 *
+	 * If we set it up earlier, the (buggy) hardware generates a spurious
+	 * interrupt, even before the interrupt has been enabled, with
+	 * CCCR_INTx = 0.
+	 *
+	 * We register the interrupt handler late so that we can handle any
+	 * spurious interrupts, and also to avoid generation of that known
+	 * spurious interrupt in the first place.
+	 */
+	ret = sdio_claim_irq(func, if_sdio_interrupt);
+	if (ret)
+		goto release;
+
+	/*
+	 * Enable interrupts now that everything is set up
+	 */
+	sdio_writeb(func, 0x0f, IF_SDIO_H_INT_MASK, &ret);
+	if (ret)
+		goto release_irq;
+
+	sdio_release_host(func);
+
+	/*
+	 * FUNC_INIT is required for SD8688 WLAN/BT multiple functions
+	 */
+	if (card->model == MODEL_8688) {
+		struct cmd_header cmd;
+
+		memset(&cmd, 0, sizeof(cmd));
+
+		lbs_deb_sdio("send function INIT command\n");
+		if (__lbs_cmd(priv, CMD_FUNC_INIT, &cmd, sizeof(cmd),
+				lbs_cmd_copyback, (unsigned long) &cmd))
+			netdev_alert(priv->dev, "CMD_FUNC_INIT cmd failed\n");
+	}
+
+	priv->fw_ready = 1;
+	wake_up(&card->pwron_waitq);
+
+	ret = lbs_start_card(priv);
+	if (ret == 0)
+		card->started = true;
+
+	return;
+
+release_irq:
+	sdio_release_irq(func);
+release:
+	sdio_release_host(func);
+}
+
+static int if_sdio_power_on(struct if_sdio_card *card)
+{
+	struct sdio_func *func = card->func;
+	struct mmc_host *host = func->card->host;
+	int ret;
+
+	sdio_claim_host(func);
+
+	ret = sdio_enable_func(func);
+	if (ret)
+		goto release;
+
+	/* For 1-bit transfers to the 8686 model, we need to enable the
+	 * interrupt flag in the CCCR register. Set the MMC_QUIRK_LENIENT_FN0
+	 * bit to allow access to non-vendor registers. */
+	if ((card->model == MODEL_8686) &&
+	    (host->caps & MMC_CAP_SDIO_IRQ) &&
+	    (host->ios.bus_width == MMC_BUS_WIDTH_1)) {
+		u8 reg;
+
+		func->card->quirks |= MMC_QUIRK_LENIENT_FN0;
+		reg = sdio_f0_readb(func, SDIO_CCCR_IF, &ret);
+		if (ret)
+			goto disable;
+
+		reg |= SDIO_BUS_ECSI;
+		sdio_f0_writeb(func, reg, SDIO_CCCR_IF, &ret);
+		if (ret)
+			goto disable;
+	}
+
+	card->ioport = sdio_readb(func, IF_SDIO_IOPORT, &ret);
+	if (ret)
+		goto disable;
+
+	card->ioport |= sdio_readb(func, IF_SDIO_IOPORT + 1, &ret) << 8;
+	if (ret)
+		goto disable;
+
+	card->ioport |= sdio_readb(func, IF_SDIO_IOPORT + 2, &ret) << 16;
+	if (ret)
+		goto disable;
+
+	sdio_release_host(func);
+	ret = if_sdio_prog_firmware(card);
+	if (ret) {
+		sdio_disable_func(func);
+		return ret;
+	}
+
+	return 0;
+
+disable:
+	sdio_disable_func(func);
+release:
+	sdio_release_host(func);
+	return ret;
+}
+
+static int if_sdio_power_off(struct if_sdio_card *card)
+{
+	struct sdio_func *func = card->func;
+	struct lbs_private *priv = card->priv;
+
+	priv->fw_ready = 0;
+
+	sdio_claim_host(func);
+	sdio_release_irq(func);
+	sdio_disable_func(func);
+	sdio_release_host(func);
+	return 0;
+}
+
 
 /*******************************************************************/
 /* Libertas callbacks                                              */
@@ -932,7 +1092,6 @@ static int if_sdio_probe(struct sdio_func *func,
 	int ret, i;
 	unsigned int model;
 	struct if_sdio_packet *packet;
-	struct mmc_host *host = func->card->host;
 
 	lbs_deb_enter(LBS_DEB_SDIO);
 
@@ -977,6 +1136,7 @@ static int if_sdio_probe(struct sdio_func *func,
 	spin_lock_init(&card->lock);
 	card->workqueue = create_workqueue("libertas_sdio");
 	INIT_WORK(&card->packet_worker, if_sdio_host_to_card_worker);
+	init_waitqueue_head(&card->pwron_waitq);
 
 	/* Check if we support this card */
 	for (i = 0; i < ARRAY_SIZE(fw_table); i++) {
@@ -989,45 +1149,6 @@ static int if_sdio_probe(struct sdio_func *func,
 		goto free;
 	}
 
-	sdio_claim_host(func);
-
-	ret = sdio_enable_func(func);
-	if (ret)
-		goto release;
-
-	/* For 1-bit transfers to the 8686 model, we need to enable the
-	 * interrupt flag in the CCCR register. Set the MMC_QUIRK_LENIENT_FN0
-	 * bit to allow access to non-vendor registers. */
-	if ((card->model == MODEL_8686) &&
-	    (host->caps & MMC_CAP_SDIO_IRQ) &&
-	    (host->ios.bus_width == MMC_BUS_WIDTH_1)) {
-		u8 reg;
-
-		func->card->quirks |= MMC_QUIRK_LENIENT_FN0;
-		reg = sdio_f0_readb(func, SDIO_CCCR_IF, &ret);
-		if (ret)
-			goto release_int;
-
-		reg |= SDIO_BUS_ECSI;
-		sdio_f0_writeb(func, reg, SDIO_CCCR_IF, &ret);
-		if (ret)
-			goto release_int;
-	}
-
-	card->ioport = sdio_readb(func, IF_SDIO_IOPORT, &ret);
-	if (ret)
-		goto release_int;
-
-	card->ioport |= sdio_readb(func, IF_SDIO_IOPORT + 1, &ret) << 8;
-	if (ret)
-		goto release_int;
-
-	card->ioport |= sdio_readb(func, IF_SDIO_IOPORT + 2, &ret) << 16;
-	if (ret)
-		goto release_int;
-
-	sdio_release_host(func);
-
 	sdio_set_drvdata(func, card);
 
 	lbs_deb_sdio("class = 0x%X, vendor = 0x%X, "
@@ -1035,14 +1156,11 @@ static int if_sdio_probe(struct sdio_func *func,
 			func->class, func->vendor, func->device,
 			model, (unsigned)card->ioport);
 
-	ret = if_sdio_prog_firmware(card);
-	if (ret)
-		goto reclaim;
 
 	priv = lbs_add_card(card, &func->dev);
 	if (!priv) {
 		ret = -ENOMEM;
-		goto reclaim;
+		goto free;
 	}
 
 	card->priv = priv;
@@ -1053,58 +1171,7 @@ static int if_sdio_probe(struct sdio_func *func,
 	priv->exit_deep_sleep = if_sdio_exit_deep_sleep;
 	priv->reset_deep_sleep_wakeup = if_sdio_reset_deep_sleep_wakeup;
 
-	sdio_claim_host(func);
-
-	/*
-	 * Get rx_unit if the chip is SD8688 or newer.
-	 * SD8385 & SD8686 do not have rx_unit.
-	 */
-	if ((card->model != MODEL_8385)
-			&& (card->model != MODEL_8686))
-		card->rx_unit = if_sdio_read_rx_unit(card);
-	else
-		card->rx_unit = 0;
-
-	/*
-	 * Set up the interrupt handler late.
-	 *
-	 * If we set it up earlier, the (buggy) hardware generates a spurious
-	 * interrupt, even before the interrupt has been enabled, with
-	 * CCCR_INTx = 0.
-	 *
-	 * We register the interrupt handler late so that we can handle any
-	 * spurious interrupts, and also to avoid generation of that known
-	 * spurious interrupt in the first place.
-	 */
-	ret = sdio_claim_irq(func, if_sdio_interrupt);
-	if (ret)
-		goto disable;
-
-	/*
-	 * Enable interrupts now that everything is set up
-	 */
-	sdio_writeb(func, 0x0f, IF_SDIO_H_INT_MASK, &ret);
-	sdio_release_host(func);
-	if (ret)
-		goto reclaim;
-
-	priv->fw_ready = 1;
-
-	/*
-	 * FUNC_INIT is required for SD8688 WLAN/BT multiple functions
-	 */
-	if (card->model == MODEL_8688) {
-		struct cmd_header cmd;
-
-		memset(&cmd, 0, sizeof(cmd));
-
-		lbs_deb_sdio("send function INIT command\n");
-		if (__lbs_cmd(priv, CMD_FUNC_INIT, &cmd, sizeof(cmd),
-				lbs_cmd_copyback, (unsigned long) &cmd))
-			lbs_pr_alert("CMD_FUNC_INIT cmd failed\n");
-	}
-
-	ret = lbs_start_card(priv);
+	ret = if_sdio_power_on(card);
 	if (ret)
 		goto err_activate_card;
 
@@ -1116,14 +1183,6 @@ out:
 err_activate_card:
 	flush_workqueue(card->workqueue);
 	lbs_remove_card(priv);
-reclaim:
-	sdio_claim_host(func);
-release_int:
-	sdio_release_irq(func);
-disable:
-	sdio_disable_func(func);
-release:
-	sdio_release_host(func);
 free:
 	destroy_workqueue(card->workqueue);
 	while (card->packets) {
@@ -1170,10 +1229,7 @@ static void if_sdio_remove(struct sdio_func *func)
 	flush_workqueue(card->workqueue);
 	destroy_workqueue(card->workqueue);
 
-	sdio_claim_host(func);
-	sdio_release_irq(func);
-	sdio_disable_func(func);
-	sdio_release_host(func);
+	if_sdio_power_off(card);
 
 	while (card->packets) {
 		packet = card->packets;
