@@ -60,7 +60,7 @@ static struct mt9p031_platform_data mt9p031_pdata = {
 };
 
 static struct mt9v034_platform_data mt9v034_pdata = {
-	.clk_pol	= 0,
+	.clk_pol	= 1,
 	.set_clock	= mt9v034_set_clock,
 	.link_freqs	= mt9v034_link_freqs,
 	.link_def_freq	= 13000000,
