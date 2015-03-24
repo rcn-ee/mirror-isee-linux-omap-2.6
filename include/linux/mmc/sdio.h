@@ -77,6 +77,8 @@
 #define  SDIO_SDIO_REV_1_10	1	/* SDIO Spec Version 1.10 */
 #define  SDIO_SDIO_REV_1_20	2	/* SDIO Spec Version 1.20 */
 #define  SDIO_SDIO_REV_2_00	3	/* SDIO Spec Version 2.00 */
+// Backport for Wilink8 driver build
+#define  SDIO_SDIO_REV_3_00	4	/* SDIO Spec Version 3.00 */
 
 #define SDIO_CCCR_SD		0x01
 
