@@ -96,6 +96,12 @@ Boards:
 - OMAP3 Tobi with Overo : Commercial expansion board with daughter board
   compatible = "gumstix,omap3-overo-tobi", "gumstix,omap3-overo", "ti,omap3"
 
+- OMAP3 base0010 with igep0030: IGEP Expansion board with IGEP Processor board
+  compatible = "isee,omap3-igep0030-base0010", "gumstix,omap3-igep0030", "ti,omap3"
+
+- OMAP3 base0010 with igep0030-rev-g: IGEP Expansion board with IGEP Processor board (HW Revision G)
+  compatible = "isee,omap3-igep0030-rev-g-base0010", "gumstix,omap3-igep0030-rev-g", "ti,omap3"
+
 - OMAP4 SDP : Software Development Board
   compatible = "ti,omap4-sdp", "ti,omap4430"
 
