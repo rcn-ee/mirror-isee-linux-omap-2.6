@@ -305,12 +305,14 @@ static inline void base0010_gpio_init(void)
 		pr_err("IGEP: Could not obtain gpio INPUT3\n");
 	 */
 
+	/* IGEP3_GPIO_INPUT4 used by Wilik8 IRQ
+	 *
 	if ((gpio_request(IGEP3_GPIO_INPUT4, "GPIO INPUT4") == 0)
 	    || (gpio_direction_input(IGEP3_GPIO_INPUT4) == 0 ))
 		gpio_export(IGEP3_GPIO_INPUT4, 0);
 	else
 		pr_err("IGEP: Could not obtain gpio INPUT4\n");
-
+	*/
 }
 
 static struct gpio_keys_button base0010_gpio_keys[] = {

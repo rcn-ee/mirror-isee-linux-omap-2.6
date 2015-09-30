@@ -42,6 +42,8 @@
 #include "hsmmc.h"
 #include "board-igep00x0.h"
 
+#include <linux/wl12xx.h>
+
 #define SMSC911X_CS			5
 #define SMSC911X_IRQ			176
 #define SMSC911X_NRESET			64
@@ -57,6 +59,9 @@
 #define IGEP2_RC_GPIO_WIFI_NPD		138
 #define IGEP2_RC_GPIO_WIFI_NRESET	139
 #define IGEP2_RC_GPIO_BT_NRESET		137
+#define IGEP2_RF_GPIO_WL_EN       139
+#define IGEP2_RF_GPIO_BT_EN       137
+#define IGEP2_RF_GPIO_W_IRQ       177
 
 #define IGEP0020_BOARD_OPT_RS232	(1 << 0)
 
@@ -78,6 +83,18 @@ struct board_platform_data igep0020_board_pdata = {
  * |  0  | B                  |   high   |  gpio94  |   gpio95    |     -     |
  * |  0  | B/C (B-compatible) |   high   |  gpio94  |   gpio95    |  gpio137  |
  * |  1  | C                  |   low    |  gpio138 |   gpio139   |  gpio137  |
+ * |     |                    ------------------------------------------------
+ * |     |                    | HW1 (126)| HW2 (127)| HW3 (128)   | HW4 (129) |
+ * |     |                    ------------------------------------------------
+ * |     | B/C                |   NC     |   NC     |   NC        |   NC      |
+ *  --------------------------------------------------------------------------
+ * | Id. | Hw Rev.            | HW0 (28) | WIFI_IRQ | WIFI_NRESET | BT_NRESET |
+ *  --------------------------------------------------------------------------
+ * |  1  | F                  |   low    |  gpio177 |   gpio139   |  gpio137  |
+ * |     |                    ------------------------------------------------
+ * |     |                    | HW1 (126)| HW2 (127)| HW3 (128)   | HW4 (129) |
+ * |     |                    ------------------------------------------------
+ * |     |                    |   HIGH   |   HIGH   |   HIGH      |   low     |
  *  --------------------------------------------------------------------------
  */
 
@@ -96,7 +113,7 @@ static void __init igep0020_get_revision(void)
 	    (gpio_direction_input(GPIO_LED_D240_RED) == 0)) {
 		ret = gpio_get_value(GPIO_LED_D240_RED);
 		if (ret == 0) {
-			pr_info("IGEP: Hardware Rev. C\n");
+			pr_info("IGEP: Hardware Rev. C (or F)\n");
 			hwrev = IGEP2_BOARD_HWREV_C;
 		} else if (ret ==  1) {
 			pr_info("IGEP: Hardware Rev. B\n");
@@ -145,22 +162,129 @@ static struct platform_device smsc911x_device = {
 #endif
 
 static struct omap2_hsmmc_info mmc[] = {
-	{
+	[0] = {
 		.mmc		= 1,
 		.caps		= MMC_CAP_4_BIT_DATA,
 		.gpio_cd	= -EINVAL,
 		.gpio_wp	= -EINVAL,
 	},
 #if defined(CONFIG_LIBERTAS_SDIO) || defined(CONFIG_LIBERTAS_SDIO_MODULE)
-	{
+	[1] = {
 		.mmc		= 2,
 		.caps		= MMC_CAP_4_BIT_DATA,
 		.gpio_cd	= -EINVAL,
 		.gpio_wp	= -EINVAL,
 	},
 #endif
+#ifdef CONFIG_WL12XX_PLATFORM_DATA
+	[1] = {
+		.mmc            = 2,
+		.caps           = MMC_CAP_4_BIT_DATA | MMC_CAP_POWER_OFF_CARD,
+		.gpio_cd        = -EINVAL,
+		.gpio_wp        = -EINVAL,
+		.ocr_mask       = MMC_VDD_165_195,
+		.nonremovable   = true,
+	},
+#endif
+
 	{}      /* Terminator */
 };
+
+#ifdef CONFIG_WL12XX_PLATFORM_DATA
+static struct wl12xx_platform_data wl12xx __initdata;
+
+static void __init __used legacy_init_wl12xx(unsigned ref_clock,
+                                            unsigned tcxo_clock,
+                                            int gpio){
+	int res;
+
+	wl12xx.board_ref_clock = ref_clock;
+	wl12xx.board_tcxo_clock = tcxo_clock;
+	wl12xx.irq = gpio_to_irq(gpio);
+
+	res = wl12xx_set_platform_data(&wl12xx);
+
+	if (res) {
+		pr_err("error setting wl12xx data: %d\n", res);
+		return;
+	}
+}
+
+static void __init ti_wl12xx_wlan_init(void){
+	struct device *dev;
+	struct omap_mmc_platform_data *pdata;
+
+	/* Set up the WLAN_EN and WLAN_IRQ muxes */
+	omap_mux_init_gpio(IGEP2_RF_GPIO_WL_EN, OMAP_PIN_OUTPUT);
+	omap_mux_init_gpio(IGEP2_RF_GPIO_W_IRQ, OMAP_PIN_INPUT);
+
+	/*
+	* The WLAN_EN gpio has to be toggled without using a fixed regulator,
+	* as the omap_hsmmc does not enable/disable regulators on the TI814X.
+	*/
+
+	if ((gpio_request(IGEP2_RF_GPIO_WL_EN, "WL EN") == 0) &&
+		 (gpio_direction_output(IGEP2_RF_GPIO_WL_EN, 1) == 0)){
+		gpio_export(IGEP2_RF_GPIO_WL_EN, 0);
+		gpio_set_value(IGEP2_RF_GPIO_WL_EN, 0);
+		udelay(10);
+		gpio_set_value(IGEP2_RF_GPIO_WL_EN, 1);
+	} else
+		pr_warning("IGEP: Could not obtain gpio WL EN\n");
+
+	omap_mux_init_gpio(IGEP2_RF_GPIO_BT_EN, OMAP_PIN_OUTPUT);
+
+	if ((gpio_request(IGEP2_RF_GPIO_BT_EN, "BT EN") == 0) &&
+		 (gpio_direction_output(IGEP2_RF_GPIO_BT_EN, 1) == 0))  {
+		gpio_export(IGEP2_RF_GPIO_BT_EN, 0);
+		gpio_set_value(IGEP2_RF_GPIO_BT_EN, 0);
+		udelay(10);
+		gpio_set_value(IGEP2_RF_GPIO_BT_EN, 1);
+	} else
+		pr_warning("IGEP: Could not obtain gpio BT EN\n");
+
+	omap_mux_init_gpio(IGEP2_RF_GPIO_W_IRQ, OMAP_PIN_INPUT);
+
+	if ((gpio_request_one(IGEP2_RF_GPIO_W_IRQ, GPIOF_IN, "W IRQ") == 0) &&
+	(gpio_direction_output(IGEP2_RF_GPIO_W_IRQ, 0) == 0)){
+		gpio_export(IGEP2_RF_GPIO_W_IRQ, 0);
+		gpio_set_value(IGEP2_RF_GPIO_W_IRQ, 1);
+		udelay(10);
+		gpio_set_value(IGEP2_RF_GPIO_W_IRQ, 0);
+		legacy_init_wl12xx(WL12XX_REFCLOCK_38_XTAL, WL12XX_TCXOCLOCK_26,
+		 IGEP2_RF_GPIO_W_IRQ);
+	} else
+		pr_warning("IGEP: Could not obtain gpio W IRQ\n");
+	/*
+	* Set our set_power callback function which will be called from
+	* set_ios. This is requireq since, unlike other omap2+ platforms, a
+	* no-op set_power function is registered. Thus, we cannot use a fixed
+	* regulator, as it will never be toggled.
+	* Moreover, even if this was not the case, we're on mmc0, for which
+	* omap_hsmmc' set_power functions do not toggle any regulators.
+	*/
+	dev = mmc[1].dev;
+	if (!dev) {
+		pr_err("wl12xx mmc device initialization failed\n");
+		return;
+	}
+
+	pdata = dev->platform_data;
+	if (!pdata) {
+		pr_err("Platform data of wl12xx device not set\n");
+		return;
+	}
+}
+
+static void __init ti_wl12xx_init(void)
+{
+	ti_wl12xx_wlan_init();
+}
+#else /* CONFIG_WL12XX_PLATFORM_DATA */
+static void __init ti_wl12xx_init(void) { }
+#endif
+
+
 
 static struct gpio_led igep2_gpio_leds[] = {
 	[0] = {
@@ -377,6 +501,8 @@ static struct omap_board_mux board_mux[] __initdata = {
 	OMAP3_MUX(UART1_CTS, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLDOWN),	
 	OMAP3_MUX(UART2_TX, OMAP_MUX_MODE0 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(UART2_RX, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
+	/* MCSPI1_CS3 mode4 GPIO177 */
+	OMAP3_MUX(MCSPI1_CS3, OMAP_MUX_MODE4 | OMAP_PIN_INPUT),
 	{ .reg_offset = OMAP_MUX_TERMINATOR },
 };
 #else
@@ -483,6 +609,14 @@ static void __init igep0020_init(void)
 	igep00x0_smsc911x_init(&smsc911x_device, SMSC911X_CS,
 			SMSC911X_IRQ, SMSC911X_NRESET);
 
+	#ifdef CONFIG_WL12XX_PLATFORM_DATA
+	/*
+	* Wilink-8 TI WiFi moldule
+	*
+	* NOTE: RfKill must be dissabled in .confing
+	*/
+	ti_wl12xx_init();
+	#else
 	/*
 	 * WLAN-BT combo module from MuRata with SDIO interface.
 	 *
@@ -498,6 +632,7 @@ static void __init igep0020_init(void)
 		igep00x0_wifi_bt_init(IGEP2_RC_GPIO_WIFI_NPD,
 			IGEP2_RC_GPIO_WIFI_NRESET, IGEP2_RC_GPIO_BT_NRESET,
 			!opt);
+	#endif
 }
 
 static int __init ei485_early_param(char *str)
