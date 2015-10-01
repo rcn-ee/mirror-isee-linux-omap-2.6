@@ -176,7 +176,7 @@ static struct omap2_hsmmc_info mmc[] = {
 		.gpio_wp	= -EINVAL,
 	},
 #endif
-#ifdef CONFIG_WL12XX_PLATFORM_DATA
+#if defined(CONFIG_WL12XX_PLATFORM_DATA) && !defined(CONFIG_LIBERTAS_SDIO_MODULE)
 	[1] = {
 		.mmc            = 2,
 		.caps           = MMC_CAP_4_BIT_DATA | MMC_CAP_POWER_OFF_CARD,
@@ -190,7 +190,7 @@ static struct omap2_hsmmc_info mmc[] = {
 	{}      /* Terminator */
 };
 
-#ifdef CONFIG_WL12XX_PLATFORM_DATA
+#if defined(CONFIG_WL12XX_PLATFORM_DATA) && !defined(CONFIG_LIBERTAS_SDIO_MODULE)
 static struct wl12xx_platform_data wl12xx __initdata;
 
 static void __init __used legacy_init_wl12xx(unsigned ref_clock,
@@ -609,7 +609,7 @@ static void __init igep0020_init(void)
 	igep00x0_smsc911x_init(&smsc911x_device, SMSC911X_CS,
 			SMSC911X_IRQ, SMSC911X_NRESET);
 
-	#ifdef CONFIG_WL12XX_PLATFORM_DATA
+	#if defined(CONFIG_WL12XX_PLATFORM_DATA) && !defined(CONFIG_LIBERTAS_SDIO_MODULE)
 	/*
 	* Wilink-8 TI WiFi moldule
 	*
