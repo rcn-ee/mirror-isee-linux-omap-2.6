@@ -40,6 +40,7 @@
 #include <linux/wl12xx.h>
 
 #define GPIO_LED_D210_RED	16
+#define GPIO_LED_D440_GREENRG	168
 #define GPIO_WIFI_NPD		138
 #define GPIO_WIFI_NRESET	139
 #define GPIO_BT_NRESET		137
@@ -258,6 +259,12 @@ static struct gpio_led gpio_led_data[] = {
 		.gpio = -EINVAL, /* gets replaced */
 		.active_low = true,
 	},
+	[4] = {
+		.name = "d440:greenrg",
+		.default_trigger = "default-off",
+		.gpio = GPIO_LED_D440_GREENRG,
+		.active_low = false,
+	},
 };
 
 static struct gpio_led_platform_data gpio_led_pdata = {
@@ -347,6 +354,7 @@ static struct omap_board_mux board_mux[] __initdata = {
 	OMAP3_MUX(GPMC_NCS2, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),
 	OMAP3_MUX(GPMC_NCS3, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),
 	OMAP3_MUX(ETK_D2, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLUP),
+	OMAP3_MUX(I2C2_SCL, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
 	/* OMAP3 ISP */
 	OMAP3_MUX(CAM_STROBE, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT),
 	OMAP3_MUX(CAM_FLD, OMAP_MUX_MODE0 | OMAP_PIN_INPUT),
