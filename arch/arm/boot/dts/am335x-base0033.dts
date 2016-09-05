@@ -41,6 +41,35 @@
 			default-state = "off";
 		};
 	};
+
+	clk_mcasp0_fixed: clk_mcasp0_fixed {
+	      #clock-cells = <0>;
+	      compatible = "fixed-clock";
+	      clock-frequency = <24576000>;
+	};
+
+	clk_mcasp0: clk_mcasp0 {
+	      #clock-cells = <0>;
+	      compatible = "gpio-gate-clock";
+	      clocks = <&clk_mcasp0_fixed>;
+	      enable-gpios = <&gpio1 8 0>; /* BASE0033 Clk enable on GPIO1_8 */
+	};
+
+	hdmi_audio: hdmi_audio@0 {
+	       compatible = "linux,hdmi-audio";
+	       status = "okay";
+	};
+
+	sound {
+		compatible = "ti,beaglebone-black-audio";
+		ti,model = "ISEE IGEP COM AQUILA AM335x";
+		ti,audio-codec = <&hdmi_audio>;
+		ti,mcasp-controller = <&mcasp0>;
+		ti,audio-routing =
+			"HDMI Out",	"TX";
+		clocks = <&clk_mcasp0>;
+		clock-names = "mclk";
+	};
 };
 
 &am33xx_pinmux {
@@ -75,6 +104,16 @@
 		>;
 	};
 
+	mcasp0_pins: pinmux_mcasp0_pins {
+		pinctrl-single,pins = <
+			0x1ac 0x30      /* mcasp0_ahclkx */
+			0x19c 0x02	/* mcasp0_ahclkr */
+			0x194 0x10      /* mcasp0_fsx */
+			0x60  0x06	/* gpmc_a8.mcasp0_aclkx */
+			0x168 0x1f	/* uart0_ctsn.gpio1_8 */
+		>;
+	};
+
 	leds_base_pins: pinmux_leds_base_pins {
 		pinctrl-single,pins = <
 			AM33XX_IOPAD(0x854, PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* gpmc_a5.gpio1_21 */
@@ -85,6 +124,19 @@
 
 &lcdc {
 	status = "okay";
+};
+
+&mcasp0	{
+	pinctrl-names = "default";
+	pinctrl-0 = <&mcasp0_pins>;
+	status = "okay";
+	op-mode = <0>;	/* MCASP_IIS_MODE */
+	tdm-slots = <2>;
+	serial-dir = <	/* 0: INACTIVE, 1: TX, 2: RX */
+			0 0 1 0
+		>;
+	tx-num-evt = <1>;
+	rx-num-evt = <1>;
 };
 
 &i2c0 {
