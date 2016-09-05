@@ -316,3 +316,14 @@
 	};
 };
 
+&aes {
+	status = "okay";
+};
+
+&sgx {
+	status = "okay";
+};
+
+&sham {
+	status = "okay";
+};
