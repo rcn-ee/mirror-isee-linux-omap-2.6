@@ -106,11 +106,11 @@
 
 	mcasp0_pins: pinmux_mcasp0_pins {
 		pinctrl-single,pins = <
-			0x1ac 0x30      /* mcasp0_ahclkx */
-			0x19c 0x02	/* mcasp0_ahclkr */
-			0x194 0x10      /* mcasp0_fsx */
-			0x60  0x06	/* gpmc_a8.mcasp0_aclkx */
-			0x168 0x1f	/* uart0_ctsn.gpio1_8 */
+			AM33XX_IOPAD(0x9AC, PIN_INPUT_PULLUP | MUX_MODE0)	/* mcasp0_ahclkx */
+			AM33XX_IOPAD(0x99C, PIN_OUTPUT_PULLDOWN | MUX_MODE2)/* mcasp0_ahclkr.mcasp0_axr2 */
+			AM33XX_IOPAD(0x994, PIN_OUTPUT_PULLUP | MUX_MODE0)	/* mcasp0_fsx */
+			AM33XX_IOPAD(0x860, PIN_OUTPUT_PULLDOWN | MUX_MODE6)/* gpmc_a8.mcasp0_aclkx */
+			AM33XX_IOPAD(0x968, PIN_OUTPUT | MUX_MODE7)			/* uart0_ctsn.gpio1_8 */
 		>;
 	};
 
