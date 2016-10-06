@@ -1,0 +1,75 @@
+/*
+ * am335x-igep-base0040-lite.dts - Device Tree file for IGEP0034 Lite
+ * MODULE based on AM3352 and BASE0040 RB IGEP SMARC EXPANSION
+ *
+ * Copyright (C) 2016 ISEE 2007 SL - http://www.isee.biz
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+
+#include "am335x-igep-igep0034-lite.dtsi"
+
+/ {
+	model = "ISEE IGEP SMARC AM3352 Lite Kit";
+	compatible = "isee,am335x-igep-base0040-lite", "isee,am335x-igep-igep0034-lite", "ti,am33xx";
+
+	sound {
+		compatible = "ti,da830-evm-audio";
+		ti,model = "AM335x-BASE0040";
+		ti,audio-codec = <&tlv320aic3106>;
+		ti,mcasp-controller = <&mcasp0>;
+		ti,codec-clock-rate = <12000000>;
+		ti,audio-routing =
+            "Headphone Jack",       "HPLOUT",
+            "Headphone Jack",       "HPROUT",
+            "Mic Jack",             "MIC3L",
+            "Mic Jack",             "MIC3R",
+            "Line In",              "LINE1L",
+            "Line In",              "LINE1R";
+	};
+};
+
+&am33xx_pinmux {
+	reset_tlv320_pins: pinmux_reset_tlv320_pins {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(0x9A0, PIN_OUTPUT_PULLUP | MUX_MODE7 ) /* mcasp0_aclkr.gpio3[18] */
+		>;
+	};
+};
+
+&i2c1 {
+	tlv320aic3106: tlv320aic3106@1b {
+		compatible = "ti,tlv320aic3106";
+		reg = <0x1b>;
+		status = "okay";
+		gpio-reset = <&gpio3 18 1>;
+		ai3x-micbias-vg = <2>;
+
+		/* Regulators */
+		AVDD-supply = <&vaux2_reg>;
+		IOVDD-supply = <&vaux2_reg>;
+		DRVDD-supply = <&vaux2_reg>;
+		DVDD-supply = <&vbat>;
+	};
+};
+
+&mcasp0 {
+	op-mode = <0>;		/* MCASP_IIS_MODE */
+	tdm-slots = <2>;
+	/* 16 serializer */
+	serial-dir = < /* 0: INACTIVE, 1: TX, 2: RX */
+		1 2 0 0
+	>;
+	tx-num-evt = <32>;
+	rx-num-evt = <32>;
+};
+
+&tscadc {
+	adc {
+		ti,adc-channels = <0 1 2 3 4 5 6>;
+	};
+};
