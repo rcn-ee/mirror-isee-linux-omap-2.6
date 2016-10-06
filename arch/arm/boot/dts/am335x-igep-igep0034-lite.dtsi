@@ -25,8 +25,9 @@
 	};
 
 	leds {
-		pinctrl-names = "default";
-		pinctrl-0 = <&leds_pins>;
+		pinctrl-names = "default", "sleep";
+		pinctrl-0 = <&leds_pins_default>;
+		pinctrl-1 = <&leds_pins_sleep>;
 		compatible = "gpio-leds";
 
 		led@0 {
@@ -106,10 +107,17 @@
 		>;
 	};
 
-	leds_pins: pinmux_leds_pins {
+	leds_pins_default: pinmux_leds_pins_default {
 		pinctrl-single,pins = <
 			AM33XX_IOPAD(0x828, PIN_OUTPUT_PULLUP | MUX_MODE7)		/* gpmc_ad10.gpio0[26] */
 			AM33XX_IOPAD(0x82C, PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* gpmc_ad11.gpio0[27] */
+		>;
+	};
+
+	leds_pins_sleep: pinmux_leds_pins_sleep {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(0x828, PIN_INPUT_PULLDOWN | MUX_MODE7)		/* gpmc_ad10.gpio0[26] */
+			AM33XX_IOPAD(0x82C, PIN_INPUT_PULLDOWN | MUX_MODE7)	/* gpmc_ad11.gpio0[27] */
 		>;
 	};
 
