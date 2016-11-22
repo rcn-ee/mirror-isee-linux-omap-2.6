@@ -654,6 +654,11 @@
 	};
 };
 
+&rtc {
+	compatible = "ti,am3352-rtc";
+	ext-clk-src;
+};
+
 &tscadc {
 	status = "okay";
 
