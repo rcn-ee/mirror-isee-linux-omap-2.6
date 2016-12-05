@@ -214,9 +214,8 @@ static void __init ti_wl12xx_wlan_init(void){
 	struct device *dev;
 	struct omap_mmc_platform_data *pdata;
 
-	/* Set up the WLAN_EN and WLAN_IRQ muxes */
+	/* Set up the WLAN_EN mux */
 	omap_mux_init_gpio(IGEP2_RF_GPIO_WL_EN, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(IGEP2_RF_GPIO_W_IRQ, OMAP_PIN_INPUT);
 
 	/*
 	* The WLAN_EN gpio has to be toggled without using a fixed regulator,
@@ -243,18 +242,12 @@ static void __init ti_wl12xx_wlan_init(void){
 	} else
 		pr_warning("IGEP: Could not obtain gpio BT EN\n");
 
-	omap_mux_init_gpio(IGEP2_RF_GPIO_W_IRQ, OMAP_PIN_INPUT);
+	/* Set up the WLAN_IRQ mux */
+	omap_mux_init_gpio(IGEP2_RF_GPIO_W_IRQ, OMAP_PIN_INPUT_PULLUP);
 
-	if ((gpio_request_one(IGEP2_RF_GPIO_W_IRQ, GPIOF_IN, "W IRQ") == 0) &&
-	(gpio_direction_output(IGEP2_RF_GPIO_W_IRQ, 0) == 0)){
-		gpio_export(IGEP2_RF_GPIO_W_IRQ, 0);
-		gpio_set_value(IGEP2_RF_GPIO_W_IRQ, 1);
-		udelay(10);
-		gpio_set_value(IGEP2_RF_GPIO_W_IRQ, 0);
-		legacy_init_wl12xx(WL12XX_REFCLOCK_38_XTAL, WL12XX_TCXOCLOCK_26,
-		 IGEP2_RF_GPIO_W_IRQ);
-	} else
-		pr_warning("IGEP: Could not obtain gpio W IRQ\n");
+	legacy_init_wl12xx(WL12XX_REFCLOCK_38_XTAL, WL12XX_TCXOCLOCK_26,
+		IGEP2_RF_GPIO_W_IRQ);
+
 	/*
 	* Set our set_power callback function which will be called from
 	* set_ios. This is requireq since, unlike other omap2+ platforms, a
