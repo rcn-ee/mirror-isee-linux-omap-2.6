@@ -46,8 +46,6 @@ enum {
 	WL12XX_TCXOCLOCK_33_6	= 7, /* 33.6 MHz */
 };
 
-
-// change location of gpio element for wifi r8-4
 struct wl12xx_platform_data {
 	void (*set_power)(bool enable);
 	/* SDIO only: IRQ number if WLAN_IRQ line is used, 0 for SDIO IRQs */
@@ -55,14 +53,12 @@ struct wl12xx_platform_data {
 	bool use_eeprom;
 	int board_ref_clock;
 	int board_tcxo_clock;
-	u32 platform_quirks;
+	unsigned long platform_quirks;
+	int bt_enable_gpio;
+	int wlan_enable_gpio;
 	bool pwr_in_suspend;
 
-	/*
-	 * Note: this might not exist in older kernels.
-	 * avoid reading/writing it if not sure.
-	 */
-	int gpio;
+	struct wl1271_if_operations *ops;
 };
 
 /* Platform does not support level trigger interrupts */
@@ -82,6 +78,6 @@ int wl12xx_set_platform_data(const struct wl12xx_platform_data *data)
 
 #endif
 
-const struct wl12xx_platform_data *wl12xx_get_platform_data(void);
+struct wl12xx_platform_data *wl12xx_get_platform_data(void);
 
 #endif

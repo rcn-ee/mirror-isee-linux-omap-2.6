@@ -19,6 +19,7 @@
 #include <linux/interrupt.h>
 #include <linux/leds.h>
 
+#include <linux/regulator/fixed.h>
 #include <linux/regulator/machine.h>
 #include <linux/i2c/twl.h>
 #include <linux/mmc/host.h>
@@ -138,6 +139,36 @@ static struct omap2_hsmmc_info mmc[] = {
 };
 
 #if defined(CONFIG_WL12XX_PLATFORM_DATA) && !defined(CONFIG_LIBERTAS_SDIO_MODULE)
+
+static struct regulator_consumer_supply igep0030_vmmc2_supply =
+	REGULATOR_SUPPLY("vmmc_aux", "mmci-omap-hs.1");
+
+static struct regulator_init_data igep0030_vmmc2 = {
+	.constraints = {
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies = 1,
+	.consumer_supplies = &igep0030_vmmc2_supply,
+};
+
+static struct fixed_voltage_config igep0030_vwlan = {
+	.supply_name = "vwl1271",
+	.microvolts = 1800000,  // 1.8V
+	.gpio = IGEP3_RG_GPIO_WL_EN,
+	.startup_delay = 70000, // 70ms
+	.enable_high = 1,
+	.enabled_at_boot = 0,				//Enabled @ boot
+	.init_data = &igep0030_vmmc2,
+};
+
+static struct platform_device omap_vwlan_device = {
+	.name		= "reg-fixed-voltage",
+	.id		= 1,
+	.dev = {
+		.platform_data = &igep0030_vwlan,
+	},
+};
+
 static struct wl12xx_platform_data wl12xx __initdata;
 static void __init __used legacy_init_wl12xx(unsigned ref_clock,
                                             unsigned tcxo_clock,
@@ -154,16 +185,15 @@ static void __init __used legacy_init_wl12xx(unsigned ref_clock,
 		pr_err("error setting wl12xx data: %d\n", res);
 		return;
 	}
+
+	platform_device_register(&omap_vwlan_device);
+
 }
 
 static void __init ti_wl12xx_wlan_init(void)
 {
-	struct device *dev;
-	struct omap_mmc_platform_data *pdata;
-
-	/* Set up the WLAN_EN and WLAN_IRQ muxes */
+	/* Set up the WLAN_EN mux */
 	omap_mux_init_gpio(IGEP3_RG_GPIO_WL_EN, OMAP_PIN_OUTPUT);
-	omap_mux_init_gpio(IGEP3_RG_GPIO_W_IRQ, OMAP_PIN_INPUT);
 
 	/*
 	* The WLAN_EN gpio has to be toggled without using a fixed regulator,
@@ -176,6 +206,7 @@ static void __init ti_wl12xx_wlan_init(void)
 		gpio_set_value(IGEP3_RG_GPIO_WL_EN, 0);
 		udelay(10);
 		gpio_set_value(IGEP3_RG_GPIO_WL_EN, 1);
+		gpio_free(IGEP3_RG_GPIO_WL_EN);
 	} else
 		pr_warning("IGEP3: Could not obtain gpio WL EN\n");
 
@@ -190,37 +221,12 @@ static void __init ti_wl12xx_wlan_init(void)
 	} else
 		pr_warning("IGEP3: Could not obtain gpio BT EN\n");
 
-	omap_mux_init_gpio(IGEP3_RG_GPIO_W_IRQ, OMAP_PIN_INPUT);
+	/* Set up the WLAN_IRQ mux */
+	omap_mux_init_gpio(IGEP3_RG_GPIO_W_IRQ, OMAP_PIN_INPUT_PULLUP);
 
-	if ((gpio_request_one(IGEP3_RG_GPIO_W_IRQ, GPIOF_IN, "W IRQ") == 0) &&
-		 (gpio_direction_output(IGEP3_RG_GPIO_W_IRQ, 0) == 0)) {
-		gpio_export(IGEP3_RG_GPIO_W_IRQ, 0);
-		gpio_set_value(IGEP3_RG_GPIO_W_IRQ, 1);
-		udelay(10);
-		gpio_set_value(IGEP3_RG_GPIO_W_IRQ, 0);
-		legacy_init_wl12xx(WL12XX_REFCLOCK_38_XTAL, WL12XX_TCXOCLOCK_26,
-		 IGEP3_RG_GPIO_W_IRQ);
-	} else
-		pr_warning("IGEP3: Could not obtain gpio W IRQ\n");
+	legacy_init_wl12xx(WL12XX_REFCLOCK_38_XTAL, WL12XX_TCXOCLOCK_26,
+		IGEP3_RG_GPIO_W_IRQ);
 
-	/*
-	* Set our set_power callback function which will be called from
-	* set_ios. This is requireq since, unlike other omap2+ platforms, a
-	* no-op set_power function is registered. Thus, we cannot use a fixed
-	* regulator, as it will never be toggled.
-	* Moreover, even if this was not the case, we're on mmc0, for which
-	* omap_hsmmc' set_power functions do not toggle any regulators.
-	*/
-	dev = mmc[1].dev;
-	if (!dev) {
-		pr_err("wl12xx mmc device initialization failed\n");
-		return;
-	}
-	pdata = dev->platform_data;
-	if (!pdata) {
-		pr_err("Platform data of wl12xx device not set\n");
-		return;
-	}
 }
 
 static void __init ti_wl12xx_init(void)
