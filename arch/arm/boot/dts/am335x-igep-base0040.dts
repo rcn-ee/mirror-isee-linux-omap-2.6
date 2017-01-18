@@ -34,6 +34,17 @@
 };
 
 &am33xx_pinmux {
+	pinctrl-names = "default";
+	pinctrl-0 = <
+		&hub_pins
+	>;
+
+	hub_pins: pinmux_hub_pins_default {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(0x824, PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* gpmc_ad9.gpio0[23] */
+		>;
+	};
+
 	reset_tlv320_pins: pinmux_reset_tlv320_pins {
 		pinctrl-single,pins = <
 			AM33XX_IOPAD(0x9A0, PIN_OUTPUT_PULLUP | MUX_MODE7 ) /* mcasp0_aclkr.gpio3[18] */
