@@ -242,7 +242,7 @@
 
 	cpsw_default: pinmux_cpsw_default {
 		pinctrl-single,pins = <
-			/* Slave 1 */
+			/* Slave 1: eth0 device*/
 			AM33XX_IOPAD(0x90C, PIN_INPUT_PULLDOWN | MUX_MODE1)	/* gmii1_crs.rmii1_crs_dv */
 			AM33XX_IOPAD(0x910, PIN_INPUT_PULLUP | MUX_MODE1)	/* gmii1_rxer.rmii1_rxer */
 			AM33XX_IOPAD(0x914, PIN_OUTPUT_PULLDOWN | MUX_MODE1)	/* gmii1_txen.rmii1_txen */
@@ -256,7 +256,7 @@
 
 	cpsw_sleep: pinmux_cpsw_sleep {
 		pinctrl-single,pins = <
-			/* Slave 1 */
+			/* Slave 1: eth0 device*/
 			AM33XX_IOPAD(0x90C, PIN_INPUT_PULLDOWN | MUX_MODE7)
 			AM33XX_IOPAD(0x910, PIN_INPUT_PULLDOWN | MUX_MODE7)
 			AM33XX_IOPAD(0x914, PIN_INPUT_PULLDOWN | MUX_MODE7)
@@ -515,7 +515,7 @@
 };
 
 &cpsw_emac0 {
-	phy_id = <&davinci_mdio>, <0>;
+	phy_id = <&davinci_mdio>, <1>;
 	phy-mode = "rmii";
 };
 
