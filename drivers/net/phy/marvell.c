@@ -114,7 +114,7 @@
 
 #define MII_88E1121_PHY_LED_CTRL	16
 #define MII_88E1121_PHY_LED_PAGE	3
-#define MII_88E1121_PHY_LED_DEF		0x0030
+#define MII_88E1121_PHY_LED_DEF		0x0063
 
 #define MII_M1011_PHY_STATUS		0x11
 #define MII_M1011_PHY_STATUS_1000	0x8000
@@ -325,7 +325,8 @@ static int m88e1121_config_aneg(struct phy_device *phydev)
 		mscr = phy_read(phydev, MII_88E1121_PHY_MSCR_REG) &
 			MII_88E1121_PHY_MSCR_DELAY_MASK;
 
-		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID)
+		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID \
+			|| PHY_INTERFACE_MODE_RGMII)
 			mscr |= (MII_88E1121_PHY_MSCR_RX_DELAY |
 				 MII_88E1121_PHY_MSCR_TX_DELAY);
 		else if (phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID)
@@ -478,7 +479,8 @@ static int m88e1111_config_init(struct phy_device *phydev)
 		if (temp < 0)
 			return temp;
 
-		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID) {
+		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID \
+			|| PHY_INTERFACE_MODE_RGMII) {
 			temp |= (MII_M1111_RX_DELAY | MII_M1111_TX_DELAY);
 		} else if (phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID) {
 			temp &= ~MII_M1111_TX_DELAY;
@@ -669,7 +671,8 @@ static int m88e1145_config_init(struct phy_device *phydev)
 	if (err < 0)
 		return err;
 
-	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID) {
+	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID \
+		|| PHY_INTERFACE_MODE_RGMII) {
 		int temp = phy_read(phydev, MII_M1145_PHY_EXT_CR);
 		if (temp < 0)
 			return temp;
