@@ -31,6 +31,18 @@
             "Line In",              "LINE1L",
             "Line In",              "LINE1R";
 	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&user_buttons_pins_default>;
+
+		user {
+			label = "User button";
+			gpios = <&gpio3 8 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_HOME>;
+		};
+	};
 };
 
 &am33xx_pinmux {
@@ -48,6 +60,12 @@
 	reset_tlv320_pins: pinmux_reset_tlv320_pins {
 		pinctrl-single,pins = <
 			AM33XX_IOPAD(0x9A0, PIN_OUTPUT_PULLUP | MUX_MODE7 ) /* mcasp0_aclkr.gpio3[18] */
+		>;
+	};
+
+	user_buttons_pins_default: pinmux_user_buttons_pins_default {
+		pinctrl-single,pins = <
+			AM33XX_IOPAD(0x9E8, PIN_INPUT_PULLUP | MUX_MODE7)		/* EMU1.gpio3[8] */
 		>;
 	};
 };
