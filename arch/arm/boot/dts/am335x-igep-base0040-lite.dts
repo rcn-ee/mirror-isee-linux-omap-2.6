@@ -43,20 +43,45 @@
 			linux,code = <KEY_HOME>;
 		};
 	};
+
+	regulators {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		usb_hub_power: fixedregulator@3 {
+			compatible = "regulator-fixed";
+			regulator-name = "usb_hub_power";
+			reg = <1>;
+			gpio = <&gpio0 23 0>;
+		};
+
+		usb_power: fixedregulator@4 {
+			compatible = "regulator-fixed";
+			regulator-name = "usb_power";
+			reg = <2>;
+			gpio = <&tps 0 0>;
+			enable-active-high;
+		};
+	};
+
+	userspace-consumer@0 {
+		compatible = "reg-userspace-consumer";
+		regulator-name = "usb_hub_power";
+		regulator-boot-on;
+		regulator-supplies = "usb_hub_power";
+		usb_hub_power-supply = <&usb_hub_power>;
+	};
+
+	userspace-consumer@1 {
+		compatible = "reg-userspace-consumer";
+		regulator-name = "usb_power";
+		regulator-supplies = "usb_power";
+		usb_power-supply = <&usb_power>;
+	};
 };
 
 &am33xx_pinmux {
-	pinctrl-names = "default";
-	pinctrl-0 = <
-		&hub_pins
-	>;
-
-	hub_pins: pinmux_hub_pins_default {
-		pinctrl-single,pins = <
-			AM33XX_IOPAD(0x824, PIN_OUTPUT_PULLDOWN | MUX_MODE7)	/* gpmc_ad9.gpio0[23] */
-		>;
-	};
-
 	reset_tlv320_pins: pinmux_reset_tlv320_pins {
 		pinctrl-single,pins = <
 			AM33XX_IOPAD(0x9A0, PIN_OUTPUT_PULLUP | MUX_MODE7 ) /* mcasp0_aclkr.gpio3[18] */

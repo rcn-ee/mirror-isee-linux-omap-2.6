@@ -568,6 +568,9 @@
 	interrupt-parent = <&intc>;
 	ti,en-ck32k-xtal;
 
+	gpio-controller;
+	#gpio-cells = <2>;
+
 	vcc1-supply = <&vbat>;
 	vcc2-supply = <&vbat>;
 	vcc3-supply = <&vbat>;
